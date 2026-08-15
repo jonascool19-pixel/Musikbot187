@@ -46,15 +46,19 @@ cp -a "$SRC_DIR/scripts" "$APP_DIR/"
 cp "$SRC_DIR/radiobot.service" "$APP_DIR/"
 cp "$SRC_DIR/musikbot187-metrics.service" "$APP_DIR/"
 cp "$SRC_DIR/musikbot187-metrics.timer" "$APP_DIR/"
-# Defense-in-depth: enforce same-origin CORS and apply the Radio Browser/playlist runtime patch before compiling.
+# Defense-in-depth: same-origin CORS plus radio/setup/playlist patches before compiling.
 sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' "$APP_DIR/backend/src/index.ts"
 python3 "$APP_DIR/patches/enable-radio-features.py"
 python3 "$APP_DIR/patches/fix-radio-feature-patch.py"
+python3 "$APP_DIR/patches/setup-wizard.py"
 if ! grep -q 'radio-enhancements.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' "$APP_DIR/frontend/index.html"; fi
 if ! grep -q 'metrics-panel.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' "$APP_DIR/frontend/index.html"; fi
+if ! grep -q 'setup-wizard.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/setup-wizard.js"></script>#' "$APP_DIR/frontend/index.html"; fi
 if ! id -u radiobot >/dev/null 2>&1; then useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin radiobot; fi
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"; chmod 700 "$DATA_DIR"
-if [[ ! -f "$CONF_DIR/radiobot.env" ]]; then cat > "$CONF_DIR/radiobot.env" <<EOF
+if [[ ! -f "$CONF_DIR/radiobot.env" ]]; then
+  SETUP_TOKEN=$(openssl rand -hex 24)
+  cat > "$CONF_DIR/radiobot.env" <<EOF
 DISCORD_TOKEN=
 PORT=3000
 WEB_USER=admin
@@ -62,9 +66,13 @@ WEB_PASSWORD=$(openssl rand -hex 16)
 DISCORD_CONTROL_ROLE=
 SPOTIFY_CLIENT_ID=
 SPOTIFY_CLIENT_SECRET=
-SPOTIFY_REDIRECT_URI=http://$(hostname -I | awk '{print $1}'):3000/api/spotify/callback
+SPOTIFY_REDIRECT_URI=
+YOUTUBE_API_KEY=
 YTDLP_PATH=/usr/local/bin/yt-dlp
+SETUP_TOKEN=$SETUP_TOKEN
 EOF
+else
+  if ! grep -q '^SETUP_TOKEN=' "$CONF_DIR/radiobot.env"; then echo "SETUP_TOKEN=" >> "$CONF_DIR/radiobot.env"; fi
 fi
 chown root:root "$CONF_DIR/radiobot.env"; chmod 600 "$CONF_DIR/radiobot.env"
 
@@ -74,7 +82,46 @@ npm install --no-audit --no-fund
 npm run build
 npm prune --omit=dev --no-audit --no-fund
 
-echo '[6/10] Root-Updatehelfer einrichten...'
+echo '[6/10] Root-Konfigurations- und Updatehelfer einrichten...'
+cat > /usr/local/sbin/radiobot-configure <<'PYEOF'
+#!/usr/bin/env python3
+import json, os, shlex, subprocess, tempfile
+from pathlib import Path
+CONF=Path('/etc/radiobot/radiobot.env')
+allowed={'DISCORD_TOKEN','WEB_USER','WEB_PASSWORD','PORT','DISCORD_CONTROL_ROLE','SPOTIFY_CLIENT_ID','SPOTIFY_CLIENT_SECRET','SPOTIFY_REDIRECT_URI','YOUTUBE_API_KEY','YTDLP_PATH','SETUP_TOKEN'}
+raw=json.load(__import__('sys').stdin)
+if not isinstance(raw,dict): raise SystemExit('invalid configuration')
+current={}
+if CONF.exists():
+    for line in CONF.read_text().splitlines():
+        if '=' in line and not line.lstrip().startswith('#'):
+            k,v=line.split('=',1); current[k]=v.strip().strip('"').strip("'")
+for key in allowed:
+    if key in raw and raw[key] is not None:
+        value=str(raw[key])
+        if '\n' in value or '\r' in value: raise SystemExit(f'invalid value for {key}')
+        current[key]=value
+if not current.get('DISCORD_TOKEN'): raise SystemExit('DISCORD_TOKEN is required')
+if len(current.get('WEB_PASSWORD','')) < 12: raise SystemExit('WEB_PASSWORD must contain at least 12 characters')
+try:
+    port=int(current.get('PORT','3000'))
+    if not 1 <= port <= 65535: raise ValueError
+    current['PORT']=str(port)
+except ValueError: raise SystemExit('invalid PORT')
+if raw.get('publicUrl') and not current.get('SPOTIFY_REDIRECT_URI'):
+    current['SPOTIFY_REDIRECT_URI']=str(raw['publicUrl']).rstrip('/')+'/api/spotify/callback'
+lines=[f"{k}={shlex.quote(str(current.get(k,'')))}" for k in ['DISCORD_TOKEN','PORT','WEB_USER','WEB_PASSWORD','DISCORD_CONTROL_ROLE','SPOTIFY_CLIENT_ID','SPOTIFY_CLIENT_SECRET','SPOTIFY_REDIRECT_URI','YOUTUBE_API_KEY','YTDLP_PATH','SETUP_TOKEN']]
+CONF.parent.mkdir(mode=0o700,exist_ok=True)
+fd,tmp=tempfile.mkstemp(dir=CONF.parent,prefix='.radiobot.env.',text=True)
+os.fchmod(fd,0o600)
+os.write(fd, ('\n'.join(lines)+'\n').encode())
+os.close(fd)
+os.replace(tmp,CONF)
+os.chown(CONF,0,0)
+subprocess.run(['systemctl','restart','radiobot.service'],check=False)
+PYEOF
+chmod 0755 /usr/local/sbin/radiobot-configure
+chown root:root /usr/local/sbin/radiobot-configure
 cat > /usr/local/sbin/radiobot-update <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -88,10 +135,10 @@ else
   exit "$code"
 fi
 EOF
-chown root:root /usr/local/sbin/radiobot-update
+chown root:root /usr/local/sbin/radiobot-update /usr/local/sbin/radiobot-configure
 chmod 0755 /usr/local/sbin/radiobot-update
 cat > /etc/sudoers.d/radiobot-update <<'EOF'
-radiobot ALL=(root) NOPASSWD: /usr/local/sbin/radiobot-update
+radiobot ALL=(root) NOPASSWD: /usr/local/sbin/radiobot-update, /usr/local/sbin/radiobot-configure
 EOF
 chmod 0440 /etc/sudoers.d/radiobot-update
 visudo -cf /etc/sudoers.d/radiobot-update >/dev/null
@@ -131,15 +178,16 @@ systemctl is-enabled musikbot187-metrics.timer >/dev/null
 
 echo '[10/10] MusikBot187 fertig.'
 IP=$(hostname -I | awk '{print $1}')
+SETUP=$(grep '^SETUP_TOKEN=' "$CONF_DIR/radiobot.env" | cut -d= -f2- || true)
 echo
 echo "Dashboard: http://$IP:3000"
+if [[ -n "$SETUP" ]]; then echo "Ersteinrichtung: http://$IP:3000/?setup=$SETUP"; fi
 echo "Konfiguration: /etc/radiobot/radiobot.env"
 echo "Musik:         /var/lib/radiobot/music"
 echo "Status:        radiobot status"
 echo "Logs:          radiobot logs"
 echo
-echo 'Discord-Token setzen: radiobot config && radiobot restart'
-echo 'Status-Channel in Discord setzen: /statuschannel #dein-channel'
+echo 'Discord-Token, Spotify, YouTube, Web-Passwort und weitere Einstellungen werden nach der Installation im Webinterface eingerichtet.'
 echo 'Laufzeit-Ressource: 500 MB bis 1 GB RAM empfohlen; 768 MB ist der Zielwert.'
 echo 'Radio: Im Dashboard im Bereich Radio nach Sendern suchen und in die Radio-Playlist speichern.'
 echo 'Leistung: Im Dashboard auf Leistung klicken; Netzwerk zeigt Upload/Download und Gesamtvolumen.'
