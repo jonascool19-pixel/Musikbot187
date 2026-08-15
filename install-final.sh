@@ -5,7 +5,7 @@ set -euo pipefail
 # Includes Deno PATH handling, curl diagnostics, Node 24/AF_NETLINK compatibility,
 # privileged setup fixes, setup/configuration field compatibility, browser sessions,
 # and cross-origin request protection.
-PINNED_COMMIT="3302012d7cde33baa73de21c003d7347313b45f8"
+PINNED_COMMIT="960597b825a7720465d34b735c94a5e395c8ce4a"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
