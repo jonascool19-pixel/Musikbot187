@@ -42,23 +42,60 @@ init_new = r'''  function initDrag(){
       drag={kind,id:kind==='tile'?host.dataset.tileId:host.dataset.fieldId,pointerId:e.pointerId,lastKey:''};
       host.classList.add('builder-dragging');
     }
+    function tileAtPoint(x,y){
+      for(const tile of tiles()){
+        if(tile.hidden)continue;
+        const r=tile.getBoundingClientRect();
+        if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom)return tile;
+      }
+      return null;
+    }
+    function fieldAtPoint(x,y){
+      for(const field of document.querySelectorAll('.builder-field')){
+        if(field.hidden)continue;
+        const r=field.getBoundingClientRect();
+        if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom)return field;
+      }
+      return null;
+    }
+    function reorderTile(x,y){
+      const source=document.querySelector(`[data-tile-id="${CSS.escape(drag.id)}"]`);
+      const target=tileAtPoint(x,y);
+      if(!source||!target||source===target)return false;
+      const r=target.getBoundingClientRect();
+      const before=y<r.top+r.height/2;
+      const key=`tile:${target.dataset.tileId}:${before?'before':'after'}`;
+      if(key===drag.lastKey)return true;
+      const parent=target.parentElement;
+      if(before)parent.insertBefore(source,target); else parent.insertBefore(source,target.nextElementSibling);
+      drag.lastKey=key; state.layout.preset='custom';
+      return true;
+    }
+    function reorderField(x,y){
+      const source=document.querySelector(`.builder-field[data-field-id="${CSS.escape(drag.id)}"]`);
+      const targetField=fieldAtPoint(x,y);
+      const targetTile=tiles().find(t=>{const r=t.getBoundingClientRect();return x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom;});
+      const targetZone=targetField?.closest('.builder-field-zone') || targetTile?.querySelector(':scope > .builder-field-zone');
+      if(!source||!targetZone||targetField===source)return false;
+      const anchor=targetField||targetZone; const r=anchor.getBoundingClientRect();
+      const before=Boolean(targetField)&&y<r.top+r.height/2;
+      const key=`field:${targetZone.parentElement?.dataset.tileId||''}:${targetField?.dataset.fieldId||'zone'}:${before?'before':'after'}`;
+      if(key===drag.lastKey)return true;
+      if(targetField&&before)targetZone.insertBefore(source,targetField); else if(targetField)targetZone.insertBefore(source,targetField.nextElementSibling); else targetZone.appendChild(source);
+      drag.lastKey=key; state.layout.preset='custom';
+      return true;
+    }
     function move(e){
       if(!drag||drag.pointerId!==e.pointerId)return;
       e.preventDefault();
-      const under=document.elementFromPoint(e.clientX,e.clientY);
-      if(drag.kind==='tile'){
-        const source=document.querySelector(`[data-tile-id="${CSS.escape(drag.id)}"]`); const target=under?.closest?.('[data-tile-id]'); if(!source||!target||source===target)return;
-        const r=target.getBoundingClientRect(); const before=e.clientY<r.top+r.height/2; const key=`tile:${target.dataset.tileId}:${before?'before':'after'}`; if(key===drag.lastKey)return;
-        const parent=target.parentElement; if(before)parent.insertBefore(source,target); else parent.insertBefore(source,target.nextElementSibling); drag.lastKey=key; state.layout.preset='custom';
-      }else{
-        const source=document.querySelector(`.builder-field[data-field-id="${CSS.escape(drag.id)}"]`); const targetField=under?.closest?.('.builder-field'); const targetZone=under?.closest?.('.builder-field-zone'); if(!source||!targetZone||targetField===source)return;
-        const anchor=targetField||targetZone; const r=anchor.getBoundingClientRect(); const before=Boolean(targetField)&&e.clientY<r.top+r.height/2; const key=`field:${targetZone.parentElement?.dataset.tileId||''}:${targetField?.dataset.fieldId||'zone'}:${before?'before':'after'}`; if(key===drag.lastKey)return;
-        if(targetField&&before)targetZone.insertBefore(source,targetField); else if(targetField)targetZone.insertBefore(source,targetField.nextElementSibling); else targetZone.appendChild(source); drag.lastKey=key; state.layout.preset='custom';
-      }
+      if(drag.kind==='tile')reorderTile(e.clientX,e.clientY); else reorderField(e.clientX,e.clientY);
     }
     async function end(e){
       if(!drag||drag.pointerId!==e.pointerId)return;
-      const current=drag; const host=current.kind==='tile'?document.querySelector(`[data-tile-id="${CSS.escape(current.id)}"]`):document.querySelector(`.builder-field[data-field-id="${CSS.escape(current.id)}"]`);
+      e.preventDefault();
+      const current=drag;
+      if(drag.kind==='tile')reorderTile(e.clientX,e.clientY); else reorderField(e.clientX,e.clientY);
+      const host=current.kind==='tile'?document.querySelector(`[data-tile-id="${CSS.escape(current.id)}"]`):document.querySelector(`.builder-field[data-field-id="${CSS.escape(current.id)}"]`);
       host?.classList.remove('builder-dragging'); drag=null; await saveLayout(true); renderEditor();
     }
     grid.addEventListener('pointerdown',e=>{
@@ -77,10 +114,9 @@ s, n = init_re.subn(init_new, s, count=1)
 if n != 1:
     raise SystemExit('initDrag function not found')
 
-# Do not bind handlers during initial page load. Bind exactly once when the builder is opened.
 s = s.replace(
     "applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>toggle(true);document.querySelector('header .row')?.prepend(btn);initDrag();",
     "applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>{toggle(true);initDrag();};document.querySelector('header .row')?.prepend(btn);"
 )
 UI_JS.write_text(s, encoding='utf-8')
-print('event-delegated pointer drag patch applied')
+print('deterministic pointer drag patch applied')
