@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: d61744fdff13cdaa6b0cb8c6207456cdfaaae386
+          EXPECTED_PIN: 40981681f3902991dad79bbbc1685b9ed7e6de65
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -116,8 +116,8 @@ jobs:
           grep -q 'Benutzer erstellen' /opt/radiobot/frontend/setup-wizard.js
           grep -q '/api/setup/user' /opt/radiobot/frontend/setup-wizard.js
           grep -q 'bootstrapUserOnly' /opt/radiobot/patches/configure-helper-hardening.py
-          grep -q 'bootstrap = bool(raw.get('\''bootstrapUserOnly'\''))' /opt/radiobot/patches/configure-helper-hardening.py
-          grep -q 'not current.get('\''WEB_PASSWORD'\'')' /opt/radiobot/patches/configure-helper-hardening.py
+          grep -q "bootstrap = bool(raw.get('bootstrapUserOnly'))" /opt/radiobot/patches/configure-helper-hardening.py
+          grep -q "not current.get('WEB_PASSWORD')" /opt/radiobot/patches/configure-helper-hardening.py
       - name: Install Chromium for browser test
         run: |
           npm init -y >/dev/null 2>&1
