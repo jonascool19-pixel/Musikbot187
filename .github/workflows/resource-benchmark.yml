@@ -1,0 +1,54 @@
+name: Resource Benchmark
+
+on:
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package.json
+      - name: Install backend
+        working-directory: backend
+        run: npm install --no-audit --no-fund
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+      - name: Start isolated benchmark process
+        env:
+          NODE_OPTIONS: --max-old-space-size=256 --max-semi-space-size=2
+          UV_THREADPOOL_SIZE: 1
+          PORT: 3099
+          APP_ROOT: ${{ github.workspace }}
+          DATA_DIR: ${{ runner.temp }}/radiobot-data
+          WEB_PASSWORD: ''
+        run: |
+          mkdir -p "$DATA_DIR"
+          node backend/dist/index.js > "$RUNNER_TEMP/radiobot.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/radiobot.pid"
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:3099/api/health >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3099/api/health
+      - name: Benchmark process resources
+        env:
+          PID_FILE: ${{ runner.temp }}/radiobot.pid
+          OUT: ${{ runner.temp }}/resource-benchmark.csv
+        run: |
+          PID="$(cat "$PID_FILE")" ./scripts/resource-benchmark.sh 45
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: radiobot-resource-benchmark
+          path: |
+            ${{ runner.temp }}/resource-benchmark.csv
+            ${{ runner.temp }}/radiobot.log
+          if-no-files-found: warn
