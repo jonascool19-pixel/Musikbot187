@@ -1,0 +1,7 @@
+[Unit]
+Description=MusikBot187 system metrics snapshot
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/radiobot/scripts/system-metrics.py
