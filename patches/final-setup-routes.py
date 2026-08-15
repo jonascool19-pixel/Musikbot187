@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 p = Path('/opt/radiobot/backend/src/index.ts')
 s = p.read_text(encoding='utf-8')
 
 if "const SETUP_TOKEN = process.env.SETUP_TOKEN ?? '';" not in s:
-    s = s.replace("const DISCORD_CONTROL_ROLE = process.env.DISCORD_CONTROL_ROLE ?? '';", "const DISCORD_CONTROL_ROLE = process.env.DISCORD_CONTROL_ROLE ?? '';\nconst YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY ?? '';\nconst SETUP_TOKEN = process.env.SETUP_TOKEN ?? '';", 1)
+    s = s.replace(
+        "const DISCORD_CONTROL_ROLE = process.env.DISCORD_CONTROL_ROLE ?? '';",
+        "const DISCORD_CONTROL_ROLE = process.env.DISCORD_CONTROL_ROLE ?? '';\nconst YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY ?? '';\nconst SETUP_TOKEN = process.env.SETUP_TOKEN ?? '';",
+        1,
+    )
 
 route_block = r'''app.get('/api/setup/status', async () => ({
   configured: Boolean(process.env.DISCORD_TOKEN),
@@ -33,8 +38,13 @@ if "app.get('/api/setup/status'" not in s:
         raise SystemExit('health anchor not found')
     s = s.replace(anchor, route_block + "\n" + anchor, 1)
 
-metrics_block = "app.get('/api/metrics', async (_req, reply) => { const file = '/var/lib/radiobot/metrics.json'; if (!fs.existsSync(file)) return reply.send({ ok: true, ts: Date.now(), cpuTotal: 0, cpuIdle: 0, cpuCount: 1, load1: 0, memoryTotal: 0, memoryUsed: 0, diskTotal: 0, diskUsed: 0, networkRx: 0, networkTx: 0 }); try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return reply.send({ ok: true, ts: Date.now(), cpuTotal: 0, cpuIdle: 0, cpuCount: 1, load1: 0, memoryTotal: 0, memoryUsed: 0, diskTotal: 0, diskUsed: 0, networkRx: 0, networkTx: 0, stale: true }); } });"
-if "app.get('/api/metrics'" not in s:
+metrics_block = "app.get('/api/metrics', async (_req, reply) => { const file = '/var/lib/radiobot/metrics.json'; if (!fs.existsSync(file)) return reply.send({ ok: true, ts: Date.now(), cpuTotal: 0, cpuIdle: 0, cpuCount: 1, load1: 0, memoryTotal: 0, memoryUsed: 0, diskTotal: 0, diskUsed: 0, networkRx: 0, networkTx: 0, stale: true }); try { return reply.send(JSON.parse(fs.readFileSync(file, 'utf8'))); } catch { return reply.send({ ok: true, ts: Date.now(), cpuTotal: 0, cpuIdle: 0, cpuCount: 1, load1: 0, memoryTotal: 0, memoryUsed: 0, diskTotal: 0, diskUsed: 0, networkRx: 0, networkTx: 0, stale: true }); } });"
+
+# Replace an existing metrics route regardless of which earlier patch inserted it.
+metrics_match = re.search(r"app\.get\('/api/metrics'.*?\n", s, re.S)
+if metrics_match:
+    s = s[:metrics_match.start()] + metrics_block + "\n" + s[metrics_match.end():]
+elif "app.get('/api/metrics'" not in s:
     anchor = "app.get('/api/health'"
     if anchor not in s:
         raise SystemExit('health anchor not found for metrics route')
