@@ -33,8 +33,6 @@ marker = "const requestBuckets = new Map<string, { start: number; count: number 
 if marker in s and "requestBucketsCleanup" not in s:
     s = s.replace(marker, marker + "\nconst requestBucketsCleanup = setInterval(() => { const cutoff = Date.now() - RATE_WINDOW_MS * 2; for (const [ip, bucket] of requestBuckets) if (bucket.start < cutoff) requestBuckets.delete(ip); }, RATE_WINDOW_MS); requestBucketsCleanup.unref?.();", 1)
 
-p.write_text(s, encoding='utf-8')
-
 ops = ROOT / 'patches/system-ops-cooldown.py'
 if ops.exists():
     subprocess.run(['python3', str(ops)], check=True)
@@ -59,12 +57,11 @@ if service.exists():
         ss = ss.replace('Group=radiobot', 'Group=radiobot\nSupplementaryGroups=radiobot-ops', 1)
     service.write_text(ss, encoding='utf-8')
 
-# Run setup routing last so later hardening/system patches cannot remove the wizard routes.
-final_setup = ROOT / 'patches/final-setup-routes.py'
-if final_setup.exists():
-    subprocess.run(['python3', str(final_setup)], check=True)
-else:
-    raise SystemExit('final-setup-routes.py missing')
+for name in ('final-setup-routes.py', 'final-radio-routes.py'):
+    path = ROOT / 'patches' / name
+    if not path.exists():
+        raise SystemExit(f'{name} missing')
+    subprocess.run(['python3', str(path)], check=True)
 
 subprocess.run(['systemctl', 'daemon-reload'], check=False)
 subprocess.run(['systemctl', 'enable', '--now', 'radiobot-privileged.service'], check=False)
