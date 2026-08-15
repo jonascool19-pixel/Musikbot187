@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: 92231e9ec7f253379bb8e88d9318a940e1c60d21
+          EXPECTED_PIN: 16240e8fe94cd1fca9007fb087800363300ac6ef
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -141,6 +141,28 @@ jobs:
           assert "raw.get('setupToken') != current.get('SETUP_TOKEN')" in helper
           assert 'WEB_USER=' in install and 'WEB_PASSWORD=' in install and 'SETUP_TOKEN=' in install
           print('setup/config semantic checks: OK')
+          PY
+      - name: Verify privileged socket end-to-end wiring
+        run: |
+          sudo groupadd --system radiobot-ops 2>/dev/null || true
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin radiobot 2>/dev/null || true
+          sudo usermod -a -G radiobot-ops radiobot
+          sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-privileged.py /usr/local/libexec/radiobot-privileged.py
+          sudo install -m 0644 /opt/radiobot/radiobot-privileged.service /etc/systemd/system/radiobot-privileged.service
+          sudo systemctl daemon-reload
+          sudo systemctl enable --now radiobot-privileged.service
+          sudo systemctl restart radiobot-privileged.service
+          test -S /run/radiobot-privileged.sock
+          test "$(stat -c '%U:%G' /run/radiobot-privileged.sock)" = 'root:radiobot-ops'
+          sudo -u radiobot /usr/bin/python3 - <<'PY'
+          import socket
+          s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+          s.settimeout(2)
+          s.connect('/run/radiobot-privileged.sock')
+          s.sendall(b'config-write\n{"bootstrapUserOnly":true,"webUser":"ci-test","webPassword":"123456789012","setupToken":"bad"}')
+          out = s.recv(128).decode()
+          assert out == 'ERR config-rejected\n', repr(out)
+          print('privileged socket access: OK')
           PY
       - name: Install Chromium for browser test
         run: |
