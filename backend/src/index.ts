@@ -71,7 +71,6 @@ function getPlayer(guildId: string) {
   }
   return player;
 }
-
 async function ensureVoice(guildId: string) {
   const state = guildState(guildId);
   if (!state.voiceChannelId) throw new Error('Kein Voice-Channel konfiguriert.');
@@ -86,7 +85,6 @@ async function ensureVoice(guildId: string) {
   connections.set(guildId, connection);
   return connection;
 }
-
 async function playNext(guildId: string) {
   const state = guildState(guildId);
   const item = state.queue.shift();
@@ -108,7 +106,6 @@ async function playNext(guildId: string) {
   connection.subscribe(getPlayer(guildId));
   getPlayer(guildId).play(resource);
 }
-
 async function stopGuild(guildId: string) {
   const state = guildState(guildId);
   state.queue = [];
@@ -121,7 +118,6 @@ async function stopGuild(guildId: string) {
   connections.delete(guildId);
   saveJson(DB_FILE, db);
 }
-
 async function spotifyToken(): Promise<string> {
   if (spotify.accessToken && spotify.expiresAt && spotify.expiresAt > Date.now() + 30000) return spotify.accessToken;
   if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET || !spotify.refreshToken) throw new Error('Spotify ist noch nicht verbunden.');
@@ -135,7 +131,6 @@ async function spotifyToken(): Promise<string> {
   saveJson(SPOTIFY_FILE, spotify);
   return spotify.accessToken!;
 }
-
 async function spotifyApi(endpoint: string, init: RequestInit = {}, retry = true): Promise<any> {
   const token = await spotifyToken();
   const headers = new Headers(init.headers);
@@ -147,7 +142,6 @@ async function spotifyApi(endpoint: string, init: RequestInit = {}, retry = true
   if (response.status === 204) return null;
   return response.json();
 }
-
 async function youtubeApi(endpoint: string) {
   if (!YOUTUBE_API_KEY) throw new Error('YouTube ist nicht konfiguriert. YOUTUBE_API_KEY fehlt.');
   const separator = endpoint.includes('?') ? '&' : '?';
@@ -155,31 +149,22 @@ async function youtubeApi(endpoint: string) {
   if (!response.ok) throw new Error(`YouTube API ${response.status}: ${await response.text()}`);
   return response.json();
 }
-
 async function spotifySearch(query: string) {
   if (!spotify.refreshToken) return [];
-  try {
-    const data = await spotifyApi(`/search?${new URLSearchParams({ q: query, type: 'track', limit: '10' })}`);
-    return data.tracks.items.map((track: any) => ({ id: track.id, name: track.name, artist: track.artists.map((a: any) => a.name).join(', '), album: track.album.name, uri: track.uri, url: track.external_urls?.spotify }));
-  } catch { return []; }
+  try { const data = await spotifyApi(`/search?${new URLSearchParams({ q: query, type: 'track', limit: '10' })}`); return data.tracks.items.map((track: any) => ({ id: track.id, name: track.name, artist: track.artists.map((a: any) => a.name).join(', '), album: track.album.name, uri: track.uri, url: track.external_urls?.spotify })); } catch { return []; }
 }
 async function youtubeSearch(query: string) {
   if (!YOUTUBE_API_KEY) return [];
-  try {
-    const data = await youtubeApi(`search?${new URLSearchParams({ part: 'snippet', q: query, type: 'video', maxResults: '10' })}`);
-    return (data.items ?? []).map((item: any) => ({ id: item.id.videoId, name: item.snippet.title, channel: item.snippet.channelTitle, url: `https://www.youtube.com/watch?v=${item.id.videoId}` }));
-  } catch { return []; }
+  try { const data = await youtubeApi(`search?${new URLSearchParams({ part: 'snippet', q: query, type: 'video', maxResults: '10' })}`); return (data.items ?? []).map((item: any) => ({ id: item.id.videoId, name: item.snippet.title, channel: item.snippet.channelTitle, url: `https://www.youtube.com/watch?v=${item.id.videoId}` })); } catch { return []; }
 }
 async function importSpotifyPlaylist(url: string) {
-  const id = spotifyPlaylistId(url);
-  if (!id) throw new Error('Ungültige Spotify-Playlist-URL.');
+  const id = spotifyPlaylistId(url); if (!id) throw new Error('Ungültige Spotify-Playlist-URL.');
   const data = await spotifyApi(`/playlists/${id}?${new URLSearchParams({ fields: 'id,name,external_urls,tracks.items(track(id,name,uri,artists(name)))' })}`);
   const items = (data.tracks?.items ?? []).filter((x: any) => x.track?.uri).map((x: any) => ({ kind: 'spotify' as const, value: x.track.uri, label: `${x.track.artists?.map((a: any) => a.name).join(', ')} - ${x.track.name}` }));
   return { id: data.id, name: data.name, items };
 }
 async function importYoutubePlaylist(url: string) {
-  const id = youtubePlaylistId(url);
-  if (!id) throw new Error('Keine YouTube-Playlist erkannt.');
+  const id = youtubePlaylistId(url); if (!id) throw new Error('Keine YouTube-Playlist erkannt.');
   const data = await youtubeApi(`playlistItems?${new URLSearchParams({ part: 'snippet,contentDetails', playlistId: id, maxResults: '50' })}`);
   const items = (data.items ?? []).filter((x: any) => x.contentDetails?.videoId).map((x: any) => ({ kind: 'youtube' as const, value: `https://www.youtube.com/watch?v=${x.contentDetails.videoId}`, label: x.snippet?.title ?? x.contentDetails.videoId }));
   return { id, name: data.items?.[0]?.snippet?.playlistTitle ?? `YouTube ${id}`, items };
@@ -201,7 +186,7 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === 'stop') { await stopGuild(interaction.guildId); return void interaction.reply('⏹️ Gestoppt.'); }
     if (interaction.commandName === 'skip') { getPlayer(interaction.guildId).stop(true); return void interaction.reply('⏭️ Übersprungen.'); }
     if (interaction.commandName === 'volume') { state.volume = interaction.options.getInteger('percent', true); saveJson(DB_FILE, db); return void interaction.reply(`🔊 Lautstärke: ${state.volume}%`); }
-    if (interaction.commandName === 'radio') { const name = interaction.options.getString('name', true); const radio = db.radios.find(item => item.name.toLowerCase() === name.toLowerCase()); if (!radio) return void interaction.reply('Sender nicht gefunden.'); state.queue = [{ kind: 'radio', value: radio.url, label: radio.name }]; saveJson(DB_FILE, db); await playNext(interaction.guildId); return void interaction.reply(`📻 ${radio.name}`); }
+    if (interaction.commandName === 'radio') { const name = interaction.options.getString('name', true); const radio = db.radios.find(item => item.name.toLowerCase() === name.toLowerCase()); if (!radio) return void interaction.reply('Sender nicht gefunden.'); await stopGuild(interaction.guildId); state.queue = [{ kind: 'radio', value: radio.url, label: radio.name }]; saveJson(DB_FILE, db); await playNext(interaction.guildId); return void interaction.reply(`📻 ${radio.name}`); }
   } catch (error) { console.error(error); if (!interaction.replied) await interaction.reply(`Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`); }
 });
 
@@ -209,7 +194,6 @@ const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
 await app.register(fastifyStatic, { root: path.join(APP_ROOT, 'frontend'), prefix: '/', index: ['index.html'] });
 app.addHook('preHandler', async (req, reply) => { if (req.url.startsWith('/api/') && !req.url.startsWith('/api/spotify/callback') && !auth(req, reply)) return reply; });
-
 app.get('/api/health', async () => ({ ok: true, discord: client.isReady(), version: '1.1.0', youtube: Boolean(YOUTUBE_API_KEY), spotify: Boolean(spotify.refreshToken) }));
 app.get('/api/guilds', async () => client.guilds.cache.map(guild => ({ id: guild.id, name: guild.name })));
 app.get<{ Params: { id: string } }>('/api/guilds/:id/channels', async req => { const guild = await client.guilds.fetch(req.params.id); return guild.channels.cache.filter(channel => channel.type === ChannelType.GuildVoice).map(channel => ({ id: channel.id, name: channel.name })); });
@@ -219,8 +203,8 @@ app.delete<{ Params: { id: string } }>('/api/radios/:id', async req => { db.radi
 app.get('/api/media', async () => fs.readdirSync(MUSIC_DIR).filter(file => /\.(mp3|wav|ogg|flac|m4a)$/i.test(file)).sort());
 app.get<{ Params: { id: string } }>('/api/state/:id', async req => guildState(req.params.id));
 app.post<{ Params: { id: string }; Body: { voiceChannelId: string } }>('/api/state/:id/voice', async req => { const state = guildState(req.params.id); state.voiceChannelId = req.body.voiceChannelId; saveJson(DB_FILE, db); await ensureVoice(req.params.id); return state; });
-app.post<{ Params: { id: string }; Body: { radioId: string; append?: boolean } }>('/api/state/:id/radio', async req => { const state = guildState(req.params.id); const radio = db.radios.find(item => item.id === req.body.radioId); if (!radio) throw new Error('Radio nicht gefunden.'); const item = { kind: 'radio' as const, value: radio.url, label: radio.name }; if (req.body.append) state.queue.push(item); else state.queue = [item]; saveJson(DB_FILE, db); if (!state.playing) await playNext(req.params.id); return state; });
-app.post<{ Params: { id: string }; Body: { file: string; append?: boolean } }>('/api/state/:id/file', async req => { const state = guildState(req.params.id); const file = mediaPath(req.body.file); if (!fs.existsSync(file)) throw new Error('Datei nicht gefunden.'); const item = { kind: 'file' as const, value: req.body.file, label: req.body.file }; if (req.body.append) state.queue.push(item); else state.queue = [item]; saveJson(DB_FILE, db); if (!state.playing) await playNext(req.params.id); return state; });
+app.post<{ Params: { id: string }; Body: { radioId: string; append?: boolean } }>('/api/state/:id/radio', async req => { const state = guildState(req.params.id); const radio = db.radios.find(item => item.id === req.body.radioId); if (!radio) throw new Error('Radio nicht gefunden.'); const item = { kind: 'radio' as const, value: radio.url, label: radio.name }; if (!req.body.append) { await stopGuild(req.params.id); state.queue = [item]; } else state.queue.push(item); saveJson(DB_FILE, db); if (!state.playing) await playNext(req.params.id); return state; });
+app.post<{ Params: { id: string }; Body: { file: string; append?: boolean } }>('/api/state/:id/file', async req => { const state = guildState(req.params.id); const file = mediaPath(req.body.file); if (!fs.existsSync(file)) throw new Error('Datei nicht gefunden.'); const item = { kind: 'file' as const, value: req.body.file, label: req.body.file }; if (!req.body.append) { await stopGuild(req.params.id); state.queue = [item]; } else state.queue.push(item); saveJson(DB_FILE, db); if (!state.playing) await playNext(req.params.id); return state; });
 app.post<{ Params: { id: string } }>('/api/state/:id/stop', async req => { await stopGuild(req.params.id); return guildState(req.params.id); });
 app.post<{ Params: { id: string } }>('/api/state/:id/skip', async req => { getPlayer(req.params.id).stop(true); return guildState(req.params.id); });
 app.post<{ Params: { id: string } }>('/api/state/:id/pause', async req => { const state = guildState(req.params.id); if (state.paused) { getPlayer(req.params.id).unpause(); state.paused = false; } else { getPlayer(req.params.id).pause(); state.paused = true; } saveJson(DB_FILE, db); return state; });
@@ -234,24 +218,8 @@ app.post<{ Body: { name: string; kind?: Playlist['kind']; items?: PlaylistItem[]
 app.delete<{ Params: { id: string } }>('/api/playlists/:id', async req => { db.playlists = db.playlists.filter(item => item.id !== req.params.id); saveJson(DB_FILE, db); return { ok: true }; });
 app.post<{ Params: { id: string }; Body: { item: PlaylistItem } }>('/api/playlists/:id/items', async req => { const playlist = db.playlists.find(item => item.id === req.params.id); if (!playlist) throw new Error('Playlist nicht gefunden.'); playlist.items.push(req.body.item); saveJson(DB_FILE, db); return playlist; });
 app.delete<{ Params: { id: string; index: string } }>('/api/playlists/:id/items/:index', async req => { const playlist = db.playlists.find(item => item.id === req.params.id); if (!playlist) throw new Error('Playlist nicht gefunden.'); playlist.items.splice(Number(req.params.index), 1); saveJson(DB_FILE, db); return playlist; });
-app.post<{ Params: { id: string; guildId: string } }>('/api/playlists/:id/play/:guildId', async req => {
-  const playlist = db.playlists.find(item => item.id === req.params.id); if (!playlist) throw new Error('Playlist nicht gefunden.');
-  if (playlist.items.some(item => item.kind === 'spotify')) throw new Error('Spotify-Playlisten werden über ein Spotify-Gerät abgespielt, nicht in Discord.');
-  if (playlist.items.some(item => item.kind === 'youtube')) throw new Error('YouTube-Playlisten werden im Web/YouTube abgespielt, nicht als Discord-Stream.');
-  const state = guildState(req.params.guildId);
-  state.queue = playlist.items.map(item => item.kind === 'file' ? { kind: 'file', value: item.value, label: item.label } : { kind: 'radio', value: item.value, label: item.label });
-  saveJson(DB_FILE, db); if (!state.playing) await playNext(req.params.guildId); return state;
-});
-
-app.get<{ Querystring: { q?: string } }>('/api/search', async req => {
-  const q = String(req.query.q ?? '').trim();
-  if (!q) return { local: [], radios: [], spotify: [], youtube: [] };
-  const needle = q.toLowerCase();
-  const local = fs.readdirSync(MUSIC_DIR).filter(file => /\.(mp3|wav|ogg|flac|m4a)$/i.test(file) && file.toLowerCase().includes(needle)).slice(0, 25).map(file => ({ file }));
-  const radios = db.radios.filter(radio => `${radio.name} ${radio.url}`.toLowerCase().includes(needle)).slice(0, 25);
-  const [spotifyResults, youtubeResults] = await Promise.all([spotifySearch(q), youtubeSearch(q)]);
-  return { local, radios, spotify: spotifyResults, youtube: youtubeResults };
-});
+app.post<{ Params: { id: string; guildId: string } }>('/api/playlists/:id/play/:guildId', async req => { const playlist = db.playlists.find(item => item.id === req.params.id); if (!playlist) throw new Error('Playlist nicht gefunden.'); if (playlist.items.some(item => item.kind === 'spotify')) throw new Error('Spotify-Playlisten werden über ein Spotify-Gerät abgespielt, nicht in Discord.'); if (playlist.items.some(item => item.kind === 'youtube')) throw new Error('YouTube-Playlisten werden im Web/YouTube abgespielt, nicht als Discord-Stream.'); const state = guildState(req.params.guildId); await stopGuild(req.params.guildId); state.queue = playlist.items.map(item => item.kind === 'file' ? { kind: 'file', value: item.value, label: item.label } : { kind: 'radio', value: item.value, label: item.label }); saveJson(DB_FILE, db); if (!state.playing) await playNext(req.params.guildId); return state; });
+app.get<{ Querystring: { q?: string } }>('/api/search', async req => { const q = String(req.query.q ?? '').trim(); if (!q) return { local: [], radios: [], spotify: [], youtube: [] }; const needle = q.toLowerCase(); const local = fs.readdirSync(MUSIC_DIR).filter(file => /\.(mp3|wav|ogg|flac|m4a)$/i.test(file) && file.toLowerCase().includes(needle)).slice(0, 25).map(file => ({ file })); const radios = db.radios.filter(radio => `${radio.name} ${radio.url}`.toLowerCase().includes(needle)).slice(0, 25); const [spotifyResults, youtubeResults] = await Promise.all([spotifySearch(q), youtubeSearch(q)]); return { local, radios, spotify: spotifyResults, youtube: youtubeResults }; });
 
 app.get('/api/spotify/status', async () => ({ configured: Boolean(SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET && SPOTIFY_REDIRECT_URI), connected: Boolean(spotify.refreshToken), displayName: spotify.displayName ?? null, product: spotify.product ?? null }));
 app.get('/api/spotify/login', async (_req, reply) => { if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET || !SPOTIFY_REDIRECT_URI) return reply.code(400).send('Spotify-Konfiguration fehlt'); spotifyOAuthState = crypto.randomBytes(18).toString('hex'); const query = new URLSearchParams({ response_type: 'code', client_id: SPOTIFY_CLIENT_ID, redirect_uri: SPOTIFY_REDIRECT_URI, scope: 'user-read-playback-state user-modify-playback-state playlist-read-private playlist-read-collaborative', state: spotifyOAuthState }); return reply.redirect(`https://accounts.spotify.com/authorize?${query}`); });
@@ -264,7 +232,6 @@ app.post('/api/spotify/next', async () => { await spotifyApi('/me/player/next', 
 app.get('/api/spotify/current', async () => { try { const data = await spotifyApi('/me/player'); return data ? { playing: data.is_playing, track: data.item ? { name: data.item.name, artist: data.item.artists?.map((a: any) => a.name).join(', '), url: data.item.external_urls?.spotify } : null, device: data.device?.name ?? null } : { playing: false, track: null, device: null }; } catch { return { playing: false, track: null, device: null }; } });
 app.post<{ Body: { url: string; name?: string } }>('/api/spotify/import-playlist', async req => { const imported = await importSpotifyPlaylist(req.body.url); const playlist: Playlist = { id: makeId(), name: req.body.name?.trim() || imported.name, kind: 'spotify', items: imported.items }; db.playlists.push(playlist); saveJson(DB_FILE, db); return playlist; });
 app.post<{ Params: { id: string } }>('/api/spotify/play-playlist/:id', async req => { const playlist = db.playlists.find(item => item.id === req.params.id && item.kind === 'spotify'); if (!playlist) throw new Error('Spotify-Playlist nicht gefunden.'); const deviceData = await spotifyApi('/me/player/devices'); const device = deviceData.devices.find((item: any) => item.is_active) ?? deviceData.devices[0]; if (!device) throw new Error('Kein Spotify-Gerät aktiv.'); await spotifyApi(`/me/player/play?device_id=${encodeURIComponent(device.id)}`, { method: 'PUT', body: JSON.stringify({ uris: playlist.items.map(item => item.value) }) }); return { ok: true, device: device.name }; });
-
 app.get('/api/youtube/status', async () => ({ configured: Boolean(YOUTUBE_API_KEY) }));
 app.get<{ Querystring: { q?: string } }>('/api/youtube/search', async req => ({ items: await youtubeSearch(String(req.query.q ?? '')) }));
 app.post<{ Body: { url: string; name?: string } }>('/api/youtube/import-playlist', async req => { const imported = await importYoutubePlaylist(req.body.url); const playlist: Playlist = { id: makeId(), name: req.body.name?.trim() || imported.name, kind: 'youtube', items: imported.items }; db.playlists.push(playlist); saveJson(DB_FILE, db); return playlist; });
