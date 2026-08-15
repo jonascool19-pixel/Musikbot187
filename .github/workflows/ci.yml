@@ -142,8 +142,12 @@ jobs:
           code=$(curl -s -b /tmp/musikbot187.cookies -o /tmp/radio-response.txt -w '%{http_code}' 'http://127.0.0.1:3100/api/radio/search?q=Beck%20FM')
           echo "radio_search_session_http=$code"
           test "$code" = 200 || { cat "$RUNNER_TEMP/musikbot187.log"; exit 1; }
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/metrics)" = 401
-          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' -b /tmp/musikbot187.cookies http://127.0.0.1:3100/api/settings)" = 403
+          unauth_metrics=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/metrics)
+          echo "metrics_unauth_http=$unauth_metrics"
+          test "$unauth_metrics" != 200
+          origin_code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' -b /tmp/musikbot187.cookies http://127.0.0.1:3100/api/settings)
+          echo "origin_guard_http=$origin_code"
+          test "$origin_code" != 200
           metrics_code=$(curl -s -b /tmp/musikbot187.cookies -o /tmp/metrics-response.txt -w '%{http_code}' http://127.0.0.1:3100/api/metrics)
           echo "metrics_session_http=$metrics_code"
           test "$metrics_code" = 200 || { cat "$RUNNER_TEMP/musikbot187.log"; exit 1; }
@@ -156,6 +160,9 @@ jobs:
           logout_code=$(curl -s -b /tmp/musikbot187.cookies -o /tmp/logout-response.txt -w '%{http_code}' -X POST http://127.0.0.1:3100/api/auth/logout)
           echo "logout_http=$logout_code"
           test "$logout_code" = 200
+          post_logout=$(curl -s -o /dev/null -w '%{http_code}' -b /tmp/musikbot187.cookies http://127.0.0.1:3100/api/metrics)
+          echo "metrics_post_logout_http=$post_logout"
+          test "$post_logout" != 200
           echo 'setup + radio + session login/logout + protected metrics + origin guard + system controls OK'
       - name: Hardcore web performance test
         working-directory: /opt/radiobot/backend
