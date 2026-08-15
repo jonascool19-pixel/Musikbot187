@@ -94,6 +94,10 @@ jobs:
           if ! id -u radiobot >/dev/null 2>&1; then
             sudo useradd --system --no-create-home --shell /usr/sbin/nologin radiobot
           fi
+          if ! getent group radiobot-ops >/dev/null 2>&1; then
+            sudo groupadd --system radiobot-ops
+          fi
+          sudo usermod -a -G radiobot-ops radiobot
           sudo install -d -m 0755 -o root -g root /usr/local/libexec/radiobot
           sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-privileged.py /usr/local/libexec/radiobot/radiobot-privileged.py
           sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-configure.py /usr/local/sbin/radiobot-configure
@@ -102,9 +106,17 @@ jobs:
           printf '%s\n' 'DISCORD_TOKEN=' 'PORT=3000' 'WEB_USER=' 'WEB_PASSWORD=' 'DISCORD_CONTROL_ROLE=' 'SPOTIFY_CLIENT_ID=' 'SPOTIFY_CLIENT_SECRET=' 'SPOTIFY_REDIRECT_URI=' 'YOUTUBE_API_KEY=' 'YTDLP_PATH=/usr/local/bin/yt-dlp' 'SETUP_TOKEN=ci-test-token' | sudo tee /etc/radiobot/radiobot.env >/dev/null
           sudo chmod 0600 /etc/radiobot/radiobot.env
           sudo systemctl daemon-reload
-          sudo systemctl restart radiobot-privileged.service
+          if ! sudo systemctl restart radiobot-privileged.service; then
+            sudo systemctl --no-pager --full status radiobot-privileged.service || true
+            sudo journalctl -u radiobot-privileged.service -n 80 --no-pager || true
+            sudo /usr/bin/python3 -u /usr/local/libexec/radiobot/radiobot-privileged.py >/tmp/radiobot-privileged-direct.log 2>&1 & echo $! >/tmp/radiobot-privileged.pid
+            sleep 1
+            sudo cat /tmp/radiobot-privileged-direct.log || true
+            sudo kill "$(cat /tmp/radiobot-privileged.pid)" 2>/dev/null || true
+            exit 1
+          fi
           test -S /run/radiobot-privileged.sock
-          test "$(stat -c '%U:%G' /run/radiobot-privileged.sock)" = 'root:radiobot'
+          test "$(stat -c '%U:%G' /run/radiobot-privileged.sock)" = 'root:radiobot-ops'
           sudo -u radiobot python3 -c 'import socket,json; p=json.dumps({"bootstrapUserOnly":True,"webUser":"ci-test","webPassword":"123456789012","setupToken":"ci-test-token"},separators=(",",":")); s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(3); s.connect("/run/radiobot-privileged.sock"); s.sendall(("config-write\\n"+p).encode()); assert s.recv(128)==b"OK\\n"'
           sudo grep -q '^WEB_USER=ci-test$' /etc/radiobot/radiobot.env
           sudo grep -q '^WEB_PASSWORD=123456789012$' /etc/radiobot/radiobot.env
