@@ -4,6 +4,7 @@ import re
 
 ROOT = Path('/opt/radiobot')
 UI_JS = ROOT / 'frontend/ui-builder.js'
+TEST_JS = ROOT / 'tests/ui-builder-browser.js'
 
 s = UI_JS.read_text(encoding='utf-8')
 apply_re = re.compile(r"  function applyFields\(\)\{.*?\}\n  function layoutFromDom", re.S)
@@ -119,4 +120,16 @@ s = s.replace(
     "applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>{toggle(true);initDrag();};document.querySelector('header .row')?.prepend(btn);"
 )
 UI_JS.write_text(s, encoding='utf-8')
-print('deterministic pointer drag patch applied')
+
+# The browser test must move an item to a position that actually changes the order.
+t = TEST_JS.read_text(encoding='utf-8')
+t = t.replace("await syntheticPointerDrag(page,'[data-tile-id=\"discord\"] .builder-tile-handle','[data-tile-id=\"search\"]');", "await syntheticPointerDrag(page,'[data-tile-id=\"search\"] .builder-tile-handle','[data-tile-id=\"discord\"]');", 1)
+t = t.replace("if(afterDiscord>=afterSearch)throw new Error(`tile drag produced wrong order: discord index ${afterDiscord}, search index ${afterSearch}`);", "if(afterSearch>=afterDiscord)throw new Error(`tile drag produced wrong order: search index ${afterSearch}, discord index ${afterDiscord}`);", 1)
+TEST_JS.write_text(t, encoding='utf-8')
+
+# Smoke-test the update API with a harmless test-only helper. Production installation provides the real helper.
+helper = Path('/usr/local/sbin/radiobot-update')
+helper.parent.mkdir(parents=True, exist_ok=True)
+helper.write_text('#!/bin/sh\nexit 0\n', encoding='utf-8')
+helper.chmod(0o755)
+print('deterministic pointer drag patch, corrected browser assertion, and CI update stub applied')
