@@ -19,13 +19,12 @@ jobs:
       - name: Syntax checks
         run: |
           bash -n install.sh update.sh
-          python3 -m py_compile patches/ui-builder.py
+          python3 -m py_compile patches/*.py scripts/*.py
           node --check frontend/ui-builder.js
       - name: Verify pinned release ref
         run: |
           grep -q '^RELEASE_REF=v2.1.0$' install.sh
           grep -Fq 'refs/heads/$RELEASE_REF' install.sh
-          grep -Fq 'RELEASE_REF=v2.1.0' install.sh
           grep -Fq 'refs/heads/${RELEASE_REF}' install.sh
       - name: Prepare patched tree
         run: |
@@ -39,6 +38,12 @@ jobs:
           sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
           sudo python3 /opt/radiobot/patches/setup-wizard.py
           sudo python3 /opt/radiobot/patches/ui-builder.py
+          sudo python3 /opt/radiobot/patches/final-hardening.py
+          sudo python3 /opt/radiobot/patches/security-final.py
+          sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' /opt/radiobot/frontend/index.html
+          sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' /opt/radiobot/frontend/index.html
+          sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/setup-wizard.js"></script>#' /opt/radiobot/frontend/index.html
+          sudo sed -i 's#</body>#<script src="/system-controls.js"></script></body>#' /opt/radiobot/frontend/index.html
       - name: Build backend
         working-directory: /opt/radiobot/backend
         run: |
@@ -52,5 +57,8 @@ jobs:
           grep -q 'data-tile-id="queue"' /opt/radiobot/frontend/index.html
           grep -q '/api/ui/layout' /opt/radiobot/backend/src/index.ts
           grep -q 'UI_LAYOUT_FILE' /opt/radiobot/backend/src/index.ts
+          grep -q 'botEnabled' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/system/reboot' /opt/radiobot/backend/src/index.ts
+          grep -q 'DISCORD_COOLDOWN_MS' /opt/radiobot/backend/src/index.ts
           test -s frontend/ui-builder.js
           test -s frontend/ui-builder.css
