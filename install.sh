@@ -27,8 +27,6 @@ install -d -m 0755 /usr/local/bin
 curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
 chmod 0755 /usr/local/bin/yt-dlp
 
-# Deno is needed by yt-dlp for some YouTube extraction paths. Install it once,
-# then normalize the resulting executable without ever linking a path to itself.
 DENO_HOME=/usr/local/lib/deno
 DENO_BIN="$DENO_HOME/bin/deno"
 install -d -m 0755 "$DENO_HOME"
@@ -36,31 +34,19 @@ if [[ ! -x "$DENO_BIN" && ! -x /usr/local/bin/deno && ! -x "$HOME/.deno/bin/deno
   echo 'Deno wird systemweit installiert...'
   DENO_INSTALL="$DENO_HOME" curl -fsSL https://deno.land/install.sh | sh
 fi
-
-if [[ -d /usr/local/bin/deno && ! -L /usr/local/bin/deno ]]; then
-  rm -rf /usr/local/bin/deno
-fi
+if [[ -d /usr/local/bin/deno && ! -L /usr/local/bin/deno ]]; then rm -rf /usr/local/bin/deno; fi
 if [[ -L /usr/local/bin/deno ]]; then
   target="$(readlink -f /usr/local/bin/deno 2>/dev/null || true)"
-  if [[ "$target" == "/usr/local/bin/deno" || -z "$target" ]]; then
-    rm -f /usr/local/bin/deno
-  fi
+  if [[ "$target" == "/usr/local/bin/deno" || -z "$target" ]]; then rm -f /usr/local/bin/deno; fi
 fi
 if [[ -x "$DENO_BIN" ]]; then
   ln -sfn "$DENO_BIN" /usr/local/bin/deno
 elif [[ -x "$HOME/.deno/bin/deno" ]]; then
   ln -sfn "$HOME/.deno/bin/deno" /usr/local/bin/deno
 fi
-
 export PATH="/usr/local/bin:$DENO_HOME/bin:${HOME}/.deno/bin:${PATH}"
 hash -r
-
-if ! command -v deno >/dev/null 2>&1; then
-  echo 'Deno konnte nicht eingerichtet werden.' >&2
-  echo "PATH: $PATH" >&2
-  exit 1
-fi
-
+if ! command -v deno >/dev/null 2>&1; then echo 'Deno konnte nicht eingerichtet werden.' >&2; echo "PATH: $PATH" >&2; exit 1; fi
 test -x "$(command -v deno)"
 yt-dlp --version
 deno --version | head -n1
@@ -122,7 +108,7 @@ chown root:root "$CONF_DIR/radiobot.env"; chmod 600 "$CONF_DIR/radiobot.env"
 
 echo '[5/10] Backend bauen...'
 cd "$APP_DIR/backend"
-npm install --no-audit --no-fund
+npm install --include=dev --no-audit --no-fund
 npm run build
 npm prune --omit=dev --no-audit --no-fund
 
