@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 RELEASE_REF=v2.1.0
-PINNED_COMMIT=d250e3b274355cca7895fb7cb2f372b83648c9bf
+PINNED_COMMIT=a0cf1b172108f65f3753eaa7b2dd9e4b7253ec19
 REPO=jonascool19-pixel/radiobot
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
