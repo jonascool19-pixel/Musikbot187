@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: b3147c72c1a04ed78d2e18481eb7ee36d1992577
+          EXPECTED_PIN: 3f0f75291e4515d4793656a0ef9f14698cac2081
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -115,6 +115,7 @@ jobs:
           grep -q 'config-write' /opt/radiobot/scripts/radiobot-privileged.py
           grep -q 'Benutzer erstellen' /opt/radiobot/frontend/setup-wizard.js
           grep -q '/api/setup/user' /opt/radiobot/frontend/setup-wizard.js
+          grep -q 'bootstrap_user_only' /opt/radiobot/install.sh
       - name: Install Chromium for browser test
         run: |
           npm init -y >/dev/null 2>&1
