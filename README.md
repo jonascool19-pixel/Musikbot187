@@ -1,23 +1,23 @@
 # RadioBot
 
-Sauber neu aufgebauter Musikbot mit einer gemeinsamen Weboberfläche für Discord und TeamSpeak 3.
+RadioBot ist ein sauber neu aufgebauter Musikbot mit gemeinsamer Weboberfläche für Discord und TeamSpeak 3.
 
-## Enthalten
+## Funktionen
 
-- Ersteinrichtung ohne Login-Zwang: zuerst Administrator-Benutzer anlegen, danach anmelden.
+- Ersteinrichtung: zuerst Administrator-Benutzer erstellen, danach anmelden.
 - Farblich markierter Setup-Assistent.
 - Discord- und TeamSpeak-3-Instanzen im selben Dashboard.
-- Instanzwechsel oben im Dashboard; Steuerbefehle gehen an die aktive Instanz.
+- Wechsel der aktiven Instanz im Dashboard.
 - Play, Queue, Pause, Resume, Skip, Stop und Lautstärke.
 - Playlists.
 - Radio-Suche über Radio Browser.
-- YouTube-Suche/Wiedergabe über yt-dlp + ffmpeg.
-- Spotify-Suche mit Client-Credentials und Auflösung der Titel über die normale Mediensuche.
-- UI-Baukasten per Drag & Drop mit persistierter Kachelreihenfolge.
-- Ein einziger normaler `radiobot`-Dienstbenutzer; kein privilegierter Unix-Socket und keine Patch-Kette.
-- CPU-/RAM-Limits über systemd.
-- Reproduzierbarer Installer für Ubuntu mit `apt update`, `apt upgrade`, Node 24, Deno und yt-dlp.
-- Reproduzierbarer CI-Smoke-Test und Ressourcenbenchmark.
+- YouTube-Suche und Wiedergabe über yt-dlp + ffmpeg.
+- Spotify-Suche mit Client-Credentials und anschließender Mediensuche.
+- Drag-&-Drop-UI-Baukasten mit gespeicherter Kachelreihenfolge.
+- Ein normaler `radiobot`-Dienstbenutzer; kein privilegierter Socket und keine Patch-Kette.
+- systemd CPU-/RAM-Limits.
+- Ubuntu-Installer mit `apt update`, `apt upgrade`, Node 24, Deno und yt-dlp.
+- CI-Smoke-Test und Ressourcenbenchmarks.
 
 ## Installation
 
@@ -25,12 +25,14 @@ Sauber neu aufgebauter Musikbot mit einer gemeinsamen Weboberfläche für Discor
 sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-final.sh | sudo bash
 ```
 
-Nach der Installation die angezeigte Adresse öffnen. Zuerst den Administrator erstellen, anschließend Discord/TS3/Spotify konfigurieren.
+Danach die angezeigte Dashboard-Adresse öffnen. Erst den Administrator anlegen, anmelden und anschließend Discord/TS3/Spotify konfigurieren.
 
 ## Betrieb
 
 ```bash
 sudo systemctl status radiobot
 sudo journalctl -u radiobot -f
-sudo bash /opt/radiobot/../update.sh
+sudo radiobot-update
 ```
+
+Die Konfiguration liegt unter `/var/lib/radiobot/config.json` und wird bei einer Neuinstallation nicht überschrieben.
