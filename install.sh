@@ -50,6 +50,7 @@ sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, {
 python3 "$APP_DIR/patches/enable-radio-features.py"
 python3 "$APP_DIR/patches/fix-radio-feature-patch.py"
 python3 "$APP_DIR/patches/setup-wizard.py"
+python3 "$APP_DIR/patches/final-hardening.py"
 if ! grep -q 'radio-enhancements.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' "$APP_DIR/frontend/index.html"; fi
 if ! grep -q 'metrics-panel.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' "$APP_DIR/frontend/index.html"; fi
 if ! grep -q 'setup-wizard.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/setup-wizard.js"></script>#' "$APP_DIR/frontend/index.html"; fi
@@ -84,7 +85,7 @@ npm prune --omit=dev --no-audit --no-fund
 echo '[6/10] Root-Konfigurations- und Updatehelfer einrichten...'
 cat > /usr/local/sbin/radiobot-configure <<'PYEOF'
 #!/usr/bin/env python3
-import json, os, shlex, subprocess, tempfile, sys
+import json, shlex, subprocess, tempfile, sys
 from pathlib import Path
 CONF=Path('/etc/radiobot/radiobot.env')
 allowed={'DISCORD_TOKEN','WEB_USER','WEB_PASSWORD','PORT','DISCORD_CONTROL_ROLE','SPOTIFY_CLIENT_ID','SPOTIFY_CLIENT_SECRET','SPOTIFY_REDIRECT_URI','YOUTUBE_API_KEY','YTDLP_PATH','SETUP_TOKEN'}
@@ -99,6 +100,8 @@ for key in allowed:
     if key in raw and raw[key] is not None:
         value=str(raw[key])
         if '\n' in value or '\r' in value: raise SystemExit(f'invalid value for {key}')
+        if key in {'WEB_PASSWORD','SPOTIFY_CLIENT_SECRET','YOUTUBE_API_KEY','DISCORD_TOKEN'} and value == '' and current.get(key):
+            continue
         current[key]=value
 if not current.get('DISCORD_TOKEN'): raise SystemExit('DISCORD_TOKEN is required')
 if len(current.get('WEB_PASSWORD','')) < 12: raise SystemExit('WEB_PASSWORD must contain at least 12 characters')
@@ -112,6 +115,7 @@ if raw.get('publicUrl') and not current.get('SPOTIFY_REDIRECT_URI'):
 lines=[f"{k}={shlex.quote(str(current.get(k,'')))}" for k in ['DISCORD_TOKEN','PORT','WEB_USER','WEB_PASSWORD','DISCORD_CONTROL_ROLE','SPOTIFY_CLIENT_ID','SPOTIFY_CLIENT_SECRET','SPOTIFY_REDIRECT_URI','YOUTUBE_API_KEY','YTDLP_PATH','SETUP_TOKEN']]
 CONF.parent.mkdir(mode=0o700,exist_ok=True)
 fd,tmp=tempfile.mkstemp(dir=CONF.parent,prefix='.radiobot.env.',text=True)
+import os
 os.fchmod(fd,0o600)
 os.write(fd, ('\n'.join(lines)+'\n').encode())
 os.close(fd)
@@ -121,9 +125,12 @@ subprocess.run(['systemctl','restart','radiobot.service'],check=False)
 PYEOF
 chmod 0755 /usr/local/sbin/radiobot-configure
 chown root:root /usr/local/sbin/radiobot-configure
+python3 "$APP_DIR/patches/configure-helper-hardening.py"
 cat > /usr/local/sbin/radiobot-update <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+exec 9>/run/lock/radiobot-update.lock
+flock -n 9 || { echo 'Update läuft bereits.' >&2; exit 1; }
 LOG=/var/lib/radiobot/update.status
 printf 'started %s\n' "$(date -Is)" > "$LOG"
 if curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install.sh | bash >> "$LOG" 2>&1; then
@@ -171,8 +178,8 @@ systemctl --no-pager --full status radiobot.service || true
 
 echo '[9/10] Metriken prüfen...'
 python3 "$APP_DIR/scripts/system-metrics.py"
-test -s "$APP_DIR/frontend/metrics.json"
-python3 -m json.tool "$APP_DIR/frontend/metrics.json" >/dev/null
+test -s "$DATA_DIR/metrics.json"
+python3 -m json.tool "$DATA_DIR/metrics.json" >/dev/null
 systemctl is-enabled musikbot187-metrics.timer >/dev/null
 
 echo '[10/10] MusikBot187 fertig.'
