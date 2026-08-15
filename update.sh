@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 RELEASE_REF=v2.1.0
-PINNED_COMMIT=f6b9fcb0e12a1e9c9cabd2e357b2b6e2790492ee
+PINNED_COMMIT=bd9dd16b1e6f30c31dca9a8de3b530509d19d239
 REPO=jonascool19-pixel/radiobot
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -17,6 +17,8 @@ bash "$TMP_DIR/install.sh"
 if [[ -f /opt/radiobot/patches/web-auth.py ]]; then
   python3 /opt/radiobot/patches/web-auth.py
   cd /opt/radiobot/backend
+  npm install --include=dev --no-audit --no-fund
   npm run build
+  npm prune --omit=dev --no-audit --no-fund
   systemctl restart radiobot.service
 fi
