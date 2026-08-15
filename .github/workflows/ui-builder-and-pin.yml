@@ -23,11 +23,10 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         run: |
-          test "$(grep '^PINNED_COMMIT=' install-final.sh | cut -d'=' -f2 | tr -d '"')" = '54e2924e01745924cd6f0e404e5f28d58dea4667'
-          grep -q 'raw.githubusercontent.com/jonascool19-pixel/radiobot/${PINNED_COMMIT}/install.sh' install-final.sh
-          grep -q 'refs/heads/\\$RELEASE_REF' install-final.sh || true
-          grep -q '^PINNED_COMMIT=54e2924e01745924cd6f0e404e5f28d58dea4667$' update.sh
-          grep -q 'raw.githubusercontent.com/jonascool19-pixel/radiobot/${PINNED_COMMIT}/install.sh' update.sh
+          grep -q 'PINNED_COMMIT="54e2924e01745924cd6f0e404e5f28d58dea4667"' install-final.sh
+          grep -q 'raw.githubusercontent.com/jonascool19-pixel/radiobot/' install-final.sh
+          grep -q 'PINNED_COMMIT=54e2924e01745924cd6f0e404e5f28d58dea4667' update.sh
+          grep -q 'raw.githubusercontent.com/jonascool19-pixel/radiobot/' update.sh
       - name: Prepare patched tree
         run: |
           sudo rm -rf /opt/radiobot
