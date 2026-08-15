@@ -50,7 +50,8 @@ cp "$SRC_DIR/musikbot187-metrics.timer" "$APP_DIR/"
 sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' "$APP_DIR/backend/src/index.ts"
 python3 "$APP_DIR/patches/enable-radio-features.py"
 python3 "$APP_DIR/patches/fix-radio-feature-patch.py"
-sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script><script src="/metrics-panel.js"></script>#' "$APP_DIR/frontend/index.html"
+if ! grep -q 'radio-enhancements.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' "$APP_DIR/frontend/index.html"; fi
+if ! grep -q 'metrics-panel.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' "$APP_DIR/frontend/index.html"; fi
 if ! id -u radiobot >/dev/null 2>&1; then useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin radiobot; fi
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"; chmod 700 "$DATA_DIR"
 if [[ ! -f "$CONF_DIR/radiobot.env" ]]; then cat > "$CONF_DIR/radiobot.env" <<EOF
