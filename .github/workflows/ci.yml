@@ -26,7 +26,10 @@ jobs:
           sudo sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' /opt/radiobot/backend/src/index.ts
           sudo python3 /opt/radiobot/patches/enable-radio-features.py
           sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
+          sudo python3 /opt/radiobot/patches/setup-wizard.py
           sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' /opt/radiobot/frontend/index.html
+          sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' /opt/radiobot/frontend/index.html
+          sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/setup-wizard.js"></script>#' /opt/radiobot/frontend/index.html
           sudo chown -R runner:docker /opt/radiobot
       - name: Install patched backend dependencies
         working-directory: /opt/radiobot/backend
@@ -34,17 +37,20 @@ jobs:
       - name: TypeScript build
         working-directory: /opt/radiobot/backend
         run: npm run build
-      - name: Validate installer and service
+      - name: Validate installer, setup wizard and service
         run: |
           bash -n install.sh
           grep -q 'CPUQuota=90%' radiobot.service
           grep -q 'MemoryMax=720M' radiobot.service
           grep -q 'MemoryHigh=640M' radiobot.service
-          grep -q 'python3 "$APP_DIR/patches/enable-radio-features.py"' install.sh
-          grep -q 'radio-enhancements.js' install.sh
+          grep -q 'python3 "$APP_DIR/patches/setup-wizard.py"' install.sh
+          grep -q 'radiobot-configure' install.sh
+          grep -q 'setup-wizard.js' install.sh
           grep -q 'statusChannelId' backend/src/index.ts
-          test -f frontend/radio-enhancements.js
-          test -f patches/enable-radio-features.py
+          grep -q '/api/setup/status' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/settings' /opt/radiobot/backend/src/index.ts
+          test -f frontend/setup-wizard.js
+          test -f patches/setup-wizard.py
       - name: Smoke test patched web API
         working-directory: /opt/radiobot/backend
         env:
@@ -58,8 +64,9 @@ jobs:
           for i in {1..20}; do
             if curl -fsS http://127.0.0.1:3100/api/health; then
               echo
+              curl -fsS http://127.0.0.1:3100/api/setup/status >/dev/null
               curl -fsS 'http://127.0.0.1:3100/api/radio/search?q=Beck%20FM' >/dev/null
-              echo 'radio search OK'
+              echo 'setup status + radio search OK'
               break
             fi
             sleep 1
@@ -95,33 +102,20 @@ jobs:
           ) &
           monitor=$!
           python3 - <<'PY'
-          import concurrent.futures
-          import urllib.request
-          import time
-
-          URL = 'http://127.0.0.1:3100/api/health'
-          TOTAL = 2000
-          WORKERS = 25
-
+          import concurrent.futures, urllib.request, time
+          URL='http://127.0.0.1:3100/api/health'; TOTAL=2000; WORKERS=25
           def hit(_):
               with urllib.request.urlopen(URL, timeout=5) as r:
-                  body = r.read()
-                  if r.status != 200 or b'"ok":true' not in body:
-                      raise RuntimeError(f'bad response: {r.status}')
-              return 1
-
-          start = time.perf_counter()
-          errors = 0
+                  body=r.read()
+                  if r.status != 200 or b'"ok":true' not in body: raise RuntimeError(r.status)
+          start=time.perf_counter(); errors=0
           with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as ex:
-              for fut in concurrent.futures.as_completed([ex.submit(hit, i) for i in range(TOTAL)]):
-                  try:
-                      fut.result()
-                  except Exception:
-                      errors += 1
-          elapsed = time.perf_counter() - start
+              for fut in concurrent.futures.as_completed([ex.submit(hit,i) for i in range(TOTAL)]):
+                  try: fut.result()
+                  except Exception: errors+=1
+          elapsed=time.perf_counter()-start
           print(f'perf_total={TOTAL} perf_workers={WORKERS} perf_errors={errors} perf_seconds={elapsed:.3f} perf_rps={TOTAL/elapsed:.1f}')
-          if errors:
-              raise SystemExit(f'{errors} request(s) failed')
+          if errors: raise SystemExit(f'{errors} request(s) failed')
           PY
           kill "$pid" 2>/dev/null || true
           wait "$monitor" 2>/dev/null || true
