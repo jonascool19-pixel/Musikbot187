@@ -23,12 +23,14 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: 6fe29729ab90d03698e7f55e744e78935b85e402
+          EXPECTED_PIN: da5d39965f39e4e8835fdba97248447d03a1318f
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
-          test "$actual_install_pin" = "$EXPECTED_PIN" || { echo "install-final.sh PINNED_COMMIT=$actual_install_pin"; exit 1; }
-          test "$actual_update_pin" = "$EXPECTED_PIN" || { echo "update.sh PINNED_COMMIT=$actual_update_pin"; exit 1; }
+          echo "install-final.sh PINNED_COMMIT=$actual_install_pin"
+          echo "update.sh PINNED_COMMIT=$actual_update_pin"
+          test "$actual_install_pin" = "$EXPECTED_PIN" || exit 1
+          test "$actual_update_pin" = "$EXPECTED_PIN" || exit 1
           grep -q 'raw.githubusercontent.com/${REPO}/' install-final.sh
           grep -q 'raw.githubusercontent.com/${REPO}/' update.sh
       - name: Prepare patched tree
@@ -46,10 +48,11 @@ jobs:
           sudo python3 /opt/radiobot/patches/ui-builder-pointer.py
           sudo python3 /opt/radiobot/patches/final-hardening.py
           sudo python3 /opt/radiobot/patches/security-final.py
+          sudo python3 /opt/radiobot/patches/final-setup-routes.py
       - name: Build backend
         working-directory: /opt/radiobot/backend
         run: |
-          npm install
+          npm install --no-audit --no-fund
           npm run build
       - name: Verify patched UI wiring
         run: |
@@ -70,6 +73,15 @@ jobs:
           grep -q 'webDate' /opt/radiobot/frontend/index.html
           test -s /opt/radiobot/frontend/clock.js
           node --check /opt/radiobot/frontend/clock.js
+      - name: Verify setup/config wiring
+        run: |
+          grep -q '/api/setup/status' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/setup' /opt/radiobot/backend/src/index.ts
+          grep -q 'privilegedConfigWrite' /opt/radiobot/backend/src/index.ts
+          grep -q 'radiobot-ops' /opt/radiobot/scripts/radiobot-privileged.py
+          grep -q 'config-write' /opt/radiobot/scripts/radiobot-privileged.py
+          grep -q 'discordToken' /opt/radiobot/patches/setup-wizard.py
+          grep -q 'DISCORD_TOKEN' /opt/radiobot/patches/configure-helper-hardening.py
       - name: Install Chromium for browser test
         run: |
           npm init -y >/dev/null 2>&1
