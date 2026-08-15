@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $EUID -ne 0 ]]; then echo 'Bitte als root ausführen, z.B. curl ... | sudo bash'; exit 1; fi
+if [[ $EUID -ne 0 ]]; then echo 'Bitte als root ausführen.'; exit 1; fi
 APP_DIR=/opt/radiobot
 DATA_DIR=/var/lib/radiobot
 CONF_DIR=/etc/radiobot
@@ -12,26 +12,24 @@ trap cleanup EXIT
 
 if ! grep -q '^ID=ubuntu$' /etc/os-release || ! grep -q 'VERSION_ID="24.04"' /etc/os-release; then echo 'Dieses Installationsskript ist für Ubuntu 24.04 vorgesehen.'; exit 1; fi
 
-echo '[1/8] Systempakete installieren...'
+echo '[1/7] Schlanke Systempakete installieren...'
 apt-get update
-apt-get install -y ca-certificates curl ffmpeg build-essential python3 tar gzip openssl
+apt-get install -y --no-install-recommends ca-certificates curl ffmpeg build-essential python3 tar gzip openssl
 
-echo '[2/8] Node.js 24 LTS installieren/aktualisieren...'
+echo '[2/7] Node.js 24 LTS prüfen...'
 if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)'; then curl -fsSL https://deb.nodesource.com/setup_24.x | bash -; apt-get install -y nodejs; fi
 node -v
-npm -v
 
-echo '[3/8] Anwendung herunterladen...'
+ echo '[3/7] Anwendung herunterladen...'
 curl -fsSL "$REPO_TGZ" -o "$TMP_DIR/radiobot.tgz"
 tar -xzf "$TMP_DIR/radiobot.tgz" -C "$TMP_DIR"
 SRC_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name 'radiobot-main-*' | head -n1)
 [[ -n "$SRC_DIR" ]] || { echo 'Download fehlgeschlagen.'; exit 1; }
 mkdir -p "$APP_DIR" "$DATA_DIR/music" "$CONF_DIR"
-if [[ -f "$APP_DIR/.env" && ! -f "$CONF_DIR/radiobot.env" ]]; then cp "$APP_DIR/.env" "$CONF_DIR/radiobot.env"; fi
 cp -a "$SRC_DIR/backend" "$APP_DIR/"
 cp -a "$SRC_DIR/frontend" "$APP_DIR/"
 cp "$SRC_DIR/radiobot.service" "$APP_DIR/"
-if ! id -u radiobot >/dev/null 2>&1; then useradd --system --home-dir /var/lib/radiobot --shell /usr/sbin/nologin radiobot; fi
+if ! id -u radiobot >/dev/null 2>&1; then useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin radiobot; fi
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"; chmod 700 "$DATA_DIR"
 if [[ ! -f "$CONF_DIR/radiobot.env" ]]; then cat > "$CONF_DIR/radiobot.env" <<EOF
 DISCORD_TOKEN=
@@ -45,14 +43,13 @@ EOF
 fi
 chown root:root "$CONF_DIR/radiobot.env"; chmod 600 "$CONF_DIR/radiobot.env"
 
-echo '[4/8] Node-Abhängigkeiten installieren...'
+ echo '[4/7] Dependencies schlank installieren...'
 cd "$APP_DIR/backend"
-npm install
-
-echo '[5/8] Backend kompilieren...'
+npm install --no-audit --no-fund
 npm run build
+npm prune --omit=dev --no-audit --no-fund
 
-echo '[6/8] systemd-Dienst einrichten...'
+ echo '[5/7] Dienst einrichten...'
 install -m 0644 "$APP_DIR/radiobot.service" /etc/systemd/system/radiobot.service
 systemctl daemon-reload
 systemctl enable radiobot.service
@@ -69,12 +66,12 @@ esac
 EOF
 chmod 755 /usr/local/bin/radiobot
 
-echo '[7/8] Dienst starten...'
+ echo '[6/7] Dienst starten...'
 systemctl restart radiobot.service
 sleep 2
 systemctl --no-pager --full status radiobot.service || true
 
-echo '[8/8] Fertig.'
+ echo '[7/7] Fertig.'
 IP=$(hostname -I | awk '{print $1}')
 echo
 echo "Dashboard: http://$IP:3000"
@@ -83,4 +80,4 @@ echo "Musik:         /var/lib/radiobot/music"
 echo "Status:        radiobot status"
 echo "Logs:          radiobot logs"
 echo
-echo 'Discord-Token und ggf. Spotify-Zugangsdaten in /etc/radiobot/radiobot.env setzen und danach: radiobot restart'
+echo 'Discord-Token und ggf. Spotify-Zugangsdaten setzen: radiobot config && radiobot restart'
