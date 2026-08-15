@@ -23,9 +23,9 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         run: |
-          grep -q 'PINNED_COMMIT="54e2924e01745924cd6f0e404e5f28d58dea4667"' install-final.sh
+          grep -q 'PINNED_COMMIT="679fe95c86f005161ae9a41792a33e7924db8f24"' install-final.sh
           grep -q 'raw.githubusercontent.com/jonascool19-pixel/radiobot/' install-final.sh
-          grep -q 'PINNED_COMMIT=54e2924e01745924cd6f0e404e5f28d58dea4667' update.sh
+          grep -q 'PINNED_COMMIT=679fe95c86f005161ae9a41792a33e7924db8f24' update.sh
           grep -q 'raw.githubusercontent.com/jonascool19-pixel/radiobot/' update.sh
       - name: Prepare patched tree
         run: |
@@ -59,6 +59,13 @@ jobs:
           grep -q 'builder-field-zone' /opt/radiobot/frontend/ui-builder.js
           grep -q 'pointerdown' /opt/radiobot/frontend/ui-builder.js
           grep -q 'pointerup' /opt/radiobot/frontend/ui-builder.js
+      - name: Verify clock UI wiring
+        run: |
+          grep -q 'clock.js' /opt/radiobot/frontend/index.html
+          grep -q 'webTime' /opt/radiobot/frontend/index.html
+          grep -q 'webDate' /opt/radiobot/frontend/index.html
+          test -s /opt/radiobot/frontend/clock.js
+          node --check /opt/radiobot/frontend/clock.js
       - name: Install Chromium for browser test
         run: |
           npm init -y >/dev/null 2>&1
