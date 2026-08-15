@@ -32,7 +32,7 @@ DENO_BIN="$DENO_HOME/bin/deno"
 install -d -m 0755 "$DENO_HOME"
 if [[ ! -x "$DENO_BIN" && ! -x /usr/local/bin/deno && ! -x "$HOME/.deno/bin/deno" ]]; then
   echo 'Deno wird systemweit installiert...'
-  DENO_INSTALL="$DENO_HOME" curl -fsSL https://deno.land/install.sh | sh
+  DENO_INSTALL="$DENO_HOME" curl -fsSL https://deno.land/install.sh | sh -s -- -y
 fi
 if [[ -d /usr/local/bin/deno && ! -L /usr/local/bin/deno ]]; then rm -rf /usr/local/bin/deno; fi
 if [[ -L /usr/local/bin/deno ]]; then
