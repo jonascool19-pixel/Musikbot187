@@ -52,27 +52,39 @@ jobs:
           npm run build
       - name: Functional release and service checks
         run: |
-          grep -q '^RELEASE_REF=v2.1.0$' install.sh
-          grep -Fq 'refs/heads/$RELEASE_REF' install.sh
-          grep -q '^RELEASE_REF=v2.1.0$' update.sh
-          grep -q 'ui-builder.js' /opt/radiobot/frontend/index.html
-          grep -q 'ui-builder.css' /opt/radiobot/frontend/index.html
-          grep -q 'web-auth.js' /opt/radiobot/frontend/index.html
-          grep -q '/api/ui/layout' /opt/radiobot/backend/src/index.ts
-          grep -q 'UiField' /opt/radiobot/backend/src/index.ts
-          grep -q 'pointerdown' /opt/radiobot/frontend/ui-builder.js
-          grep -q "'/api/auth/login'" /opt/radiobot/backend/src/index.ts
-          grep -q "'/api/auth/logout'" /opt/radiobot/backend/src/index.ts
-          grep -q '/api/system/reboot' /opt/radiobot/backend/src/index.ts
-          grep -q '/api/system/shutdown' /opt/radiobot/backend/src/index.ts
-          grep -q 'DISCORD_COOLDOWN_MS' /opt/radiobot/backend/src/index.ts
-          grep -q 'DISCORD_GUILD_MAX_COMMANDS' /opt/radiobot/backend/src/index.ts
-          grep -q 'MAX_SEARCH_IN_FLIGHT' /opt/radiobot/backend/src/index.ts
-          grep -q 'ProtectSystem=strict' radiobot.service
-          grep -q 'MemoryMax=720M' radiobot.service
-          grep -q 'CPUQuota=90%' radiobot.service
-          grep -q "'/api/setup/status'" /opt/radiobot/backend/src/index.ts
-          grep -q "'/api/radio/search'" /opt/radiobot/backend/src/index.ts
+          python3 - <<'PY'
+          from pathlib import Path
+          checks = [
+              (Path('install.sh').read_text(), '^RELEASE_REF=v2.1.0$', 'install release ref'),
+              (Path('install.sh').read_text(), 'refs/heads/$RELEASE_REF', 'install archive ref'),
+              (Path('update.sh').read_text(), '^RELEASE_REF=v2.1.0$', 'update release ref'),
+              (Path('/opt/radiobot/frontend/index.html').read_text(), 'ui-builder.js', 'UI builder JS'),
+              (Path('/opt/radiobot/frontend/index.html').read_text(), 'ui-builder.css', 'UI builder CSS'),
+              (Path('/opt/radiobot/frontend/index.html').read_text(), 'web-auth.js', 'web auth JS'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), '/api/ui/layout', 'UI layout API'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), 'UiField', 'UI field model'),
+              (Path('/opt/radiobot/frontend/ui-builder.js').read_text(), 'pointerdown', 'pointer drag'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), "'/api/auth/login'", 'login API'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), "'/api/auth/logout'", 'logout API'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), '/api/system/reboot', 'reboot API'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), '/api/system/shutdown', 'shutdown API'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), 'DISCORD_COOLDOWN_MS', 'Discord cooldown'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), 'DISCORD_GUILD_MAX_COMMANDS', 'Discord guild limit'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), 'MAX_SEARCH_IN_FLIGHT', 'search concurrency'),
+              (Path('radiobot.service').read_text(), 'ProtectSystem=strict', 'systemd hardening'),
+              (Path('radiobot.service').read_text(), 'MemoryMax=720M', 'memory limit'),
+              (Path('radiobot.service').read_text(), 'CPUQuota=90%', 'CPU limit'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), "'/api/setup/status'", 'setup status API'),
+              (Path('/opt/radiobot/backend/src/index.ts').read_text(), "'/api/radio/search'", 'radio search API'),
+          ]
+          ok = True
+          import re
+          for content, needle, label in checks:
+              found = bool(re.search(needle, content)) if needle.startswith('^') else (needle in content)
+              print(f'CHECK {label}: {"OK" if found else "MISSING"}')
+              if not found: ok = False
+          if not ok: raise SystemExit(1)
+          PY
           test -s frontend/ui-builder.js
           test -s frontend/ui-builder.css
           test -s frontend/web-auth.js
