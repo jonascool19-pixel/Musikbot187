@@ -22,11 +22,15 @@ jobs:
           python3 -m py_compile patches/*.py scripts/*.py
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
+        env:
+          EXPECTED_PIN: 679fe95c86f005161ae9a41792a33e7924db8f24
         run: |
-          grep -q 'PINNED_COMMIT="679fe95c86f005161ae9a41792a33e7924db8f24"' install-final.sh
-          grep -q 'raw.githubusercontent.com/jonascool19-pixel/radiobot/' install-final.sh
-          grep -q 'PINNED_COMMIT=679fe95c86f005161ae9a41792a33e7924db8f24' update.sh
-          grep -q 'raw.githubusercontent.com/jonascool19-pixel/radiobot/' update.sh
+          actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
+          actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
+          test "$actual_install_pin" = "$EXPECTED_PIN" || { echo "install-final.sh PINNED_COMMIT=$actual_install_pin"; exit 1; }
+          test "$actual_update_pin" = "$EXPECTED_PIN" || { echo "update.sh PINNED_COMMIT=$actual_update_pin"; exit 1; }
+          grep -q 'raw.githubusercontent.com/${REPO}/' install-final.sh
+          grep -q 'raw.githubusercontent.com/${REPO}/' update.sh
       - name: Prepare patched tree
         run: |
           sudo rm -rf /opt/radiobot
