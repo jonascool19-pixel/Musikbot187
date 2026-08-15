@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits, PermissionsBitField } from 'discord.js';
 import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior, StreamType, VoiceConnection } from '@discordjs/voice';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { spawnPcm, mediaTitle } from './media.js';
@@ -13,20 +13,56 @@ export class DiscordInstance {
   ffmpeg?: ChildProcessWithoutNullStreams;
   volume = 80;
   connected = false;
+  lastError = '';
+  inviteUrl = '';
 
   constructor(cfg: any) {
     this.cfg = cfg;
-    this.client.on('ready', () => { this.connected = true; console.log(`Discord ${cfg.name} online`); });
+    this.client.on('ready', () => {
+      this.connected = true;
+      this.lastError = '';
+      this.inviteUrl = this.client.generateInvite({
+        scopes: ['bot', 'applications.commands'],
+        permissions: new PermissionsBitField([
+          PermissionsBitField.Flags.ViewChannel,
+          PermissionsBitField.Flags.SendMessages,
+          PermissionsBitField.Flags.Connect,
+          PermissionsBitField.Flags.Speak,
+          PermissionsBitField.Flags.UseApplicationCommands
+        ])
+      });
+      console.log(`Discord ${cfg.name} online`);
+    });
     this.client.on('messageCreate', m => this.onMessage(m).catch(e => console.error('Discord command', e)));
     this.player.on(AudioPlayerStatus.Idle, () => { void this.next(); });
   }
 
-  async start() { if (this.cfg.token) await this.client.login(this.cfg.token); }
-  async stop() { this.ffmpeg?.kill('SIGTERM'); this.connection?.destroy(); this.connected = false; await this.client.destroy(); }
+  async start() {
+    if (!this.cfg.token) {
+      this.connected = false;
+      this.lastError = 'Bot-Token fehlt.';
+      return;
+    }
+    try {
+      await this.client.login(this.cfg.token);
+    } catch (error) {
+      this.connected = false;
+      this.lastError = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  }
+
+  async stop() {
+    this.ffmpeg?.kill('SIGTERM');
+    this.connection?.destroy();
+    this.connected = false;
+    this.inviteUrl = '';
+    await this.client.destroy();
+  }
 
   private async ensureVoice() {
     const guild = this.client.guilds.cache.get(this.cfg.guildId);
-    if (!guild) throw new Error('Discord-Server nicht gefunden.');
+    if (!guild) throw new Error('Discord-Server nicht gefunden. Bitte den Bot über den Einladungslink hinzufügen und die Guild-ID prüfen.');
     const channel = guild.channels.cache.get(this.cfg.voiceChannelId) as any;
     if (!channel?.isVoiceBased?.()) throw new Error('Discord-Sprachkanal nicht gefunden.');
     this.connection = joinVoiceChannel({ channelId: channel.id, guildId: guild.id, adapterCreator: guild.voiceAdapterCreator });
@@ -54,11 +90,24 @@ export class DiscordInstance {
       this.ffmpeg = ff;
       this.player.play(createAudioResource(ff.stdout, { inputType: StreamType.Raw }));
       await new Promise<void>(resolve => ff.once('close', () => resolve()));
-    } catch (error) { console.error(`Discord playback ${this.cfg.name}`, error); }
+    } catch (error) { this.lastError = error instanceof Error ? error.message : String(error); console.error(`Discord playback ${this.cfg.name}`, error); }
     finally { this.ffmpeg = undefined; this.current = undefined; if (this.queue.length) void this.next(); }
   }
 
-  state() { return { id: this.cfg.id, name: this.cfg.name, type: 'discord', connected: this.connected, playing: this.current?.title ?? null, queue: this.queue.map(x => x.title), volume: this.volume }; }
+  state() {
+    return {
+      id: this.cfg.id,
+      name: this.cfg.name,
+      type: 'discord',
+      connected: this.connected,
+      playing: this.current?.title ?? null,
+      queue: this.queue.map(x => x.title),
+      volume: this.volume,
+      error: this.lastError || null,
+      inviteUrl: this.inviteUrl || null,
+      botUser: this.client.user?.tag ?? null
+    };
+  }
 
   private async onMessage(message: any) {
     if (message.author.bot) return;
