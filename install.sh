@@ -11,7 +11,7 @@ grep -q '^ID=ubuntu$' /etc/os-release || { echo 'Unterstützt wird Ubuntu.' >&2;
 echo -e '\033[1;36m[1/8] System aktualisieren…\033[0m'
 apt-get update
 apt-get upgrade -y
-apt-get install -y ca-certificates curl ffmpeg build-essential python3 git openssl
+apt-get install -y ca-certificates curl unzip ffmpeg build-essential python3 git openssl
 
 echo -e '\033[1;36m[2/8] Node.js 24 sicherstellen…\033[0m'
 if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.versions.node.split(".")[0])>=24?0:1)'; then curl -fsSL https://deb.nodesource.com/setup_24.x | bash -; apt-get install -y nodejs; fi
@@ -19,7 +19,10 @@ node --version
 
 echo -e '\033[1;36m[3/8] Deno und yt-dlp installieren…\033[0m'
 install -d -m 0755 /usr/local/bin /usr/local/lib/deno
-if ! command -v deno >/dev/null 2>&1; then DENO_INSTALL=/usr/local/lib/deno curl -fsSL https://deno.land/install.sh | sh -s -- -y; ln -sf /usr/local/lib/deno/bin/deno /usr/local/bin/deno; fi
+if ! command -v deno >/dev/null 2>&1; then
+  DENO_INSTALL=/usr/local/lib/deno curl -fsSL https://deno.land/install.sh | sh -s -- -y
+  ln -sf /usr/local/lib/deno/bin/deno /usr/local/bin/deno
+fi
 if ! command -v yt-dlp >/dev/null 2>&1; then curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp; chmod 0755 /usr/local/bin/yt-dlp; fi
 
 echo -e '\033[1;36m[4/8] Anwendung installieren…\033[0m'
@@ -68,4 +71,4 @@ printf '\033[1;36mUpdate:\033[0m sudo radiobot-update\n'
 
 echo -e '\033[1;36m[8/8] Abschlussprüfung…\033[0m'
 curl -fsS http://127.0.0.1:3000/api/setup/status >/dev/null
-echo -e '\033[1;32mRadioBot läuft.\033[0m'
+echo -e '\033[1;32mRadioBot läuft.\033[0m\n'
