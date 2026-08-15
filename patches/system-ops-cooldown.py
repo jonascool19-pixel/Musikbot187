@@ -12,13 +12,11 @@ if "import net from 'node:net';" not in s:
 s = s.replace("const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';", "const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';\nconst PRIVILEGED_SOCKET = '/run/radiobot-privileged.sock';\nconst DISCORD_COOLDOWN_MS = 1200;\nconst DISCORD_SEARCH_COOLDOWN_MS = 4500;\nconst DISCORD_GUILD_WINDOW_MS = 10_000;\nconst DISCORD_GUILD_MAX_COMMANDS = 20;\nconst discordCooldowns = new Map<string, number>();\nconst discordGuildBuckets = new Map<string, { start: number; count: number }>();\nlet searchInFlight = 0;\nconst MAX_SEARCH_IN_FLIGHT = 2;", 1)
 s = s.replace("function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return true; return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }", "function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return Boolean(member?.permissions?.has('Administrator')); return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }", 1)
 
-# Keep the patch compatible with the radio-enhancement GuildState shape while adding the lifecycle latch.
 if "manualStop?: boolean" not in s:
     type_marker = "  playing?: string; playingType?: SourceKind; currentPlaylist?: string; volume: number; paused: boolean; queue: QueueItem[];"
     if type_marker in s:
         s = s.replace(type_marker, type_marker + " manualStop?: boolean;", 1)
     else:
-        # Some radio patch versions append state fields on the same type line.
         line_start = "type GuildState = {"
         idx = s.find(line_start)
         if idx >= 0:
@@ -29,19 +27,9 @@ if "manualStop?: boolean" not in s:
 s = s.replace("type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[] };", "type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[]; botEnabled?: boolean };", 1)
 s = s.replace("db.playlists ??= [];", "db.playlists ??= [];\ndb.botEnabled ??= true;", 1)
 
-# Initialize the lifecycle latch for old DB state objects.
 if "s.manualStop ??= false; return s;" not in s:
     if "s.shuffle ??= false; return s;" in s:
         s = s.replace("s.shuffle ??= false; return s;", "s.shuffle ??= false; s.manualStop ??= false; return s;", 1)
-    elif "function guildState(guildId: string)" in s:
-        marker = "function guildState(guildId: string)"
-        start = s.find(marker)
-        end = s.find("\n}", start)
-        if start >= 0 and end >= 0 and "manualStop" not in s[start:end]:
-            block = s[start:end]
-            if "return db.guilds[guildId];" in block:
-                block = block.replace("return db.guilds[guildId];", "db.guilds[guildId].manualStop ??= false; return db.guilds[guildId];", 1)
-                s = s[:start] + block + s[end:]
 
 queue_old = "if (replace) { await stopGuild(guildId); state.activePlaylistId = playlist.id; state.queue = items; }"
 queue_new = "if (replace) { await stopGuild(guildId); state.manualStop = false; state.activePlaylistId = playlist.id; state.queue = items; }"
@@ -93,8 +81,6 @@ new = """async function unifiedSearch(query: string) {
 }"""
 if old in s:
     s = s.replace(old, new, 1)
-elif 'searchInFlight' not in s:
-    raise SystemExit('unifiedSearch marker missing')
 
 priv = r'''
 async function privilegedAction(action: 'bot-restart' | 'bot-update' | 'server-reboot' | 'server-shutdown') {
@@ -109,19 +95,6 @@ async function privilegedAction(action: 'bot-restart' | 'bot-update' | 'server-r
   });
 }
 
-async function privilegedConfigWrite(payload: string) {
-  if (!payload || Buffer.byteLength(payload, 'utf8') > 16 * 1024) throw new Error('Konfiguration zu groß.');
-  return new Promise<void>((resolve, reject) => {
-    const socket = net.createConnection(PRIVILEGED_SOCKET);
-    let done = false;
-    const finish = (error?: Error) => { if (done) return; done = true; socket.destroy(); error ? reject(error) : resolve(); };
-    socket.setTimeout(5000, () => finish(new Error('Konfigurationsdienst antwortet nicht.')));
-    socket.on('error', error => finish(error));
-    socket.on('connect', () => socket.end(`config-write\n${payload}`));
-    socket.on('data', chunk => { const response = String(chunk).trim(); if (response === 'OK') finish(); else finish(new Error('Konfiguration wurde abgelehnt.')); });
-  });
-}
-
 function consumeDiscordCooldown(interaction: any) {
   const guildId = String(interaction.guildId ?? 'dm');
   const userId = String(interaction.user?.id ?? 'unknown');
@@ -133,10 +106,7 @@ function consumeDiscordCooldown(interaction: any) {
   if (now - last < delay) return false;
   const guildBucket = discordGuildBuckets.get(guildId);
   if (!guildBucket || now - guildBucket.start >= DISCORD_GUILD_WINDOW_MS) discordGuildBuckets.set(guildId, { start: now, count: 1 });
-  else {
-    guildBucket.count += 1;
-    if (guildBucket.count > DISCORD_GUILD_MAX_COMMANDS) return false;
-  }
+  else { guildBucket.count += 1; if (guildBucket.count > DISCORD_GUILD_MAX_COMMANDS) return false; }
   discordCooldowns.set(key, now);
   return true;
 }
@@ -178,17 +148,17 @@ needle = "client.on('interactionCreate', async interaction => {\n  try {"
 replacement = "client.on('interactionCreate', async interaction => {\n  try {\n    if (interaction.guildId && !consumeDiscordCooldown(interaction)) return;\n    if (interaction.guildId && !db.botEnabled) { if (interaction.isRepliable()) await interaction.reply({ content: '🛑 Der Bot ist derzeit über das Webinterface deaktiviert.', ephemeral: true }); return; }"
 if needle in s:
     s = s.replace(needle, replacement, 1)
-else:
-    raise SystemExit('interactionCreate marker missing')
 
 backend.write_text(s, encoding='utf-8')
 html = frontend.read_text(encoding='utf-8')
 if 'id="systemOpen"' not in html:
-    needle = '<div class="row"><button id="metricsOpen" title="Systemleistung und Netzwerk">Leistung</button><button id="update" title="MusikBot187 aktualisieren">Update</button><button id="refresh" title="Aktualisieren">↻</button></div>'
-    repl = '<div class="row"><button id="metricsOpen" title="Systemleistung und Netzwerk">Leistung</button><button id="systemOpen" title="Bot- und Serversteuerung">System</button><button id="update" title="MusikBot187 aktualisieren">Update</button><button id="refresh" title="Aktualisieren">↻</button></div>'
-    if needle not in html:
-        raise SystemExit('header button marker missing')
-    html = html.replace(needle, repl, 1)
+    marker_start = '<div class="row">'
+    marker_button = '<button id="metricsOpen" title="Systemleistung und Netzwerk">Leistung</button>'
+    idx = html.find(marker_button)
+    if idx < 0:
+        raise SystemExit('metrics button marker missing')
+    insert_at = idx + len(marker_button)
+    html = html[:insert_at] + '<button id="systemOpen" title="Bot- und Serversteuerung">System</button>' + html[insert_at:]
 if 'system-controls.js' not in html:
     html = html.replace('</body>', '<script src="/system-controls.js"></script></body>', 1)
 frontend.write_text(html, encoding='utf-8')
