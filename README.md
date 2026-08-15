@@ -4,13 +4,19 @@ Native Discord Radio/Music Bot für Ubuntu 24.04 – ohne Docker.
 
 ## Ein-Befehl-Installation
 
-Das Repository muss öffentlich sein. Auf dem Ubuntu-24.04-Server:
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install.sh | sudo bash
 ```
 
 Der Installer installiert Node.js 24 LTS, FFmpeg, den Bot, das responsive Web-Dashboard und einen systemd-Dienst.
+
+### Ressourcen
+
+**Laufzeit-Ziel für einen kleinen Proxmox-LXC/CT:** 1 vCPU und 500 MB RAM.
+
+Der systemd-Dienst begrenzt den Bot auf maximal 480 MB RAM und 100 % einer CPU. Für einen einzelnen Discord-Voice-Stream plus Webinterface ist dieser Betriebspunkt vorgesehen.
+
+**Während der Installation:** Der Installer benötigt mehr Spielraum. Für `apt`, `npm install` und den TypeScript-Build sollten bis zu **1 GB RAM** eingeplant werden. Nach erfolgreicher Installation fällt der Dienst auf die oben genannten Laufzeitlimits zurück.
 
 ## Nach der Installation
 
@@ -27,20 +33,7 @@ Dashboard:
 http://SERVER-IP:3000
 ```
 
-Daten:
-
-```text
-/var/lib/radiobot/
-├── music/
-├── radiobot.json
-└── spotify.json
-```
-
-Konfiguration:
-
-```text
-/etc/radiobot/radiobot.env
-```
+Die Oberfläche ist für Desktop und Smartphone optimiert und kann direkt im mobilen Browser als Web-App zum Startbildschirm hinzugefügt werden.
 
 ## Discord
 
@@ -54,7 +47,7 @@ Unterstützt Radio-Streams und lokale Musik. Slash Commands:
 
 ## Mobile Steuerung
 
-Das Dashboard ist responsive und kann auf dem Smartphone direkt im Browser verwendet bzw. zum Startbildschirm hinzugefügt werden. Die Steuerung läuft über die Web-API.
+Das Dashboard ist responsive und kann auf dem Smartphone direkt im Browser verwendet werden. Die Steuerung läuft über die Web-API.
 
 ## Spotify
 
