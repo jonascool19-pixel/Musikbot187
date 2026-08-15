@@ -1,0 +1,11 @@
+[Unit]
+Description=MusikBot187 system metrics timer
+
+[Timer]
+OnBootSec=2s
+OnUnitActiveSec=2s
+AccuracySec=1s
+Unit=musikbot187-metrics.service
+
+[Install]
+WantedBy=timers.target
