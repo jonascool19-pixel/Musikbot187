@@ -133,7 +133,17 @@ for key in allowed:
         if '\n' in value or '\r' in value: raise SystemExit(f'invalid value for {key}')
         if key in {'WEB_PASSWORD','SPOTIFY_CLIENT_SECRET','YOUTUBE_API_KEY','DISCORD_TOKEN'} and value == '' and current.get(key): continue
         current[key]=value
-if not current.get('DISCORD_TOKEN'): raise SystemExit('DISCORD_TOKEN is required')
+
+# During first-run bootstrap the web account is intentionally created before
+# a Discord token exists. After that first write, normal config writes still
+# require a Discord token.
+bootstrap_user_only = (
+    not current.get('DISCORD_TOKEN')
+    and len(current.get('WEB_USER','')) > 0
+    and len(current.get('WEB_PASSWORD','')) >= 12
+)
+if not current.get('DISCORD_TOKEN') and not bootstrap_user_only:
+    raise SystemExit('DISCORD_TOKEN is required')
 if len(current.get('WEB_PASSWORD','')) < 12: raise SystemExit('WEB_PASSWORD must contain at least 12 characters')
 port=int(current.get('PORT','3000'))
 if not 1 <= port <= 65535: raise SystemExit('invalid PORT')
