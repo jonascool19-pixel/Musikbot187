@@ -4,7 +4,8 @@ import socket
 import subprocess
 
 SOCKET = '/run/radiobot-privileged.sock'
-ALLOWED = {'bot-restart', 'bot-update', 'server-reboot', 'server-shutdown'}
+ALLOWED = {'bot-restart', 'bot-update', 'server-reboot', 'server-shutdown', 'config-write'}
+MAX_REQUEST = 16 * 1024
 
 def main() -> None:
     try:
@@ -24,17 +25,41 @@ def main() -> None:
         conn, _ = server.accept()
         with conn:
             try:
-                data = conn.recv(128).decode('utf-8', 'strict').strip()
+                data = conn.recv(MAX_REQUEST).decode('utf-8', 'strict')
             except UnicodeDecodeError:
-                data = ''
-            if data not in ALLOWED:
+                conn.sendall(b'ERR invalid-encoding\n')
+                continue
+            command, _, payload = data.partition('\n')
+            command = command.strip()
+            if command not in ALLOWED:
                 conn.sendall(b'ERR invalid-command\n')
                 continue
-            if data == 'bot-restart':
+            if command == 'config-write':
+                if not payload.strip() or len(payload.encode('utf-8')) > MAX_REQUEST:
+                    conn.sendall(b'ERR invalid-config\n')
+                    continue
+                try:
+                    result = subprocess.run(
+                        ['/usr/local/sbin/radiobot-configure'],
+                        input=payload,
+                        text=True,
+                        capture_output=True,
+                        timeout=15,
+                        check=False,
+                    )
+                except Exception:
+                    conn.sendall(b'ERR config-helper-failed\n')
+                    continue
+                if result.returncode != 0:
+                    conn.sendall(b'ERR config-rejected\n')
+                    continue
+                conn.sendall(b'OK\n')
+                continue
+            if command == 'bot-restart':
                 subprocess.Popen(['/usr/bin/systemctl', 'restart', 'radiobot.service'])
-            elif data == 'bot-update':
+            elif command == 'bot-update':
                 subprocess.Popen(['/usr/local/sbin/radiobot-update'])
-            elif data == 'server-reboot':
+            elif command == 'server-reboot':
                 subprocess.Popen(['/usr/bin/systemctl', 'reboot'])
             else:
                 subprocess.Popen(['/usr/bin/systemctl', 'poweroff'])
