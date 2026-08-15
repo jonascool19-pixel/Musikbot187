@@ -7,99 +7,65 @@
   const tileMeta = {
     hero:['hero','Now Playing','🎵'], discord:['discord','Discord','🎙️'], search:['search','Suche','🔎'], radio:['radio','Radiosender','📻'], media:['media','Lokale Musik','💿'], playlists:['playlists','Playlists','🎵'], spotify:['spotify','Spotify','🟢'], youtube:['youtube','YouTube','▶️'], update:['update','Update','⚙️'], queue:['queue','Queue','📜']
   };
-  const state = { layout:null, editing:false, presets:DEFAULTS };
+  const state = { layout:null, editing:false };
   const $ = s => document.querySelector(s);
-  const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  async function api(url, options={}) { const r=await fetch(url,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options}); if(!r.ok) throw new Error(await r.text()); return r.status===204?null:r.json(); }
-  function currentTiles() { return [...document.querySelectorAll('[data-tile-id]')]; }
-  function ensureLayout(layout) {
-    const source = Array.isArray(layout?.tiles) ? layout.tiles : DEFAULTS.midnight.tiles;
-    const byId = new Map(source.map(x=>[x.id||x, typeof x==='string'?{id:x}:x]));
-    const order = layout?.preset && DEFAULTS[layout.preset]?.tiles ? DEFAULTS[layout.preset].tiles : DEFAULTS.midnight.tiles;
-    return { preset: layout?.preset || 'midnight', name: layout?.name || 'Mein Layout', density: layout?.density || 'comfortable', accent: layout?.accent || '#7dd3fc', bg: layout?.bg || '#070b14', panel: layout?.panel || '#111929', tiles: order.map(id => byId.get(id) || {id, visible:true, span:1, rowSpan:1, icon:tileMeta[id]?.[2], label:tileMeta[id]?.[1]}).map(x=>({visible:x.visible!==false,span:Math.max(1,Math.min(4,Number(x.span)||1)),rowSpan:Math.max(1,Math.min(3,Number(x.rowSpan)||1)),id:x.id,icon:x.icon||tileMeta[x.id]?.[2]||'◼',label:x.label||tileMeta[x.id]?.[1]||x.id})) };
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, Number(n) || min));
+  async function api(url, options={}) { const r = await fetch(url, { headers:{'Content-Type':'application/json', ...(options.headers||{})}, ...options }); if (!r.ok) throw new Error(await r.text()); return r.status === 204 ? null : r.json(); }
+  function tiles() { return [...document.querySelectorAll('[data-tile-id]')]; }
+  function normalizeField(raw, index) { return { id:String(raw?.id||'field-'+index), tileId:String(raw?.tileId||''), visible:raw?.visible!==false, span:clamp(raw?.span,1,4), rowSpan:clamp(raw?.rowSpan,1,3), order:clamp(raw?.order,0,999) }; }
+  function ensureLayout(input) {
+    const layout = input || {};
+    const source = Array.isArray(layout.tiles) ? layout.tiles : [];
+    const byId = new Map(source.map(x => [x.id || x, typeof x === 'string' ? {id:x} : x]));
+    const order = DEFAULTS[layout.preset]?.tiles || DEFAULTS.midnight.tiles;
+    const normalizedTiles = order.map(id => byId.get(id) || {id, visible:true, span:1, rowSpan:1, icon:tileMeta[id]?.[2], label:tileMeta[id]?.[1]}).map(x => ({ id:x.id, visible:x.visible!==false, span:clamp(x.span,1,4), rowSpan:clamp(x.rowSpan,1,3), icon:x.icon || tileMeta[x.id]?.[2] || '◼', label:x.label || tileMeta[x.id]?.[1] || x.id }));
+    return { preset:layout.preset||'midnight', name:layout.name||'Mein Dashboard', density:['compact','comfortable','spacious'].includes(layout.density)?layout.density:'comfortable', accent:/^#[0-9a-f]{6}$/i.test(layout.accent||'')?layout.accent:'#7dd3fc', bg:/^#[0-9a-f]{6}$/i.test(layout.bg||'')?layout.bg:'#070b14', panel:/^#[0-9a-f]{6}$/i.test(layout.panel||'')?layout.panel:'#111929', tiles:normalizedTiles, fields:Array.isArray(layout.fields)?layout.fields.map(normalizeField):[] };
   }
-  function applyTheme(layout) {
-    document.documentElement.style.setProperty('--builder-accent',layout.accent);
-    document.documentElement.style.setProperty('--builder-bg',layout.bg);
-    document.documentElement.style.setProperty('--builder-panel',layout.panel);
-    const grid=document.querySelector('.grid'); if(grid) grid.dataset.density=layout.density;
-    document.body.classList.toggle('builder-editing',state.editing);
+  function applyTheme() { const l=state.layout; document.documentElement.style.setProperty('--builder-accent',l.accent); document.documentElement.style.setProperty('--builder-bg',l.bg); document.documentElement.style.setProperty('--builder-panel',l.panel); const grid=document.querySelector('.grid'); if(grid) grid.dataset.density=l.density; document.body.classList.toggle('builder-editing',state.editing); }
+  function applyTiles() {
+    const grid=document.querySelector('.grid'); if(!grid) return;
+    for(const t of state.layout.tiles){ const el=document.querySelector(`[data-tile-id="${CSS.escape(t.id)}"]`); if(!el) continue; el.style.gridColumn=`span ${t.span}`; el.style.gridRow=`span ${t.rowSpan}`; el.hidden=!t.visible; el.dataset.icon=t.icon; el.dataset.label=t.label; const title=el.querySelector('[data-tile-title]'); if(title && el.id!=='nowTitle') title.textContent=`${t.icon} ${t.label}`; el.draggable=state.editing; el.classList.toggle('builder-selected',state.editing); grid.appendChild(el); }
   }
-  function applyTileConfig(layout) {
-    const grid=document.querySelector('.grid');
-    layout.tiles.forEach(t=>{
-      const el=document.querySelector(`[data-tile-id="${CSS.escape(t.id)}"]`); if(!el) return;
-      el.style.gridColumn=`span ${t.span}`; el.style.gridRow=`span ${t.rowSpan}`; el.hidden=!t.visible;
-      el.dataset.icon=t.icon; el.dataset.label=t.label;
-      const title=el.querySelector('[data-tile-title]'); if(title) title.textContent=`${t.icon} ${t.label}`;
-      el.draggable=state.editing; el.classList.toggle('builder-selected',state.editing);
-      if(grid) grid.appendChild(el);
-    });
+  function fieldNodes(tile) { const zone=tile.querySelector(':scope > .builder-field-zone'); const root=zone||tile; return [...root.children].filter(el => el.matches('.builder-field')); }
+  function fieldCandidates(tile) {
+    const zone=tile.querySelector(':scope > .builder-field-zone'); if(zone) return [];
+    return [...tile.children].filter(el => !el.matches('h1,h2,h3,.eyebrow') && (el.matches('label,.row,.card,.list,.hint,p,.controls') || el.id==='queue'));
   }
-  function layoutFromDom() {
-    const byId = new Map((state.layout?.tiles||[]).map(t=>[t.id,t]));
-    const tiles=currentTiles().map((el,i)=>{ const base=byId.get(el.dataset.tileId)||{}; return {
-      ...base, id:el.dataset.tileId, visible:!el.hidden,
-      span:parseInt((el.style.gridColumn||'span 1').match(/\d+/)?.[0]||'1',10), rowSpan:parseInt((el.style.gridRow||'span 1').match(/\d+/)?.[0]||'1',10),
-      icon:el.dataset.icon||base.icon||tileMeta[el.dataset.tileId]?.[2]||'◼', label:el.dataset.label||base.label||tileMeta[el.dataset.tileId]?.[1]||el.dataset.tileId, order:i
-    }; });
-    return {...state.layout, tiles};
+  function prepareFields() {
+    for(const tile of tiles()){
+      let zone=tile.querySelector(':scope > .builder-field-zone');
+      if(!zone){ zone=document.createElement('div'); zone.className='builder-field-zone'; tile.appendChild(zone); for(const el of fieldCandidates(tile)){ el.classList.add('builder-field'); zone.appendChild(el); } }
+      for(const [i,el] of fieldNodes(tile).entries()) if(!el.dataset.fieldId) el.dataset.fieldId=`${tile.dataset.tileId}:${el.id || el.tagName.toLowerCase()}-${i}`;
+    }
+    const existing=new Map(state.layout.fields.map(f=>[f.id,f]));
+    const domFields=[...document.querySelectorAll('.builder-field')];
+    const known=new Set();
+    for(const [i,el] of domFields.entries()){ const tile=el.closest('[data-tile-id]'); if(!tile) continue; const id=el.dataset.fieldId; known.add(id); const old=existing.get(id)||{}; state.layout.fields = state.layout.fields.filter(f=>f.id!==id); state.layout.fields.push({id,tileId:tile.dataset.tileId,visible:el.hidden?false:(old.visible!==false),span:clamp((el.style.gridColumn||'').match(/\d+/)?.[0]||old.span||1,1,4),rowSpan:clamp((el.style.gridRow||'').match(/\d+/)?.[0]||old.rowSpan||1,1,3),order:i}); }
+    state.layout.fields=state.layout.fields.filter(f=>known.has(f.id));
   }
-  async function saveLayout(silent=false) {
-    state.layout=layoutFromDom();
-    await api('/api/ui/layout',{method:'PUT',body:JSON.stringify(state.layout)});
-    if(!silent) window.dispatchEvent(new CustomEvent('rb:toast',{detail:'Layout gespeichert.'}));
+  function applyFields() {
+    prepareFields();
+    const byId=new Map([...document.querySelectorAll('.builder-field')].map(el=>[el.dataset.fieldId,el]));
+    const zones=new Map(tiles().map(t=>[t.dataset.tileId,t.querySelector(':scope > .builder-field-zone')]));
+    for(const f of [...state.layout.fields].sort((a,b)=>a.order-b.order)){ const el=byId.get(f.id); const zone=zones.get(f.tileId); if(!el||!zone) continue; zone.appendChild(el); el.hidden=f.visible===false; el.style.gridColumn=`span ${clamp(f.span,1,4)}`; el.style.gridRow=`span ${clamp(f.rowSpan,1,3)}`; el.draggable=state.editing; el.classList.toggle('builder-field-editing',state.editing); }
   }
-  function makeBuilderControls() {
-    if($('#builderPanel')) return;
-    const panel=document.createElement('aside'); panel.id='builderPanel'; panel.className='builder-panel';
-    panel.innerHTML=`<div class="builder-head"><div><strong>🎨 UI-Baukasten</strong><small>Ziehe Kacheln, ändere Größe und speichere dein Layout.</small></div><button id="builderClose" class="icon-btn">×</button></div>
-      <div class="builder-section"><b>Standard-Designs</b><div class="builder-presets"><button data-preset="midnight">🌌 Midnight</button><button data-preset="compact">▦ Compact</button><button data-preset="studio">🎚️ Studio</button></div></div>
-      <div class="builder-section"><label>Layout-Name<input id="builderName" placeholder="Mein Dashboard"></label><div class="row"><label>Dichte<select id="builderDensity"><option value="compact">Kompakt</option><option value="comfortable">Komfortabel</option><option value="spacious">Großzügig</option></select></label></div><div class="row"><label>Akzent<input id="builderAccent" type="color"></label><label>Hintergrund<input id="builderBg" type="color"></label><label>Kacheln<input id="builderPanelColor" type="color"></label></div></div>
-      <div class="builder-section"><b>Kachel bearbeiten</b><small class="muted">Klicke eine Kachel an, um Icon, Name, Sichtbarkeit und Größe zu ändern.</small><div id="builderTileList"></div></div>
-      <div class="builder-actions"><button id="builderSave" class="primary">Speichern</button><button id="builderReset">Standard wiederherstellen</button><button id="builderExit">Bearbeiten beenden</button></div>`;
-    document.body.append(panel);
-    $('#builderClose').onclick=$('#builderExit').onclick=()=>toggle(false);
-    $('#builderSave').onclick=()=>saveLayout();
-    $('#builderReset').onclick=()=>applyPreset('midnight');
-    document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>applyPreset(b.dataset.preset));
-    ['builderName','builderDensity','builderAccent','builderBg','builderPanelColor'].forEach(id=>$('#'+id).addEventListener('input',syncControls));
-  }
-  function syncControls() {
-    if(!state.layout) return;
-    state.layout.name=$('#builderName').value||'Mein Dashboard'; state.layout.density=$('#builderDensity').value; state.layout.accent=$('#builderAccent').value; state.layout.bg=$('#builderBg').value; state.layout.panel=$('#builderPanelColor').value; state.layout.preset='custom'; applyTheme(state.layout);
-  }
-  function renderTileEditor() {
+  function layoutFromDom(){ prepareFields(); const base=state.layout.tiles.map(t=>({...t})); tiles().forEach((el,i)=>{ const t=base.find(x=>x.id===el.dataset.tileId); if(t){ t.order=i; t.visible=!el.hidden; } }); const fieldData=[...document.querySelectorAll('.builder-field')].map((el,i)=>{ const tile=el.closest('[data-tile-id]'); const old=state.layout.fields.find(f=>f.id===el.dataset.fieldId)||{}; return {id:el.dataset.fieldId,tileId:tile?.dataset.tileId||old.tileId||'',visible:!el.hidden,span:clamp((el.style.gridColumn||'').match(/\d+/)?.[0]||old.span||1,1,4),rowSpan:clamp((el.style.gridRow||'').match(/\d+/)?.[0]||old.rowSpan||1,1,3),order:i}; }); return {...state.layout,tiles:base,fields:fieldData}; }
+  async function saveLayout(silent=false){ state.layout=layoutFromDom(); await api('/api/ui/layout',{method:'PUT',body:JSON.stringify(state.layout)}); if(!silent) window.dispatchEvent(new CustomEvent('rb:toast',{detail:'Layout gespeichert.'})); }
+  function fieldName(el){ const label=el.querySelector?.('label'); const input=el.querySelector?.('input,select,button'); return (el.getAttribute('aria-label')||input?.getAttribute('placeholder')||label?.textContent||el.textContent||el.dataset.fieldId||'Feld').replace(/\s+/g,' ').trim().slice(0,48); }
+  function moveField(id,tileId,beforeId=''){ const el=document.querySelector(`.builder-field[data-field-id="${CSS.escape(id)}"]`); const zone=document.querySelector(`[data-tile-id="${CSS.escape(tileId)}"] > .builder-field-zone`); if(!el||!zone) return; const before=beforeId?document.querySelector(`.builder-field[data-field-id="${CSS.escape(beforeId)}"]`):null; if(before && before.parentElement===zone) zone.insertBefore(el,before); else zone.appendChild(el); state.layout.preset='custom'; applyFields(); }
+  function renderEditor(){
     const list=$('#builderTileList'); if(!list||!state.layout) return; list.innerHTML='';
-    state.layout.tiles.forEach(t=>{
-      const row=document.createElement('div'); row.className='builder-tile-row'; row.innerHTML=`<div class="builder-tile-main"><span class="drag">☷</span><span class="tile-mini">${esc(t.icon)}</span><input class="tile-label" value="${esc(t.label)}" maxlength="40"><button class="icon-btn tile-visible">${t.visible?'👁️':'🚫'}</button></div><div class="builder-tile-sub"><input class="tile-icon" value="${esc(t.icon)}" maxlength="4" title="Icon"><label>Breite<select class="tile-span"><option value="1" ${t.span===1?'selected':''}>1</option><option value="2" ${t.span===2?'selected':''}>2</option><option value="3" ${t.span===3?'selected':''}>3</option><option value="4" ${t.span===4?'selected':''}>4</option></select></label><label>Höhe<select class="tile-rowspan"><option value="1" ${t.rowSpan===1?'selected':''}>1</option><option value="2" ${t.rowSpan===2?'selected':''}>2</option><option value="3" ${t.rowSpan===3?'selected':''}>3</option></select></label><button class="danger tile-remove">Ausblenden</button></div>`;
-      row.querySelector('.tile-label').oninput=e=>{t.label=e.target.value; state.layout.preset='custom'; applyTileConfig(state.layout);};
-      row.querySelector('.tile-icon').oninput=e=>{t.icon=e.target.value||'◼'; state.layout.preset='custom'; applyTileConfig(state.layout);};
-      row.querySelector('.tile-span').onchange=e=>{t.span=Number(e.target.value); state.layout.preset='custom'; applyTileConfig(state.layout);};
-      row.querySelector('.tile-rowspan').onchange=e=>{t.rowSpan=Number(e.target.value); state.layout.preset='custom'; applyTileConfig(state.layout);};
-      row.querySelector('.tile-visible').onclick=()=>{t.visible=!t.visible; state.layout.preset='custom'; renderTileEditor(); applyTileConfig(state.layout);};
-      row.querySelector('.tile-remove').onclick=()=>{t.visible=false; state.layout.preset='custom'; renderTileEditor(); applyTileConfig(state.layout);};
-      list.append(row);
-    });
+    for(const t of state.layout.tiles){ const row=document.createElement('div'); row.className='builder-tile-row'; row.innerHTML=`<div class="builder-tile-main"><span class="drag">☷</span><span class="tile-mini">${esc(t.icon)}</span><input class="tile-label" value="${esc(t.label)}" maxlength="40"><button class="icon-btn tile-visible">${t.visible?'👁️':'🚫'}</button></div><div class="builder-tile-sub"><input class="tile-icon" value="${esc(t.icon)}" maxlength="8"><label>Breite<select class="tile-span"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><label>Höhe<select class="tile-rowspan"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label><button class="danger tile-remove">Ausblenden</button></div>`; row.querySelector('.tile-label').oninput=e=>{t.label=e.target.value; state.layout.preset='custom'; applyTiles();}; row.querySelector('.tile-icon').oninput=e=>{t.icon=e.target.value||'◼'; state.layout.preset='custom'; applyTiles();}; row.querySelector('.tile-span').value=String(t.span); row.querySelector('.tile-rowspan').value=String(t.rowSpan); row.querySelector('.tile-span').onchange=e=>{t.span=clamp(e.target.value,1,4); state.layout.preset='custom'; applyTiles();}; row.querySelector('.tile-rowspan').onchange=e=>{t.rowSpan=clamp(e.target.value,1,3); state.layout.preset='custom'; applyTiles();}; row.querySelector('.tile-visible').onclick=()=>{t.visible=!t.visible; state.layout.preset='custom'; renderEditor(); applyTiles();}; row.querySelector('.tile-remove').onclick=()=>{t.visible=false; state.layout.preset='custom'; renderEditor(); applyTiles();}; list.append(row); }
+    const title=document.createElement('b'); title.textContent='Feldelemente frei verschieben'; list.append(title);
+    for(const f of [...state.layout.fields].sort((a,b)=>a.order-b.order)){ const el=document.querySelector(`.builder-field[data-field-id="${CSS.escape(f.id)}"]`); if(!el) continue; const row=document.createElement('div'); row.className='builder-field-row'; row.innerHTML=`<span class="drag">☷</span><span class="field-name">${esc(fieldName(el))}</span><label>Ziel<select class="field-target">${state.layout.tiles.map(t=>`<option value="${esc(t.id)}">${esc(t.label)}</option>`).join('')}</select></label><button class="icon-btn field-visible">${f.visible?'👁️':'🚫'}</button>`; row.querySelector('.field-target').value=f.tileId; row.querySelector('.field-target').onchange=e=>{moveField(f.id,e.target.value); saveLayout(true);}; row.querySelector('.field-visible').onclick=()=>{f.visible=!f.visible; applyFields(); renderEditor();}; list.append(row); }
   }
-  function updateControls() { $('#builderName').value=state.layout.name; $('#builderDensity').value=state.layout.density; $('#builderAccent').value=state.layout.accent; $('#builderBg').value=state.layout.bg; $('#builderPanelColor').value=state.layout.panel; renderTileEditor(); }
-  function initDrag() {
-    const grid=document.querySelector('.grid'); if(!grid || grid.dataset.builderReady) return; grid.dataset.builderReady='1';
-    let dragId=null;
-    grid.addEventListener('dragstart',e=>{ if(!state.editing) return; const card=e.target.closest('[data-tile-id]'); if(!card) return; dragId=card.dataset.tileId; card.classList.add('builder-dragging'); });
-    grid.addEventListener('dragend',e=>{ const card=e.target.closest('[data-tile-id]'); card?.classList.remove('builder-dragging'); dragId=null; });
-    grid.addEventListener('dragover',e=>{ if(!state.editing||!dragId) return; e.preventDefault(); const card=e.target.closest('[data-tile-id]'); if(card&&card.dataset.tileId!==dragId) card.classList.add('builder-drop-target'); });
-    grid.addEventListener('dragleave',e=>e.target.closest('[data-tile-id]')?.classList.remove('builder-drop-target'));
-    grid.addEventListener('drop',async e=>{ if(!state.editing||!dragId) return; e.preventDefault(); const target=e.target.closest('[data-tile-id]'); if(!target||target.dataset.tileId===dragId) return; const source=document.querySelector(`[data-tile-id="${CSS.escape(dragId)}"]`); target.classList.remove('builder-drop-target'); target.parentElement.insertBefore(source,target); state.layout.preset='custom'; await saveLayout(true); renderTileEditor(); });
-  }
-  async function applyPreset(key) { const p=DEFAULTS[key]||DEFAULTS.midnight; state.layout=ensureLayout({preset:key,name:p.name,density:p.density,accent:p.accent,bg:p.bg,panel:p.panel,tiles:p.tiles}); applyTheme(state.layout); applyTileConfig(state.layout); updateControls(); await saveLayout(true); }
-  async function toggle(on) { makeBuilderControls(); state.editing=on; document.body.classList.toggle('builder-editing',on); $('#builderPanel').classList.toggle('open',on); if(on){ initDrag(); updateControls(); } else { await saveLayout(true); } }
-  async function load() {
-    try { state.layout=ensureLayout(await api('/api/ui/layout')); } catch { state.layout=ensureLayout(null); }
-    applyTheme(state.layout); makeBuilderControls(); applyTileConfig(state.layout);
-    const btn=document.createElement('button'); btn.id='layoutBuilderOpen'; btn.className='icon-btn'; btn.title='UI-Baukasten'; btn.textContent='🎨'; btn.onclick=()=>toggle(true); document.querySelector('header .row')?.prepend(btn);
-    initDrag();
-  }
-  window.RB_UI_BUILDER={open:()=>toggle(true),close:()=>toggle(false),preset:applyPreset};
-  window.addEventListener('DOMContentLoaded',load);
+  function syncControls(){ if(!state.layout) return; state.layout.name=$('#builderName').value||'Mein Dashboard'; state.layout.density=$('#builderDensity').value; state.layout.accent=$('#builderAccent').value; state.layout.bg=$('#builderBg').value; state.layout.panel=$('#builderPanelColor').value; state.layout.preset='custom'; applyTheme(); }
+  function updateControls(){ $('#builderName').value=state.layout.name; $('#builderDensity').value=state.layout.density; $('#builderAccent').value=state.layout.accent; $('#builderBg').value=state.layout.bg; $('#builderPanelColor').value=state.layout.panel; renderEditor(); }
+  function makeBuilderControls(){ if($('#builderPanel')) return; const panel=document.createElement('aside'); panel.id='builderPanel'; panel.className='builder-panel'; panel.innerHTML=`<div class="builder-head"><div><strong>🎨 UI-Baukasten</strong><small>Kacheln und einzelne Feldelemente frei verschieben.</small></div><button id="builderClose" class="icon-btn">×</button></div><div class="builder-section"><b>Standard-Designs</b><div class="builder-presets"><button data-preset="midnight">🌌 Midnight</button><button data-preset="compact">▦ Compact</button><button data-preset="studio">🎚️ Studio</button></div></div><div class="builder-section"><label>Layout-Name<input id="builderName" placeholder="Mein Dashboard"></label><div class="row"><label>Dichte<select id="builderDensity"><option value="compact">Kompakt</option><option value="comfortable">Komfortabel</option><option value="spacious">Großzügig</option></select></label></div><div class="row"><label>Akzent<input id="builderAccent" type="color"></label><label>Hintergrund<input id="builderBg" type="color"></label><label>Kacheln<input id="builderPanelColor" type="color"></label></div></div><div class="builder-section"><div id="builderTileList"></div></div><div class="builder-actions"><button id="builderSave" class="primary">Speichern</button><button id="builderReset">Midnight wiederherstellen</button><button id="builderExit">Bearbeiten beenden</button></div>`; document.body.append(panel); $('#builderClose').onclick=$('#builderExit').onclick=()=>toggle(false); $('#builderSave').onclick=()=>saveLayout(); $('#builderReset').onclick=()=>applyPreset('midnight'); document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>applyPreset(b.dataset.preset)); ['builderName','builderDensity','builderAccent','builderBg','builderPanelColor'].forEach(id=>$('#'+id).addEventListener('input',syncControls)); }
+  function initDrag(){ const grid=document.querySelector('.grid'); if(!grid||grid.dataset.builderReady)return; grid.dataset.builderReady='1'; let cardDrag=null,fieldDrag=null; grid.addEventListener('dragstart',e=>{ if(!state.editing)return; const field=e.target.closest('.builder-field'); if(field){ e.stopPropagation(); fieldDrag=field.dataset.fieldId; field.classList.add('builder-dragging'); return; } const card=e.target.closest('[data-tile-id]'); if(card){ cardDrag=card.dataset.tileId; card.classList.add('builder-dragging'); } }); grid.addEventListener('dragend',e=>{ const field=e.target.closest('.builder-field'); const card=e.target.closest('[data-tile-id]'); field?.classList.remove('builder-dragging'); card?.classList.remove('builder-dragging'); cardDrag=null; fieldDrag=null; }); grid.addEventListener('dragover',e=>{ if(!state.editing)return; if(fieldDrag){ e.preventDefault(); const target=e.target.closest('.builder-field'); const zone=e.target.closest('.builder-field-zone'); (target||zone)?.classList.add('builder-drop-target'); return; } if(cardDrag){ e.preventDefault(); const target=e.target.closest('[data-tile-id]'); if(target&&target.dataset.tileId!==cardDrag)target.classList.add('builder-drop-target'); } }); grid.addEventListener('dragleave',e=>e.target.closest('.builder-field,.builder-field-zone,[data-tile-id]')?.classList.remove('builder-drop-target')); grid.addEventListener('drop',async e=>{ if(!state.editing)return; e.preventDefault(); if(fieldDrag){ const targetField=e.target.closest('.builder-field'); const targetTile=e.target.closest('[data-tile-id]'); if(!targetTile)return; const targetZone=targetTile.querySelector(':scope > .builder-field-zone'); const source=document.querySelector(`.builder-field[data-field-id="${CSS.escape(fieldDrag)}"]`); if(!source||!targetZone)return; const before=targetField&&targetField!==source?targetField:null; if(before)targetZone.insertBefore(source,before);else targetZone.appendChild(source); state.layout.preset='custom'; await saveLayout(true); renderEditor(); return; } if(cardDrag){ const target=e.target.closest('[data-tile-id]'); if(!target||target.dataset.tileId===cardDrag)return; const source=document.querySelector(`[data-tile-id="${CSS.escape(cardDrag)}"]`); target.parentElement.insertBefore(source,target); state.layout.preset='custom'; await saveLayout(true); renderEditor(); } }); }
+  async function applyPreset(key){ const p=DEFAULTS[key]||DEFAULTS.midnight; state.layout=ensureLayout({...p,preset:key}); applyTheme(); prepareFields(); applyTiles(); applyFields(); updateControls(); await saveLayout(true); }
+  async function toggle(on){ makeBuilderControls(); state.editing=on; document.body.classList.toggle('builder-editing',on); $('#builderPanel').classList.toggle('open',on); prepareFields(); applyFields(); if(on){initDrag();updateControls();}else await saveLayout(true); }
+  async function load(){ try{state.layout=ensureLayout(await api('/api/ui/layout'));}catch{state.layout=ensureLayout(null);} makeBuilderControls(); applyTheme(); prepareFields(); applyTiles(); applyFields(); updateControls(); const btn=document.createElement('button'); btn.id='layoutBuilderOpen'; btn.className='icon-btn'; btn.title='UI-Baukasten'; btn.textContent='🎨'; btn.onclick=()=>toggle(true); document.querySelector('header .row')?.prepend(btn); initDrag(); }
+  window.RB_UI_BUILDER={open:()=>toggle(true),close:()=>toggle(false),preset:applyPreset}; window.addEventListener('DOMContentLoaded',load);
 })();
