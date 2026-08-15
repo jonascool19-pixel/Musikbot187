@@ -56,6 +56,8 @@ python3 "$APP_DIR/patches/ui-builder.py"
 python3 "$APP_DIR/patches/ui-builder-pointer.py"
 python3 "$APP_DIR/patches/final-hardening.py"
 python3 "$APP_DIR/patches/security-final.py"
+python3 "$APP_DIR/patches/final-setup-routes.py"
+if ! grep -q "app.get('/api/setup/status'" "$APP_DIR/backend/src/index.ts"; then echo 'Ersteinrichtung konnte nicht in das Backend integriert werden.'; exit 1; fi
 if ! grep -q 'radio-enhancements.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' "$APP_DIR/frontend/index.html"; fi
 if ! grep -q 'metrics-panel.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' "$APP_DIR/frontend/index.html"; fi
 if ! grep -q 'setup-wizard.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/setup-wizard.js"></script>#' "$APP_DIR/frontend/index.html"; fi
