@@ -10,11 +10,18 @@ curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/ins
 
 Der Installer installiert Node.js 24, FFmpeg, yt-dlp, Deno, den Bot, das responsive Web-Dashboard und einen systemd-Dienst. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
 
-## Laufzeit auf kleinem Proxmox-LXC/CT
+## Empfohlenes Laufzeitprofil
 
-Zielprofil: **1 vCPU und 500 MB RAM**.
+Für **einen Discord-Server, einen Voice-Channel und normale Radio-/Musikwiedergabe** ist ein kleiner Proxmox-LXC/CT ausreichend:
 
-Der laufende Dienst ist auf **480 MB RAM** und **90 % eines CPU-Kerns** begrenzt. Zusätzlich läuft er mit `Nice=5`. Damit bleiben CPU- und Speicherreserven für das CT-System, Netzwerk und kurze Lastspitzen. FFmpeg/yt-dlp werden nur für aktive Wiedergabe beziehungsweise Suche verwendet.
+- **1 vCPU**
+- **512 MB RAM** empfohlen
+- **256 MB RAM** als theoretisches Minimum für sehr einfache Nutzung
+- etwa **10–20 GB SSD** für System, Logs und lokale Musik
+
+Der Dienst ist auf **480 MB RAM** und **90 % eines CPU-Kerns** begrenzt. `Nice=5` lässt dem CT-System zusätzlich Priorität. Das bedeutet: Du brauchst nicht dauerhaft mehrere Kerne; FFmpeg/yt-dlp erzeugen nur während aktiver Wiedergabe bzw. Suche zusätzliche Last. Bei mehreren parallelen Voice-Verbindungen, vielen gleichzeitigen YouTube-Auflösungen oder großen lokalen Bibliotheken sollte der CT auf **2 vCPU / 1 GB RAM** erhöht werden.
+
+> Die Werte sind ein konservatives Betriebsprofil, keine Garantie für jede Quelle. Die tatsächliche Last hängt insbesondere von FFmpeg-Quelle, Codec, Anzahl paralleler Wiedergaben und Suchvorgängen ab.
 
 ## Webinterface
 
