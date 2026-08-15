@@ -37,6 +37,10 @@ ops = ROOT / 'patches/system-ops-cooldown.py'
 if ops.exists():
     subprocess.run(['python3', str(ops)], check=True)
 
+compat = ROOT / 'patches/ensure-privileged-config.py'
+if compat.exists():
+    subprocess.run(['python3', str(compat)], check=True)
+
 if subprocess.run(['getent', 'group', 'radiobot-ops'], capture_output=True).returncode != 0:
     subprocess.run(['groupadd', '--system', 'radiobot-ops'], check=True)
 if subprocess.run(['id', '-u', 'radiobot'], capture_output=True).returncode == 0:
