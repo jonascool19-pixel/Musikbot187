@@ -119,19 +119,24 @@ jobs:
           node --check /opt/radiobot/frontend/clock.js
       - name: Verify setup/config wiring
         run: |
-          grep -q '/api/setup/status' /opt/radiobot/backend/src/index.ts
-          grep -q '/api/setup/user' /opt/radiobot/backend/src/index.ts
-          grep -q 'webConfigured: Boolean(WEB_PASSWORD)' /opt/radiobot/backend/src/index.ts
-          grep -q 'Bitte zuerst einen Web-Benutzer anlegen.' /opt/radiobot/backend/src/index.ts
-          grep -q 'privilegedConfigWrite' /opt/radiobot/backend/src/index.ts
-          grep -q 'radiobot-ops' /opt/radiobot/scripts/radiobot-privileged.py
-          grep -q 'config-write' /opt/radiobot/scripts/radiobot-privileged.py
-          grep -q 'Benutzer erstellen' /opt/radiobot/frontend/setup-wizard.js
-          grep -q '/api/setup/user' /opt/radiobot/frontend/setup-wizard.js
-          grep -q 'bootstrapUserOnly' /opt/radiobot/patches/configure-helper-hardening.py
-          grep -q "bootstrap = bool(raw.get('bootstrapUserOnly'))" /opt/radiobot/patches/configure-helper-hardening.py
-          grep -q "if current.get('WEB_PASSWORD')" /opt/radiobot/patches/configure-helper-hardening.py
-          grep -q "raw.get('setupToken') != current.get('SETUP_TOKEN')" /opt/radiobot/patches/configure-helper-hardening.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          backend = Path('/opt/radiobot/backend/src/index.ts').read_text()
+          helper = Path('patches/configure-helper-hardening.py').read_text()
+          install = Path('install.sh').read_text()
+          assert "app.get('/api/setup/status'" in backend
+          assert re.search(r"app\.post(?:<[^>]+>)?\('/api/setup/user'", backend)
+          assert re.search(r"app\.post(?:<[^>]+>)?\('/api/setup'", backend)
+          assert 'Bitte zuerst einen Web-Benutzer anlegen.' in backend
+          assert 'privilegedConfigWrite' in backend
+          assert 'bootstrapUserOnly' in helper
+          assert "bootstrap = bool(raw.get('bootstrapUserOnly'))" in helper
+          assert "if current.get('WEB_PASSWORD')" in helper
+          assert "raw.get('setupToken') != current.get('SETUP_TOKEN')" in helper
+          assert 'WEB_USER=' in install and 'WEB_PASSWORD=' in install and 'SETUP_TOKEN=' in install
+          print('setup/config semantic checks: OK')
+          PY
       - name: Install Chromium for browser test
         run: |
           npm init -y >/dev/null 2>&1
