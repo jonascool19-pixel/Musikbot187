@@ -25,8 +25,10 @@ jobs:
 
       - name: Pin check
         run: |
-          test "$(sed -n 's/^PINNED_COMMIT=\"\([0-9a-f]\{40\}\)\"$/\1/p' install-final.sh)" = "6aa0a6bd594782bb9f4529bd7f1f0496de59a172"
-          test "$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)" = "6aa0a6bd594782bb9f4529bd7f1f0496de59a172"
+          install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
+          update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
+          test "$install_pin" = "a28fdae6aaa89e662e39dde641f2e25bba41f692"
+          test "$update_pin" = "a28fdae6aaa89e662e39dde641f2e25bba41f692"
 
       - name: Prepare
         run: |
@@ -64,7 +66,6 @@ jobs:
           grep -Eq "app\.post(<[^>]+>)?\('/api/setup/user'" /opt/radiobot/backend/src/index.ts
           grep -q "bootstrapUserOnly" /opt/radiobot/scripts/radiobot-configure.py
           grep -q "SupplementaryGroups=radiobot-ops" radiobot.service
-          test -x /opt/radiobot/scripts/ts3-bot.ts || true
           grep -q "start:ts3" /opt/radiobot/backend/package.json
 
       - name: Privileged bootstrap smoke test
@@ -80,7 +81,16 @@ jobs:
           printf '%s\n' 'DISCORD_TOKEN=' 'PORT=3000' 'WEB_USER=' 'WEB_PASSWORD=' 'DISCORD_CONTROL_ROLE=' 'SPOTIFY_CLIENT_ID=' 'SPOTIFY_CLIENT_SECRET=' 'SPOTIFY_REDIRECT_URI=' 'YOUTUBE_API_KEY=' 'YTDLP_PATH=/usr/local/bin/yt-dlp' 'SETUP_TOKEN=ci-test-token' | sudo tee /etc/radiobot/radiobot.env >/dev/null
           sudo chmod 0600 /etc/radiobot/radiobot.env
           sudo systemctl daemon-reload
-          sudo systemctl restart radiobot-privileged.service
+          if ! sudo systemctl restart radiobot-privileged.service; then
+            sudo systemctl --no-pager --full status radiobot-privileged.service || true
+            sudo journalctl -u radiobot-privileged.service -n 80 --no-pager || true
+            sudo test -x /usr/local/libexec/radiobot/radiobot-privileged.py
+            sudo /usr/bin/python3 -u /usr/local/libexec/radiobot/radiobot-privileged.py >/tmp/radiobot-privileged-direct.log 2>&1 & echo $! >/tmp/radiobot-privileged.pid
+            sleep 1
+            sudo cat /tmp/radiobot-privileged-direct.log || true
+            sudo kill "$(cat /tmp/radiobot-privileged.pid)" 2>/dev/null || true
+            exit 1
+          fi
           test -S /run/radiobot-privileged.sock
           test "$(stat -c '%U:%G' /run/radiobot-privileged.sock)" = "root:radiobot-ops"
           sudo -u radiobot python3 -c 'import socket,json; p=json.dumps({"bootstrapUserOnly":True,"webUser":"ci-test","webPassword":"123456789012","setupToken":"ci-test-token"},separators=(",",":")); s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(3); s.connect("/run/radiobot-privileged.sock"); s.sendall(("config-write\\n"+p).encode()); assert s.recv(128)==b"OK\\n"'
