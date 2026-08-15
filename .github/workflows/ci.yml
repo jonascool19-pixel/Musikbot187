@@ -54,10 +54,11 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           checks = [
-              (Path('install.sh').read_text(), '^RELEASE_REF=v2.1.0$', 'install release ref'),
+              (Path('install.sh').read_text(), r'^RELEASE_REF=v2\.1\.0$', 'install release ref'),
               (Path('install.sh').read_text(), 'refs/heads/$RELEASE_REF', 'install archive ref'),
-              (Path('update.sh').read_text(), '^RELEASE_REF=v2.1.0$', 'update release ref'),
+              (Path('update.sh').read_text(), r'^RELEASE_REF=v2\.1\.0$', 'update release ref'),
               (Path('/opt/radiobot/frontend/index.html').read_text(), 'ui-builder.js', 'UI builder JS'),
               (Path('/opt/radiobot/frontend/index.html').read_text(), 'ui-builder.css', 'UI builder CSS'),
               (Path('/opt/radiobot/frontend/index.html').read_text(), 'web-auth.js', 'web auth JS'),
@@ -78,9 +79,8 @@ jobs:
               (Path('/opt/radiobot/backend/src/index.ts').read_text(), "'/api/radio/search'", 'radio search API'),
           ]
           ok = True
-          import re
           for content, needle, label in checks:
-              found = bool(re.search(needle, content)) if needle.startswith('^') else (needle in content)
+              found = bool(re.search(needle, content, re.MULTILINE)) if needle.startswith('^') else (needle in content)
               print(f'CHECK {label}: {"OK" if found else "MISSING"}')
               if not found: ok = False
           if not ok: raise SystemExit(1)
@@ -196,7 +196,7 @@ jobs:
           with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as ex:
               for fut in concurrent.futures.as_completed([ex.submit(hit,i) for i in range(TOTAL)]):
                   try: fut.result()
-                  except Exception: errors+=1
+                  except Exception as e: errors+=1
           elapsed=time.perf_counter()-start
           print(f'perf_total={TOTAL} perf_workers={WORKERS} perf_errors={errors} perf_seconds={elapsed:.3f} perf_rps={TOTAL/elapsed:.1f}')
           if errors: raise SystemExit(f'{errors} request(s) failed')
