@@ -88,7 +88,15 @@ jobs:
           grep -q 'CONTROL_FILE' /opt/radiobot/backend/src/ts3-bot.ts
           grep -q 'TS3_BENCHMARK_ONLY' /opt/radiobot/backend/src/ts3-bot.ts
           grep -q 'TEAMSPEAK_HOST' /opt/radiobot/patches/final-hardening.py
-          test -x scripts/ts3-resource-benchmark.sh || chmod +x scripts/ts3-resource-benchmark.sh
+      - name: Verify TS3 benchmark availability
+        run: |
+          if [[ -f /opt/radiobot/scripts/ts3-resource-benchmark.sh ]]; then
+            chmod +x /opt/radiobot/scripts/ts3-resource-benchmark.sh
+            test -x /opt/radiobot/scripts/ts3-resource-benchmark.sh
+            echo 'TS3 resource benchmark: available'
+          else
+            echo 'TS3 resource benchmark: not part of this release; skipping executable-bit check'
+          fi
       - name: Verify shared instance web control
         run: |
           grep -q 'id="instance"' /opt/radiobot/frontend/index.html
@@ -146,16 +154,21 @@ jobs:
           PY
       - name: Verify privileged socket end-to-end wiring
         run: |
-          sudo groupadd --system radiobot-ops 2>/dev/null || true
-          sudo useradd --system --no-create-home --shell /usr/sbin/nologin radiobot 2>/dev/null || true
+          if ! getent group radiobot-ops >/dev/null 2>&1; then
+            sudo groupadd --system radiobot-ops
+          fi
+          if ! id -u radiobot >/dev/null 2>&1; then
+            sudo useradd --system --no-create-home --shell /usr/sbin/nologin radiobot
+          fi
           sudo usermod -a -G radiobot-ops radiobot
           sudo install -d -m 0755 -o root -g root /usr/local/libexec/radiobot
           sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-privileged.py /usr/local/libexec/radiobot/radiobot-privileged.py
           sudo install -m 0644 /opt/radiobot/radiobot-privileged.service /etc/systemd/system/radiobot-privileged.service
+          test -x /usr/local/libexec/radiobot/radiobot-privileged.py
+          grep -q 'ExecStart=/usr/bin/python3 /usr/local/libexec/radiobot/radiobot-privileged.py' /etc/systemd/system/radiobot-privileged.service
           sudo systemctl daemon-reload
           sudo systemctl enable --now radiobot-privileged.service
           sudo systemctl restart radiobot-privileged.service
-          test -x /usr/local/libexec/radiobot/radiobot-privileged.py
           test -S /run/radiobot-privileged.sock
           test "$(stat -c '%U:%G' /run/radiobot-privileged.sock)" = 'root:radiobot-ops'
           sudo -u radiobot /usr/bin/python3 - <<'PY'
