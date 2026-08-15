@@ -54,6 +54,7 @@ python3 "$APP_DIR/patches/security-final.py"
 if ! grep -q 'radio-enhancements.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' "$APP_DIR/frontend/index.html"; fi
 if ! grep -q 'metrics-panel.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' "$APP_DIR/frontend/index.html"; fi
 if ! grep -q 'setup-wizard.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/setup-wizard.js"></script>#' "$APP_DIR/frontend/index.html"; fi
+if ! grep -q 'system-controls.js' "$APP_DIR/frontend/index.html"; then sed -i 's#</body>#<script src="/system-controls.js"></script></body>#' "$APP_DIR/frontend/index.html"; fi
 if ! id -u radiobot >/dev/null 2>&1; then useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin radiobot; fi
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"; chmod 700 "$DATA_DIR"
 if [[ ! -f "$CONF_DIR/radiobot.env" ]]; then
@@ -153,9 +154,11 @@ echo '[7/10] systemd-Dienste einrichten...'
 install -m 0644 "$APP_DIR/radiobot.service" /etc/systemd/system/radiobot.service
 install -m 0644 "$APP_DIR/musikbot187-metrics.service" /etc/systemd/system/musikbot187-metrics.service
 install -m 0644 "$APP_DIR/musikbot187-metrics.timer" /etc/systemd/system/musikbot187-metrics.timer
-chmod 0755 "$APP_DIR/scripts/system-metrics.py"
+install -m 0644 "$APP_DIR/radiobot-privileged.service" /etc/systemd/system/radiobot-privileged.service
+chmod 0755 "$APP_DIR/scripts/system-metrics.py" "$APP_DIR/scripts/radiobot-privileged.py"
 python3 "$APP_DIR/scripts/system-metrics.py"
 systemctl daemon-reload
+systemctl enable --now radiobot-privileged.service
 systemctl enable radiobot.service
 systemctl enable --now musikbot187-metrics.timer
 cat > /usr/local/bin/radiobot <<'EOF'
@@ -181,6 +184,7 @@ python3 "$APP_DIR/scripts/system-metrics.py"
 test -s "$DATA_DIR/metrics.json"
 python3 -m json.tool "$DATA_DIR/metrics.json" >/dev/null
 systemctl is-enabled musikbot187-metrics.timer >/dev/null
+systemctl is-enabled radiobot-privileged.service >/dev/null
 
 echo '[10/10] MusikBot187 fertig.'
 IP=$(hostname -I | awk '{print $1}')
