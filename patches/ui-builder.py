@@ -44,10 +44,6 @@ for old, new in replacements.items():
         s = s.replace(old, new, 1)
 INDEX.write_text(s, encoding='utf-8')
 
-replace_once(
-    UI_JS,
-    "return{...state.layout,tiles:state.layout.tiles.map(t=>({...t})),fields:fieldData};",
-    "const tileMap=new Map(state.layout.tiles.map(t=>[t.id,t]));const tileData=tiles().map((el,i)=>{const old=tileMap.get(el.dataset.tileId);return old?{...old,visible:!el.hidden,order:i}:null;}).filter(Boolean);return{...state.layout,tiles:tileData,fields:fieldData};",
-    'tile order persistence',
-)
+replace_once(UI_JS,"function fieldCandidates(tile){const zone=tile.querySelector(':scope > .builder-field-zone');if(zone)return[];return[...tile.children].filter(el=>!el.matches('h1,h2,h3,.eyebrow')&&(el.matches('label,.row,.card,.list,.hint,p,.controls')||el.id==='queue'));}","function fieldCandidates(tile){return[...tile.children].filter(el=>!el.matches('h1,h2,h3,.eyebrow,.builder-field-zone')&&(el.matches('label,.row,.card,.list,.hint,p,.controls')||el.id==='queue'));}",'field candidate discovery')
+replace_once(UI_JS,"return{...state.layout,tiles:state.layout.tiles.map(t=>({...t})),fields:fieldData};","const tileMap=new Map(state.layout.tiles.map(t=>[t.id,t]));const tileData=tiles().map((el,i)=>{const old=tileMap.get(el.dataset.tileId);return old?{...old,visible:!el.hidden,order:i}:null;}).filter(Boolean);return{...state.layout,tiles:tileData,fields:fieldData};",'tile order persistence')
 print('ui builder patch applied')
