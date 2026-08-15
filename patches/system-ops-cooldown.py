@@ -6,41 +6,21 @@ backend = ROOT / 'backend/src/index.ts'
 frontend = ROOT / 'frontend/index.html'
 s = backend.read_text(encoding='utf-8')
 
-# Node socket client for the narrowly scoped root controller.
 if "import net from 'node:net';" not in s:
     s = s.replace("import crypto from 'node:crypto';", "import crypto from 'node:crypto';\nimport net from 'node:net';", 1)
 
-s = s.replace(
-    "const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';",
-    "const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';\nconst PRIVILEGED_SOCKET = '/run/radiobot-privileged.sock';\nconst DISCORD_COOLDOWN_MS = 1200;\nconst DISCORD_SEARCH_COOLDOWN_MS = 4500;\nconst discordCooldowns = new Map<string, number>();\nlet searchInFlight = 0;\nconst MAX_SEARCH_IN_FLIGHT = 2;",
-    1,
-)
-
-# Safe default: no configured control role means Discord administrators only.
-s = s.replace(
-    "function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return true; return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }",
-    "function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return Boolean(member?.permissions?.has('Administrator')); return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }",
-    1,
-)
-
-# Persist a dashboard-level bot enabled flag without breaking old DB files.
-s = s.replace(
-    "type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[] };",
-    "type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[]; botEnabled?: boolean };",
-    1,
-)
+s = s.replace("const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';", "const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';\nconst PRIVILEGED_SOCKET = '/run/radiobot-privileged.sock';\nconst DISCORD_COOLDOWN_MS = 1200;\nconst DISCORD_SEARCH_COOLDOWN_MS = 4500;\nconst discordCooldowns = new Map<string, number>();\nlet searchInFlight = 0;\nconst MAX_SEARCH_IN_FLIGHT = 2;", 1)
+s = s.replace("function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return true; return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }", "function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return Boolean(member?.permissions?.has('Administrator')); return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }", 1)
+s = s.replace("type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[] };", "type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[]; botEnabled?: boolean };", 1)
 s = s.replace("db.playlists ??= [];", "db.playlists ??= [];\ndb.botEnabled ??= true;", 1)
 
-# Add cooldown + bounded expensive-search concurrency.
-marker = "async function unifiedSearch(query: string) {"
-if marker in s and "MAX_SEARCH_IN_FLIGHT" in s:
-    old = """async function unifiedSearch(query: string) {
+old = """async function unifiedSearch(query: string) {
   const needle = query.toLowerCase();
   const local: SearchItem[] = fs.readdirSync(MUSIC_DIR).filter(f => /\\.(mp3|wav|ogg|flac|m4a)$/i.test(f) && f.toLowerCase().includes(needle)).slice(0, 12).map(f => ({ kind: 'file', value: f, label: f, meta: 'Lokal' }));
   const radios: SearchItem[] = db.radios.filter(r => `${r.name} ${r.url}`.toLowerCase().includes(needle)).slice(0, 12).map(r => ({ kind: 'radio', value: r.url, label: r.name, meta: 'Radio' }));
   const [youtube, sp] = await Promise.all([youtubeSearch(query).catch(() => []), spotifySearch(query)]); return { local, radios, youtube, spotify: sp };
 }"""
-    new = """async function unifiedSearch(query: string) {
+new = """async function unifiedSearch(query: string) {
   if (query.length > 200) throw new Error('Suchbegriff zu lang.');
   if (searchInFlight >= MAX_SEARCH_IN_FLIGHT) throw new Error('Suche gerade ausgelastet. Bitte kurz warten.');
   searchInFlight += 1;
@@ -53,9 +33,11 @@ if marker in s and "MAX_SEARCH_IN_FLIGHT" in s:
     searchInFlight -= 1;
   }
 }"""
+if old in s:
     s = s.replace(old, new, 1)
+elif 'searchInFlight' not in s:
+    raise SystemExit('unifiedSearch marker missing')
 
-# Privileged operations never invoke sudo from the sandboxed bot process.
 priv = r'''
 async function privilegedAction(action: 'bot-restart' | 'server-reboot' | 'server-shutdown') {
   return new Promise<void>((resolve, reject) => {
@@ -89,8 +71,6 @@ setInterval(() => {
 if "async function privilegedAction" not in s:
     s = s.replace("async function unifiedSearch(query: string) {", priv + "\nasync function unifiedSearch(query: string) {", 1)
 
-# Add web operations before the health route.
-health = "app.get('/api/health'"
 ops = r'''app.post('/api/system/bot/disable', async () => {
   if (!db.botEnabled) return { ok: true, enabled: false };
   db.botEnabled = false;
@@ -104,9 +84,8 @@ app.post('/api/system/reboot', async (_req, reply) => { await privilegedAction('
 app.post('/api/system/shutdown', async (_req, reply) => { await privilegedAction('server-shutdown'); return reply.code(202).send({ ok: true, action: 'server-shutdown' }); });
 '''
 if "/api/system/reboot" not in s:
-    s = s.replace(health, ops + "\n" + health, 1)
+    s = s.replace("app.get('/api/health'", ops + "\napp.get('/api/health'", 1)
 
-# Gate all Discord interactions while the bot is intentionally disabled and silently drop rapid repeats.
 needle = "client.on('interactionCreate', async interaction => {\n  try {"
 replacement = "client.on('interactionCreate', async interaction => {\n  try {\n    if (interaction.guildId && !db.botEnabled) { if (interaction.isRepliable()) await interaction.reply({ content: '🛑 Der Bot ist derzeit über das Webinterface deaktiviert.', ephemeral: true }); return; }\n    if (interaction.guildId && !consumeDiscordCooldown(interaction)) return;"
 if needle in s:
@@ -116,16 +95,16 @@ else:
 
 backend.write_text(s, encoding='utf-8')
 
-# Add the UI controls once; keep the HTML small and accessible.
 html = frontend.read_text(encoding='utf-8')
 if 'id="systemOpen"' not in html:
-    html = html.replace(
-        '<div class="row"><button id="metricsOpen" title="Systemleistung und Netzwerk">Leistung</button><button id="update" title="MusikBot187 aktualisieren">Update</button><button id="refresh" title="Aktualisieren">↻</button></div>',
-        '<div class="row"><button id="metricsOpen" title="Systemleistung und Netzwerk">Leistung</button><button id="systemOpen" title="Bot- und Serversteuerung">System</button><button id="update" title="MusikBot187 aktualisieren">Update</button><button id="refresh" title="Aktualisieren">↻</button></div>',
-        1,
-    )
-    html = html.replace('</main><script src="/app.js"></script>', '</main><script src="/app.js"></script>', 1)
-    frontend.write_text(html, encoding='utf-8')
+    needle = '<div class="row"><button id="metricsOpen" title="Systemleistung und Netzwerk">Leistung</button><button id="update" title="MusikBot187 aktualisieren">Update</button><button id="refresh" title="Aktualisieren">↻</button></div>'
+    repl = '<div class="row"><button id="metricsOpen" title="Systemleistung und Netzwerk">Leistung</button><button id="systemOpen" title="Bot- und Serversteuerung">System</button><button id="update" title="MusikBot187 aktualisieren">Update</button><button id="refresh" title="Aktualisieren">↻</button></div>'
+    if needle in html:
+        html = html.replace(needle, repl, 1)
+    else:
+        raise SystemExit('header button marker missing')
+if 'system-controls.js' not in html:
+    html = html.replace('</body>', '<script src="/system-controls.js"></script></body>', 1)
+frontend.write_text(html, encoding='utf-8')
 
 print('system operations + Discord cooldown patch applied')
-'''
