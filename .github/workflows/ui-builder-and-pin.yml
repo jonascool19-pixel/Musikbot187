@@ -58,13 +58,12 @@ jobs:
           grep -q 'builder-field-zone' /opt/radiobot/frontend/ui-builder.js
           grep -q 'fieldDrag' /opt/radiobot/frontend/ui-builder.js
       - name: Install Chromium for browser test
-        working-directory: /opt/radiobot
         run: |
           npm init -y >/dev/null 2>&1
           npm install --no-audit --no-fund --save-dev playwright@1.55.0
           npx playwright install --with-deps chromium
       - name: Browser test movable tiles and fields
-        working-directory: /opt/radiobot
+        working-directory: ${{ github.workspace }}
         env:
           UI_TEST_ROOT: /opt/radiobot/frontend
           UI_TEST_PORT: 4173
