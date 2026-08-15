@@ -33,6 +33,10 @@ if "app.get('/api/setup/status'" not in s:
         raise SystemExit('health anchor not found')
     s = s.replace(anchor, route_block + "\n" + anchor, 1)
 
+listen_marker = "await app.listen({ port: PORT, host: '0.0.0.0' });"
+if "setup_route_registered=" not in s and listen_marker in s:
+    s = s.replace(listen_marker, "console.log(`setup_route_registered=${app.hasRoute({ method: 'GET', url: '/api/setup/status' })}`);\n" + listen_marker, 1)
+
 if "app.get('/api/setup/status'" not in s:
     raise SystemExit('final setup route insertion failed')
 
