@@ -21,6 +21,30 @@ export function defaultConfig() {
   };
 }
 
+export function normalizeConfig(input: BotConfig): BotConfig {
+  const defaults = defaultConfig();
+  const value = input && typeof input === 'object' ? input : {};
+  const instances = value.instances && typeof value.instances === 'object' ? value.instances : {};
+  const auth = value.auth && typeof value.auth === 'object' ? value.auth : {};
+  const settings = value.settings && typeof value.settings === 'object' ? value.settings : {};
+  return {
+    ...defaults,
+    ...value,
+    auth: { ...defaults.auth, ...auth },
+    instances: {
+      ...defaults.instances,
+      ...instances,
+      discord: Array.isArray(instances.discord) ? instances.discord : [],
+      ts3: Array.isArray(instances.ts3) ? instances.ts3 : [],
+      spotify: Array.isArray(instances.spotify) ? instances.spotify : []
+    },
+    playlists: Array.isArray(value.playlists) ? value.playlists : [],
+    uiOrder: Array.isArray(value.uiOrder) ? value.uiOrder : defaults.uiOrder,
+    settings: { ...defaults.settings, ...settings },
+    setupToken: typeof value.setupToken === 'string' && value.setupToken ? value.setupToken : defaults.setupToken
+  };
+}
+
 export function readConfig(): BotConfig {
   if (!fs.existsSync(CONFIG_FILE)) {
     const cfg = defaultConfig();
@@ -28,7 +52,10 @@ export function readConfig(): BotConfig {
     return cfg;
   }
   try {
-    return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    const cfg = normalizeConfig(parsed);
+    writeConfig(cfg);
+    return cfg;
   } catch {
     const backup = `${CONFIG_FILE}.broken-${Date.now()}`;
     fs.renameSync(CONFIG_FILE, backup);
@@ -40,7 +67,7 @@ export function readConfig(): BotConfig {
 
 export function writeConfig(cfg: BotConfig) {
   const tmp = `${CONFIG_FILE}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+  fs.writeFileSync(tmp, JSON.stringify(normalizeConfig(cfg), null, 2), { mode: 0o600 });
   fs.renameSync(tmp, CONFIG_FILE);
 }
 
