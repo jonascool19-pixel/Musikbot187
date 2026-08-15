@@ -1,4 +1,4 @@
-# RadioBot 2.0
+# MusikBot187
 
 Native Discord Radio/Music Bot für Ubuntu 24.04 – ohne Docker.
 
@@ -8,23 +8,21 @@ Native Discord Radio/Music Bot für Ubuntu 24.04 – ohne Docker.
 curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install.sh | sudo bash
 ```
 
-Der Installer installiert Node.js 24, FFmpeg, yt-dlp, Deno, den Bot, das responsive Web-Dashboard und einen systemd-Dienst. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
+Der Installer installiert Node.js 24, FFmpeg, yt-dlp, Deno, MusikBot187, das responsive Web-Dashboard und einen systemd-Dienst. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
 
 ## Empfohlenes Laufzeitprofil
 
-Für **einen Discord-Server, einen Voice-Channel und normale Radio-/Musikwiedergabe** ist ein kleiner Proxmox-LXC/CT ausreichend:
+Für einen Discord-Server, einen Voice-Channel und normale Radio-/Musikwiedergabe ist ein kleiner Proxmox-LXC/CT ausreichend:
 
 - **1 vCPU**
-- **768 MB RAM** empfohlen für stabile Radio-, Lokal- und YouTube-Wiedergabe
-- **512 MB RAM** als Minimalprofil für einfache Radio-/Lokalnutzung
-- **2 vCPU / 1 GB RAM** bei mehreren parallelen Voice-Instanzen oder deutlich höherer Last
-- etwa **10–20 GB SSD** für System, Logs und lokale Musik
+- **768 MB RAM empfohlen** für stabile Radio-, Lokal- und YouTube-Wiedergabe
+- **500–512 MB RAM** als Minimalprofil für einfache Radio-/Lokalnutzung
+- **bis 1 GB RAM** bei höherer Last, vielen Suchvorgängen oder mehreren parallelen Quellen
+- **2 vCPU / 1 GB RAM** bei mehreren parallelen Voice-Instanzen
 
-Der laufende Dienst ist auf **720 MB RAM** und **90 % eines CPU-Kerns** begrenzt. `MemoryHigh=640M` regelt vorher und `Nice=5` lässt dem CT-System Priorität. Damit wird der Bot nicht unnötig auf 500 MB künstlich ausgehungert, bleibt aber deutlich ressourcenschonender als ein typischer Voll-Server-Bot.
+Der laufende Dienst ist auf **720 MB RAM** und **90 % eines CPU-Kerns** begrenzt. `MemoryHigh=640M` regelt vorher und `Nice=5` lässt dem CT-System Priorität. Damit bleibt MusikBot187 ressourcenschonend, ohne YouTube-/FFmpeg-Spitzen unnötig hart abzuwürgen.
 
-Die Node-Laufzeit ist auf einen kleinen Heap begrenzt; FFmpeg und yt-dlp sind nur bei aktiver Wiedergabe beziehungsweise Suche aktiv. Ein einzelner Radio- oder lokaler Audio-Stream benötigt normalerweise nur einen kleinen Teil eines CPU-Kerns. YouTube-Auflösung und FFmpeg sind die deutlich variableren Lastquellen.
-
-> Die Werte sind ein konservatives Betriebsprofil, keine Garantie für jede Quelle. Die tatsächliche Last hängt insbesondere von Codec, Quelle, Anzahl paralleler Wiedergaben und Suchvorgängen ab.
+FFmpeg und yt-dlp werden nur bei aktiver Wiedergabe beziehungsweise Suche verwendet. Die tatsächliche Last hängt von Quelle, Codec, Anzahl paralleler Wiedergaben und Suchvorgängen ab.
 
 ## Webinterface
 
@@ -54,7 +52,7 @@ Slash Commands:
 - `/skip`
 - `/volume`
 
-Damit können Freunde den Bot direkt in Discord steuern. Über `/search` gibt es Suchergebnisse mit Abspiel-Buttons. Eine optionale `DISCORD_CONTROL_ROLE` kann festlegen, welche Rolle steuern darf.
+Damit können Freunde Musik direkt in Discord suchen, Titel starten, Playlists wechseln und die Wiedergabe steuern. Eine optionale `DISCORD_CONTROL_ROLE` kann festlegen, welche Rolle steuern darf.
 
 ## Discord-Statuskanal
 
@@ -64,16 +62,7 @@ Mit:
 /statuschannel #bot-status
 ```
 
-legt man einen Textkanal für den Bot fest. Dort hält RadioBot eine einzelne Statusnachricht aktuell mit:
-
-- aktuell laufendem Titel
-- Quelle bzw. Playlist
-- Wiedergabestatus
-- den nächsten Queue-Einträgen
-- Lautstärke
-- Zeitstempel
-
-Die Statusnachricht wird bei Änderungen automatisch bearbeitet statt ständig neue Nachrichten zu posten.
+legt man einen Textkanal für den Bot fest. Dort hält MusikBot187 eine einzelne Statusnachricht aktuell mit aktuell laufendem Titel, Quelle/Playlist, Wiedergabestatus, den nächsten Queue-Einträgen, Lautstärke und Zeitstempel.
 
 ## Quellen
 
@@ -97,11 +86,11 @@ Suche, Video-URLs und Playlist-Import werden über `yt-dlp` abgewickelt. Das Aud
 
 Spotify wird **nicht über Spotify Connect** abgespielt. Es gibt keine Geräteauswahl und keine Spotify-Wiedergabe im Bot.
 
-Spotify kann optional per OAuth verbunden werden, um Titel zu suchen und Playlists zu importieren. Beim Abspielen werden die importierten Titel als Suchbegriffe über YouTube aufgelöst, damit die Playlist im Discord-Voice-Channel wiedergegeben werden kann.
+Spotify kann optional per OAuth verbunden werden, um Titel zu suchen und Playlists zu importieren. Beim Abspielen werden importierte Titel als Suchbegriffe über YouTube aufgelöst.
 
 ## Update-System
 
-Im Webinterface gibt es einen **Update**-Button. Er startet einen root-owned Update-Helfer, lädt die aktuelle Version von GitHub, installiert Änderungen, baut das Backend neu und startet `radiobot.service` automatisch neu.
+Im Webinterface gibt es einen **Update-Button**. Er startet einen root-owned Update-Helfer, lädt die aktuelle Version, baut das Backend neu und startet den systemd-Dienst automatisch neu.
 
 Alternativ per Konsole:
 
@@ -109,19 +98,12 @@ Alternativ per Konsole:
 radiobot update
 ```
 
-Status/Logs:
-
-```bash
-radiobot status
-radiobot logs
-```
-
-Das Update benötigt keine Neuinstallation und erhält `/var/lib/radiobot` sowie `/etc/radiobot/radiobot.env`.
-
 ## Sicherheit
 
-Setze ein eigenes `WEB_PASSWORD`. Das Dashboard schützt die API dann per HTTP Basic Authentication. Für einen öffentlich erreichbaren Server wird HTTPS über einen Reverse Proxy empfohlen.
+Das Dashboard nutzt HTTP Basic Authentication, wenn `WEB_PASSWORD` gesetzt ist. Die Konfiguration liegt mit restriktiven Dateirechten unter `/etc/radiobot`. Der laufende Dienst läuft als unprivilegierter Benutzer `radiobot` mit `NoNewPrivileges`, `ProtectSystem`, `ProtectHome`, ohne Swap und mit begrenzter CPU-/RAM-Nutzung. Der Installer erzwingt zusätzlich Same-Origin-CORS.
 
-## Hinweis
+Für einen öffentlich erreichbaren Server wird HTTPS über einen Reverse Proxy empfohlen. Das Repository enthält keine Discord-/Spotify-Schlüssel; diese werden nur lokal in `/etc/radiobot/radiobot.env` gespeichert.
 
-Der Statuskanal sollte die Discord-Rechte **Nachrichten senden**, **Nachrichten lesen** und **Nachrichten verwalten** besitzen, damit RadioBot seine eine Statusnachricht zuverlässig aktualisieren kann.
+## Statuskanal-Rechte
+
+Der Statuskanal sollte **Nachrichten senden**, **Nachrichten lesen** und **Nachrichten verwalten** erlauben, damit MusikBot187 seine eine Statusnachricht zuverlässig aktualisieren kann.
