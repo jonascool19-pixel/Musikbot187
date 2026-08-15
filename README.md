@@ -1,4 +1,4 @@
-# RadioBot 1.3
+# RadioBot 2.0
 
 Native Discord Radio/Music Bot für Ubuntu 24.04 – ohne Docker.
 
@@ -8,55 +8,13 @@ Native Discord Radio/Music Bot für Ubuntu 24.04 – ohne Docker.
 curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install.sh | sudo bash
 ```
 
-Der Installer installiert Node.js 24, FFmpeg, yt-dlp, Deno, den Bot, das responsive Web-Dashboard und einen systemd-Dienst. Discord.js verlangt aktuell Node.js 24.17+; das Installationsprofil nutzt deshalb Node 24. citeturn500829search0
+Der Installer installiert Node.js 24, FFmpeg, yt-dlp, Deno, den Bot, das responsive Web-Dashboard und einen systemd-Dienst. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
 
-### Ressourcen
+## Laufzeit auf kleinem Proxmox-LXC/CT
 
-**Laufzeit-Ziel für einen kleinen Proxmox-LXC/CT:** 1 vCPU und 500 MB RAM.
+Zielprofil: **1 vCPU und 500 MB RAM**.
 
-Der systemd-Dienst begrenzt den Bot auf maximal 480 MB RAM und **90 % einer CPU**. Dadurch bleiben etwa 10 % eines einzelnen CPU-Kerns als Reserve für das CT-System und kurze Lastspitzen.
-
-**Während der Installation:** Für `apt`, `npm install`, TypeScript-Build sowie yt-dlp/Deno-Setup sollten bis zu **1 GB RAM** eingeplant werden.
-
-## Funktionen
-
-- Internet-Radio über Stream-URL
-- lokale MP3/WAV/OGG/FLAC/M4A-Dateien
-- YouTube-Suche und Wiedergabe in Discord über yt-dlp + FFmpeg
-- zentrale Suche über lokal, Radio, YouTube und optional Spotify
-- Play / Pause / Resume / Stop / Skip / Lautstärke
-- Queue und gespeicherte Playlists
-- Discord-Slash-Commands für Freunde
-- Buttons direkt in `/search` zum Starten von Ergebnissen
-- Smartphone-Steuerung über das Webinterface
-- Spotify-Playlist-Import als Playlist/Referenz
-- YouTube-Playlist-Import
-- optionale Rollenbeschränkung für Discord-Steuerung
-
-**Spotify Connect-Geräte sind absichtlich nicht Teil des Bots.** Spotify wird nur für Suche und Playlist-Import verwendet; Spotify-Audio wird nicht als Discord-Ausgabe abgespielt.
-
-### Discord-Befehle
-
-```text
-/join
-/search <query>
-/play <query>
-/playlist list
-/playlist play <name>
-/playlist queue <name>
-/queue
-/now
-/pause
-/resume
-/radio <name>
-/stop
-/skip
-/volume <percent>
-```
-
-`/search` zeigt Treffer und Buttons. Abspielbare Treffer sind lokale Dateien, Radios und YouTube. Freunde können damit direkt Musik auswählen, ohne das Webinterface zu öffnen.
-
-Optional kann `DISCORD_CONTROL_ROLE` auf eine Rollen-ID gesetzt werden. Dann dürfen nur Mitglieder mit dieser Rolle oder Administratoren den Bot über Discord steuern.
+Der laufende Dienst ist auf **480 MB RAM** und **90 % eines CPU-Kerns** begrenzt. Zusätzlich läuft er mit `Nice=5`. Damit bleiben CPU- und Speicherreserven für das CT-System, Netzwerk und kurze Lastspitzen. FFmpeg/yt-dlp werden nur für aktive Wiedergabe beziehungsweise Suche verwendet.
 
 ## Webinterface
 
@@ -66,50 +24,90 @@ Dashboard:
 http://SERVER-IP:3000
 ```
 
-Die Oberfläche ist für Desktop und Smartphone optimiert. Sie enthält eine zentrale Suche, Radioverwaltung, lokale Musik, Queue und Playlist-Verwaltung sowie Spotify-/YouTube-Playlist-Import.
+Die Oberfläche ist für Desktop und Smartphone optimiert. Sie enthält Player-Steuerung, Queue, Radioverwaltung, lokale Musik, Playlists, globale Suche, Spotify-Playlist-Import, YouTube-Playlist-Import, Status-Channel-Konfiguration und einen **Update-Button**.
 
-Lokale Musik:
+## Discord-Steuerung
+
+Slash Commands:
+
+- `/join`
+- `/statuschannel`
+- `/search`
+- `/play`
+- `/playlist list|play|queue`
+- `/queue`
+- `/now`
+- `/pause`
+- `/resume`
+- `/radio`
+- `/stop`
+- `/skip`
+- `/volume`
+
+Damit können Freunde den Bot direkt in Discord steuern. Über `/search` gibt es Suchergebnisse mit Abspiel-Buttons. Eine optionale `DISCORD_CONTROL_ROLE` kann festlegen, welche Rolle steuern darf.
+
+## Discord-Statuskanal
+
+Mit:
+
+```text
+/statuschannel #bot-status
+```
+
+legt man einen Textkanal für den Bot fest. Dort hält RadioBot eine einzelne Statusnachricht aktuell mit:
+
+- aktuell laufendem Titel
+- Quelle bzw. Playlist
+- Wiedergabestatus
+- den nächsten Queue-Einträgen
+- Lautstärke
+- Zeitstempel
+
+Die Statusnachricht wird bei Änderungen automatisch bearbeitet statt ständig neue Nachrichten zu posten.
+
+## Quellen
+
+### Lokal
+
+MP3/WAV/OGG/FLAC/M4A nach:
 
 ```text
 /var/lib/radiobot/music
 ```
 
-Konfiguration:
+### Radio
 
-```text
-/etc/radiobot/radiobot.env
+HTTP(S)-Radio-Streams können im Webinterface angelegt und direkt abgespielt werden.
+
+### YouTube
+
+Suche, Video-URLs und Playlist-Import werden über `yt-dlp` abgewickelt. Das Audio wird für die Discord-Wiedergabe mit FFmpeg verarbeitet.
+
+### Spotify
+
+Spotify wird **nicht über Spotify Connect** abgespielt. Es gibt keine Geräteauswahl und keine Spotify-Wiedergabe im Bot.
+
+Spotify kann optional per OAuth verbunden werden, um Titel zu suchen und Playlists zu importieren. Beim Abspielen werden die importierten Titel als Suchbegriffe über YouTube aufgelöst, damit die Playlist im Discord-Voice-Channel wiedergegeben werden kann.
+
+## Update-System
+
+Im Webinterface gibt es einen **Update**-Button. Er startet einen root-owned Update-Helfer, lädt die aktuelle Version von GitHub, installiert Änderungen, baut das Backend neu und startet `radiobot.service` automatisch neu.
+
+Alternativ per Konsole:
+
+```bash
+radiobot update
 ```
 
-## Spotify Playlist importieren
-
-Spotify ist optional. Für den Playlist-Import werden Spotify Developer OAuth-Daten benötigt:
-
-```env
-SPOTIFY_CLIENT_ID=...
-SPOTIFY_CLIENT_SECRET=...
-SPOTIFY_REDIRECT_URI=http://SERVER-IP:3000/api/spotify/callback
-```
-
-Danach im Webinterface **Spotify verbinden** und eine Playlist-URL importieren.
-
-Spotify-Playlisten werden als Referenz/Import gespeichert. Sie werden **nicht** als Spotify-Audio in Discord extrahiert.
-
-## YouTube
-
-Der Installer bringt yt-dlp und Deno mit. Die aktuelle yt-dlp-Version ist 2026.07.04; moderne YouTube-Extraktion kann einen externen JavaScript-Runtime benötigen, weshalb Deno mitinstalliert wird. citeturn500829search3turn500829search12
-
-Bitte verwende die Wiedergabefunktion nur für Inhalte, die du rechtmäßig nutzen darfst, und beachte die Nutzungsbedingungen der jeweiligen Plattform.
-
-## Sicherheit
-
-Setze ein eigenes `WEB_PASSWORD`. Für einen öffentlich erreichbaren Server wird zusätzlich HTTPS über einen Reverse Proxy empfohlen.
-
-## Betrieb
+Status/Logs:
 
 ```bash
 radiobot status
 radiobot logs
-radiobot restart
-radiobot config
-radiobot update
 ```
+
+Das Update benötigt keine Neuinstallation und erhält `/var/lib/radiobot` sowie `/etc/radiobot/radiobot.env`.
+
+## Sicherheit
+
+Setze ein eigenes `WEB_PASSWORD`. Das Dashboard schützt die API dann per HTTP Basic Authentication. Für einen öffentlich erreichbaren Server wird HTTPS über einen Reverse Proxy empfohlen.
