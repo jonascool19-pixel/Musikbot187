@@ -6,7 +6,7 @@ set -euo pipefail
 # Discord/Spotify/YouTube configuration becomes available.
 PINNED_COMMIT="ca3b6331e50dedddda88641de8685fe8b3835c9a"
 REPO="jonascool19-pixel/radiobot"
-TMP_DIR="$(mktemp -d")
+TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 if [[ $EUID -ne 0 ]]; then echo 'Bitte als root ausführen.'; exit 1; fi
