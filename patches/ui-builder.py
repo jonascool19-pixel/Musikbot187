@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path('/opt/radiobot')
 BACKEND = ROOT / 'backend/src/index.ts'
 INDEX = ROOT / 'frontend/index.html'
+UI_JS = ROOT / 'frontend/ui-builder.js'
 
 
 def replace_once(path, old, new, label):
@@ -14,18 +15,8 @@ def replace_once(path, old, new, label):
         raise SystemExit(f'missing UI builder marker: {label}')
     path.write_text(s, encoding='utf-8')
 
-replace_once(
-    BACKEND,
-    "const UPDATE_LOG = path.join(DATA_DIR, 'update.status');",
-    "const UPDATE_LOG = path.join(DATA_DIR, 'update.status');\nconst UI_LAYOUT_FILE = path.join(DATA_DIR, 'ui-layout.json');",
-    'ui layout path',
-)
-replace_once(
-    BACKEND,
-    "type SpotifyState = { accessToken?: string; refreshToken?: string; expiresAt?: number; displayName?: string };",
-    "type SpotifyState = { accessToken?: string; refreshToken?: string; expiresAt?: number; displayName?: string };\ntype UiTile = { id: string; visible: boolean; span: number; rowSpan: number; icon: string; label: string };\ntype UiField = { id: string; tileId: string; visible: boolean; span: number; rowSpan: number; order: number };\ntype UiLayout = { preset: string; name: string; density: 'compact' | 'comfortable' | 'spacious'; accent: string; bg: string; panel: string; tiles: UiTile[]; fields: UiField[] };",
-    'ui types',
-)
+replace_once(BACKEND,"const UPDATE_LOG = path.join(DATA_DIR, 'update.status');","const UPDATE_LOG = path.join(DATA_DIR, 'update.status');\nconst UI_LAYOUT_FILE = path.join(DATA_DIR, 'ui-layout.json');",'ui layout path')
+replace_once(BACKEND,"type SpotifyState = { accessToken?: string; refreshToken?: string; expiresAt?: number; displayName?: string };","type SpotifyState = { accessToken?: string; refreshToken?: string; expiresAt?: number; displayName?: string };\ntype UiTile = { id: string; visible: boolean; span: number; rowSpan: number; icon: string; label: string };\ntype UiField = { id: string; tileId: string; visible: boolean; span: number; rowSpan: number; order: number };\ntype UiLayout = { preset: string; name: string; density: 'compact' | 'comfortable' | 'spacious'; accent: string; bg: string; panel: string; tiles: UiTile[]; fields: UiField[] };",'ui types')
 marker = "const spotify = loadJson<SpotifyState>(SPOTIFY_FILE, {});"
 insert = "const spotify = loadJson<SpotifyState>(SPOTIFY_FILE, {});\nconst DEFAULT_UI_TILES: UiTile[] = ['hero','discord','search','radio','media','playlists','spotify','youtube','update','queue'].map(id => ({ id, visible: true, span: 1, rowSpan: 1, icon: '◼', label: id }));\nconst uiLayout: UiLayout = loadJson<UiLayout>(UI_LAYOUT_FILE, { preset: 'midnight', name: 'Mein Dashboard', density: 'comfortable', accent: '#7dd3fc', bg: '#070b14', panel: '#111929', tiles: DEFAULT_UI_TILES, fields: [] });\nif (!Array.isArray(uiLayout.tiles)) uiLayout.tiles = DEFAULT_UI_TILES;\nif (!Array.isArray(uiLayout.fields)) uiLayout.fields = [];"
 replace_once(BACKEND, marker, insert, 'ui layout state')
@@ -52,4 +43,11 @@ for old, new in replacements.items():
     if old in s:
         s = s.replace(old, new, 1)
 INDEX.write_text(s, encoding='utf-8')
+
+replace_once(
+    UI_JS,
+    "return{...state.layout,tiles:state.layout.tiles.map(t=>({...t})),fields:fieldData};",
+    "const tileMap=new Map(state.layout.tiles.map(t=>[t.id,t]));const tileData=tiles().map((el,i)=>{const old=tileMap.get(el.dataset.tileId);return old?{...old,visible:!el.hidden,order:i}:null;}).filter(Boolean);return{...state.layout,tiles:tileData,fields:fieldData};",
+    'tile order persistence',
+)
 print('ui builder patch applied')
