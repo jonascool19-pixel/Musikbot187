@@ -6,7 +6,7 @@ ROOT = Path('/opt/radiobot')
 backend = ROOT / 'backend/src/index.ts'
 s = backend.read_text(encoding='utf-8')
 
-# Ensure the setup token constant exists without depending on later route patches.
+# Ensure the setup token constants exist without depending on later route patches.
 if "const SETUP_TOKEN = process.env.SETUP_TOKEN ?? '';" not in s:
     marker = "const DISCORD_CONTROL_ROLE = process.env.DISCORD_CONTROL_ROLE ?? '';"
     replacement = marker + "\nconst YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY ?? '';\nconst SETUP_TOKEN = process.env.SETUP_TOKEN ?? '';"
@@ -45,26 +45,23 @@ app.post<{ Body: { setupToken?: string; discordToken?: string; spotifyClientId?:
 });
 '''
 
-if "app.post('/api/setup/user'" not in s:
-    # Prefer the Fastify app declaration; it is stable across the hardening patches.
+first_user_route_re = re.compile(r"app\.post(?:<[^>]+>)?\('/api/setup/user'")
+if not first_user_route_re.search(s):
     app_match = re.search(r"^const app = Fastify\([^\n]*\);\n", s, re.M)
     if not app_match:
         raise SystemExit('first-user route insertion failed: Fastify app declaration not found')
     insert_at = app_match.end()
     s = s[:insert_at] + route_block + "\n" + s[insert_at:]
 
-# Keep setup endpoints reachable during bootstrap while protecting the rest of the API.
 new_hook = "app.addHook('preHandler', async (req, reply) => { const openSetup = req.url === '/api/setup/status' || req.url === '/api/setup/user'; if (req.url === '/api/setup' && !WEB_PASSWORD) return reply.code(403).send('Bitte zuerst einen Web-Benutzer anlegen.'); if (req.url.startsWith('/api/') && !openSetup && !req.url.startsWith('/api/spotify/callback') && !auth(req, reply)) return reply; });"
 hook_match = re.search(r"app\.addHook\('preHandler'.*?\n", s)
 if hook_match:
     s = s[:hook_match.start()] + new_hook + "\n" + s[hook_match.end():]
 elif 'app.addHook' not in s and re.search(r"^const app = Fastify\(", s, re.M):
-    # If the auth hook is not yet present, add it directly after the app declaration.
     app_match = re.search(r"^const app = Fastify\([^\n]*\);\n", s, re.M)
     assert app_match is not None
     s = s[:app_match.end()] + new_hook + "\n" + s[app_match.end():]
 
-# Deterministic metrics route required by the dashboard. Do not duplicate it.
 metrics_block = "app.get('/api/metrics', async (_req, reply) => { const file = '/var/lib/radiobot/metrics.json'; if (!fs.existsSync(file)) return reply.send({ ok: true, ts: Date.now(), cpuTotal: 0, cpuIdle: 0, cpuCount: 1, load1: 0, memoryTotal: 0, memoryUsed: 0, diskTotal: 0, diskUsed: 0, networkRx: 0, networkTx: 0, stale: true }); try { return reply.send(JSON.parse(fs.readFileSync(file, 'utf8'))); } catch { return reply.send({ ok: true, ts: Date.now(), cpuTotal: 0, cpuIdle: 0, cpuCount: 1, load1: 0, memoryTotal: 0, memoryUsed: 0, diskTotal: 0, diskUsed: 0, networkRx: 0, networkTx: 0, stale: true }); } });"
 if "app.get('/api/metrics'" not in s:
     app_match = re.search(r"^const app = Fastify\([^\n]*\);\n", s, re.M)
@@ -72,7 +69,6 @@ if "app.get('/api/metrics'" not in s:
         raise SystemExit('metrics insertion failed: Fastify app declaration not found')
     s = s[:app_match.end()] + metrics_block + "\n" + s[app_match.end():]
 
-# System routes are likewise independent of route order.
 system_routes = r'''app.post('/api/system/bot/disable', async () => { db.botEnabled = false; for (const guild of client.guilds.cache.values()) { try { await stopGuild(guild.id); } catch {} } saveJson(DB_FILE, db); return { ok: true, enabled: false }; });
 app.post('/api/system/bot/enable', async () => { db.botEnabled = true; saveJson(DB_FILE, db); return { ok: true, enabled: true }; });
 app.post('/api/system/restart', async (_req, reply) => { await privilegedAction('bot-restart'); return reply.code(202).send({ ok: true, action: 'bot-restart' }); });
@@ -85,9 +81,14 @@ if "'/api/system/bot/disable'" not in s:
         raise SystemExit('system route insertion failed: Fastify app declaration not found')
     s = s[:app_match.end()] + system_routes + "\n" + s[app_match.end():]
 
-for marker in ("app.get('/api/setup/status'", "app.post('/api/setup/user'", "Bitte zuerst einen Web-Benutzer anlegen.", "app.get('/api/metrics'"):
-    if marker not in s:
-        raise SystemExit(f'missing final setup marker: {marker}')
+if "app.get('/api/setup/status'" not in s:
+    raise SystemExit('missing final setup marker: setup status')
+if not first_user_route_re.search(s):
+    raise SystemExit('missing final setup marker: first-user route')
+if "Bitte zuerst einen Web-Benutzer anlegen." not in s:
+    raise SystemExit('missing final setup marker: first-user gate')
+if "app.get('/api/metrics'" not in s:
+    raise SystemExit('missing final setup marker: metrics')
 
 backend.write_text(s, encoding='utf-8')
 print('final setup + first-user + metrics + system route patch applied')
