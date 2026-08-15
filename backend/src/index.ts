@@ -112,7 +112,7 @@ app.post('/api/setup/user', async (request: any, reply: any) => {
   const body = request.body ?? {};
   const username = String(body.username ?? '').trim();
   const password = String(body.password ?? '');
-  if (!username || password.length < 12) return reply.code(400).send({ error: 'Benutzername erforderlich, Passwort mindestens 12 Zeichen.' });
+  if (!username || password.length < 5 || password.length > 30) return reply.code(400).send({ error: 'Benutzername erforderlich, Passwort muss zwischen 5 und 30 Zeichen lang sein.' });
   const pass = passwordHash(password);
   const user = { id: randomBytes(8).toString('hex'), username, role: 'admin', salt: pass.salt, hash: pass.hash };
   config.users = [user];
@@ -217,7 +217,7 @@ app.post('/api/users', async (request: any, reply: any) => {
   const username = String(body.username ?? '').trim();
   const password = String(body.password ?? '');
   const role = ['admin','operator','viewer'].includes(body.role) ? body.role : 'viewer';
-  if (!username || password.length < 12) return reply.code(400).send({ error: 'Benutzername und Passwort (mindestens 12 Zeichen) erforderlich.' });
+  if (!username || password.length < 5 || password.length > 30) return reply.code(400).send({ error: 'Benutzername und Passwort (5 bis 30 Zeichen) erforderlich.' });
   if (config.users.some((u: any) => u.username.toLowerCase() === username.toLowerCase())) return reply.code(409).send({ error: 'Benutzername bereits vorhanden.' });
   const pass = passwordHash(password);
   config.users.push({ id: randomBytes(8).toString('hex'), username, role, salt: pass.salt, hash: pass.hash }); save();
@@ -230,7 +230,7 @@ app.put('/api/users/:id', async (request: any, reply: any) => {
   const body = request.body ?? {};
   if (body.username) target.username = String(body.username).trim();
   if (['admin','operator','viewer'].includes(body.role)) target.role = body.role;
-  if (body.password) { if (String(body.password).length < 12) return reply.code(400).send({ error: 'Passwort mindestens 12 Zeichen.' }); const pass = passwordHash(String(body.password)); target.salt = pass.salt; target.hash = pass.hash; }
+  if (body.password) { if (String(body.password).length < 5 || String(body.password).length > 30) return reply.code(400).send({ error: 'Passwort muss zwischen 5 und 30 Zeichen lang sein.' }); const pass = passwordHash(String(body.password)); target.salt = pass.salt; target.hash = pass.hash; }
   save(); return { ok: true };
 });
 app.delete('/api/users/:id', async (request: any, reply: any) => {
