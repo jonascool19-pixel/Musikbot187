@@ -52,6 +52,8 @@ else
   cp -a "$SOURCE_ROOT/backend" "$APP_DIR/"
   cp -a "$SOURCE_ROOT/frontend" "$APP_DIR/"
 fi
+install -d -m 0755 "$APP_DIR/scripts"
+install -m 0755 "$SOURCE_ROOT/scripts/network-telemetry.sh" "$APP_DIR/scripts/network-telemetry.sh"
 getent group radiobot >/dev/null 2>&1 || groupadd --system radiobot
 if id -u radiobot >/dev/null 2>&1; then usermod --gid radiobot radiobot; else useradd --system --home-dir "$DATA_DIR" --gid radiobot --shell /usr/sbin/nologin radiobot; fi
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"
@@ -76,15 +78,20 @@ npm prune --omit=dev --no-audit --no-fund
 
 echo -e '\033[1;36m[6/8] systemd einrichten…\033[0m'
 install -m 0644 "$SOURCE_ROOT/radiobot.service" /etc/systemd/system/radiobot.service
+install -m 0644 "$SOURCE_ROOT/radiobot-network.service" /etc/systemd/system/radiobot-network.service
 systemctl daemon-reload
-systemctl enable radiobot.service
+systemctl enable radiobot.service radiobot-network.service
 systemctl restart radiobot.service
+systemctl restart radiobot-network.service
 sleep 2
 if ! systemctl is-active --quiet radiobot.service; then systemctl --no-pager --full status radiobot.service || true; journalctl -u radiobot.service -n 100 --no-pager || true; exit 1; fi
+if ! systemctl is-active --quiet radiobot-network.service; then systemctl --no-pager --full status radiobot-network.service || true; journalctl -u radiobot-network.service -n 100 --no-pager || true; exit 1; fi
 # Verify the passwordless elevation path using the real radiobot account and a harmless bot restart.
 runuser -u radiobot -- /usr/bin/sudo -n /usr/bin/systemctl restart radiobot
 sleep 1
 if ! systemctl is-active --quiet radiobot.service; then systemctl --no-pager --full status radiobot.service || true; journalctl -u radiobot.service -n 100 --no-pager || true; exit 1; fi
+sleep 1
+test -s "$APP_DIR/frontend/network.json"
 
 echo -e '\033[1;32m[7/8] Installation abgeschlossen.\033[0m'
 IP=$(hostname -I | awk '{print $1}')
