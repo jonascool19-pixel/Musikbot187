@@ -21,6 +21,29 @@ if queue_old in s:
 else:
     s = s.replace("if (replace) { await stopGuild(guildId); state.queue = items; }", "if (replace) { await stopGuild(guildId); state.manualStop = false; state.queue = items; }", 1)
 
+# Add serialized playback wrapper without changing the playback body or brace structure.
+if "const playLocks = new Map" in s:
+    if "async function playNextUnlocked(guildId: string)" not in s and "async function playNext(guildId: string)" in s:
+        s = s.replace("async function playNext(guildId: string) {", "async function playNextUnlocked(guildId: string) {", 1)
+    if "async function playNext(guildId: string)" not in s and "async function playNextUnlocked(guildId: string)" in s:
+        wrapper = """async function playNext(guildId: string) {
+  const running = playLocks.get(guildId);
+  if (running) return running;
+  const run = playNextUnlocked(guildId).finally(() => { if (playLocks.get(guildId) === run) playLocks.delete(guildId); });
+  playLocks.set(guildId, run);
+  return run;
+}
+
+"""
+        if "async function stopGuild(guildId: string)" in s:
+            s = s.replace("async function stopGuild(guildId: string)", wrapper + "async function stopGuild(guildId: string)", 1)
+
+# Ensure stop always clears the transient manual-stop latch even when older hardening did not patch it.
+stop_marker = "const state = guildState(guildId); state.queue = []; state.playing = undefined; state.playingType = undefined; state.currentPlaylist = undefined;"
+stop_new = "const state = guildState(guildId); state.manualStop = true; state.queue = []; state.playing = undefined; state.playingType = undefined; state.currentPlaylist = undefined; state.activePlaylistId = undefined; state.lastItem = undefined;"
+if stop_marker in s:
+    s = s.replace(stop_marker, stop_new, 1)
+
 old = """async function unifiedSearch(query: string) {
   const needle = query.toLowerCase();
   const local: SearchItem[] = fs.readdirSync(MUSIC_DIR).filter(f => /\\.(mp3|wav|ogg|flac|m4a)$/i.test(f) && f.toLowerCase().includes(needle)).slice(0, 12).map(f => ({ kind: 'file', value: f, label: f, meta: 'Lokal' }));
@@ -78,23 +101,10 @@ setInterval(() => {
 if "async function privilegedAction" not in s:
     s = s.replace("async function unifiedSearch(query: string) {", priv + "\nasync function unifiedSearch(query: string) {", 1)
 
-# The final-hardening patch adds the request limiter to preHandler. Keep /api/health and setup status cheap for monitoring and the stress test.
 old_hook = "const openSetup = req.url.startsWith('/api/setup') || req.url.startsWith('/api/health') || req.url.startsWith('/api/spotify/callback'); if (req.url.startsWith('/api/') && !openSetup && !req.url.startsWith('/api/spotify/callback') && !auth(req, reply)) return reply; const key = String(req.ip ?? 'unknown'); const now = Date.now(); const bucket = requestBuckets.get(key); if (!bucket || now - bucket.start >= RATE_WINDOW_MS) requestBuckets.set(key, { start: now, count: 1 }); else { bucket.count += 1; if (bucket.count > REQUEST_LIMIT) return reply.code(429).send('Too many requests'); }"
 new_hook = "const openSetup = req.url.startsWith('/api/setup') || req.url.startsWith('/api/health') || req.url.startsWith('/api/spotify/callback'); if (req.url.startsWith('/api/') && !openSetup && !req.url.startsWith('/api/spotify/callback') && !auth(req, reply)) return reply; const limited = req.url.startsWith('/api/') && !req.url.startsWith('/api/health') && !req.url.startsWith('/api/setup/status'); if (limited) { const key = String(req.ip ?? 'unknown'); const now = Date.now(); const bucket = requestBuckets.get(key); if (!bucket || now - bucket.start >= RATE_WINDOW_MS) requestBuckets.set(key, { start: now, count: 1 }); else { bucket.count += 1; if (bucket.count > REQUEST_LIMIT) return reply.code(429).send('Too many requests'); } }"
 if old_hook in s:
     s = s.replace(old_hook, new_hook, 1)
-
-if "async function playNext(guildId: string)" not in s and "async function playNextUnlocked(guildId: string)" in s and "const playLocks = new Map" in s:
-    wrapper = """async function playNext(guildId: string) {
-  const running = playLocks.get(guildId);
-  if (running) return running;
-  const run = playNextUnlocked(guildId).finally(() => { if (playLocks.get(guildId) === run) playLocks.delete(guildId); });
-  playLocks.set(guildId, run);
-  return run;
-}
-
-"""
-    s = s.replace("async function stopGuild(guildId: string)", wrapper + "async function stopGuild(guildId: string)", 1)
 
 ops = r'''app.post('/api/system/bot/disable', async () => {
   if (!db.botEnabled) return { ok: true, enabled: false };
