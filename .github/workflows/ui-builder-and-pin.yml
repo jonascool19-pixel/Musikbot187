@@ -1,0 +1,56 @@
+name: UI Builder and Pinned Update CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package.json
+      - name: Syntax checks
+        run: |
+          bash -n install.sh update.sh
+          python3 -m py_compile patches/ui-builder.py
+          node --check frontend/ui-builder.js
+      - name: Verify pinned installer
+        run: |
+          grep -q '^RELEASE_TAG=v2.1.0$' install.sh
+          grep -q 'refs/tags/\\$RELEASE_TAG' install.sh
+          grep -q 'RELEASE_TAG=v2.1.0' install.sh
+          grep -q 'refs/tags/\\${RELEASE_TAG}' install.sh
+      - name: Prepare patched tree
+        run: |
+          sudo rm -rf /opt/radiobot
+          sudo mkdir -p /opt/radiobot/backend /opt/radiobot/frontend /opt/radiobot/patches /opt/radiobot/scripts
+          sudo cp -a backend/. /opt/radiobot/backend/
+          sudo cp -a frontend/. /opt/radiobot/frontend/
+          sudo cp -a patches/. /opt/radiobot/patches/
+          sudo cp -a scripts/. /opt/radiobot/scripts/
+          sudo python3 /opt/radiobot/patches/enable-radio-features.py
+          sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
+          sudo python3 /opt/radiobot/patches/setup-wizard.py
+          sudo python3 /opt/radiobot/patches/ui-builder.py
+      - name: Build backend
+        working-directory: /opt/radiobot/backend
+        run: |
+          npm install
+          npm run build
+      - name: Validate UI builder wiring
+        run: |
+          grep -q 'ui-builder.js' /opt/radiobot/frontend/index.html
+          grep -q 'ui-builder.css' /opt/radiobot/frontend/index.html
+          grep -q 'data-tile-id="hero"' /opt/radiobot/frontend/index.html
+          grep -q 'data-tile-id="queue"' /opt/radiobot/frontend/index.html
+          grep -q '/api/ui/layout' /opt/radiobot/backend/src/index.ts
+          grep -q 'UI_LAYOUT_FILE' /opt/radiobot/backend/src/index.ts
+          test -s frontend/ui-builder.js
+          test -s frontend/ui-builder.css
