@@ -84,6 +84,8 @@ jobs:
           WEB_PASSWORD: test-password-12345
           WEB_USER: admin
         run: |
+          echo "CI_WEB_USER=$WEB_USER"
+          echo "CI_WEB_PASSWORD_LENGTH=${#WEB_PASSWORD}"
           sudo mkdir -p /var/lib/radiobot
           sudo python3 /opt/radiobot/scripts/system-metrics.py
           sudo chmod 0644 /var/lib/radiobot/metrics.json
@@ -119,7 +121,10 @@ jobs:
           curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/health >/dev/null
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/metrics)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' -u admin:test-password-12345 http://127.0.0.1:3100/api/settings)" = 403
-          curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/metrics >/dev/null
+          metrics_code=$(curl -s -o /tmp/metrics-response.txt -w '%{http_code}' -u admin:test-password-12345 http://127.0.0.1:3100/api/metrics)
+          echo "metrics_auth_http=$metrics_code"
+          cat /tmp/metrics-response.txt
+          test "$metrics_code" = 200 || { cat "$RUNNER_TEMP/musikbot187.log"; exit 1; }
           curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/bot/disable >/dev/null
           curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/bot/enable >/dev/null
           curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/restart >/dev/null
@@ -159,7 +164,7 @@ jobs:
               req=urllib.request.Request(URL,headers={'Authorization':AUTH})
               with urllib.request.urlopen(req,timeout=5) as r:
                   body=r.read()
-                  if r.status!=200 or b'"ok":true' not in body: raise RuntimeError(r.status)
+                  if r.status!=200 or b'\"ok\":true' not in body: raise RuntimeError(r.status)
           start=time.perf_counter(); errors=0
           with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as ex:
               for fut in concurrent.futures.as_completed([ex.submit(hit,i) for i in range(TOTAL)]):
