@@ -45,12 +45,13 @@ const staticServer=childProcess.spawn('python3',['-m','http.server',String(port)
     await page.goto(`http://127.0.0.1:${port}/index.html`,{waitUntil:'networkidle'});
     await page.locator('#layoutBuilderOpen').waitFor();
     await page.locator('#layoutBuilderOpen').click();
-    const diagnostics=await page.evaluate(()=>({tiles:[...document.querySelectorAll('.grid > [data-tile-id]')].map(e=>e.dataset.tileId),fields:[...document.querySelectorAll('.builder-field')].map(e=>e.dataset.fieldId),articles:[...document.querySelectorAll('.grid > article')].map(e=>({tile:e.dataset.tileId,children:[...e.children].map(c=>c.tagName+'.'+c.className)})),builder:!!document.querySelector('#builderPanel')}));
+    const diagnostics=await page.evaluate(()=>({tiles:[...document.querySelectorAll('.grid > [data-tile-id]')].map(e=>e.dataset.tileId),fields:[...document.querySelectorAll('.builder-field')].map(e=>e.dataset.fieldId),handles:[...document.querySelectorAll('.builder-tile-handle')].length,articles:[...document.querySelectorAll('.grid > article')].map(e=>({tile:e.dataset.tileId,children:[...e.children].map(c=>c.tagName+'.'+c.className)})),builder:!!document.querySelector('#builderPanel')}));
     console.log('UI diagnostics',JSON.stringify(diagnostics));
     const fieldCount=await page.locator('.builder-field').count();
     if(fieldCount<8)throw new Error(`expected movable fields, got ${fieldCount}`);
+    if(await page.locator('.builder-tile-handle').count()<8)throw new Error('expected tile drag handles');
 
-    const discord=page.locator('[data-tile-id="discord"]');
+    const discord=page.locator('[data-tile-id="discord"] .builder-tile-handle');
     const search=page.locator('[data-tile-id="search"]');
     const firstBefore=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
     await discord.dragTo(search);
