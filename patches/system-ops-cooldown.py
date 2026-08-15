@@ -9,7 +9,7 @@ s = backend.read_text(encoding='utf-8')
 if "import net from 'node:net';" not in s:
     s = s.replace("import crypto from 'node:crypto';", "import crypto from 'node:crypto';\nimport net from 'node:net';", 1)
 
-s = s.replace("const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';", "const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';\nconst PRIVILEGED_SOCKET = '/run/radiobot-privileged.sock';\nconst DISCORD_COOLDOWN_MS = 1200;\nconst DISCORD_SEARCH_COOLDOWN_MS = 4500;\nconst discordCooldowns = new Map<string, number>();\nlet searchInFlight = 0;\nconst MAX_SEARCH_IN_FLIGHT = 2;", 1)
+s = s.replace("const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';", "const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';\nconst PRIVILEGED_SOCKET = '/run/radiobot-privileged.sock';\nconst DISCORD_COOLDOWN_MS = 1200;\nconst DISCORD_SEARCH_COOLDOWN_MS = 4500;\nconst DISCORD_GUILD_WINDOW_MS = 10_000;\nconst DISCORD_GUILD_MAX_COMMANDS = 20;\nconst discordCooldowns = new Map<string, number>();\nconst discordGuildBuckets = new Map<string, { start: number; count: number }>();\nlet searchInFlight = 0;\nconst MAX_SEARCH_IN_FLIGHT = 2;", 1)
 s = s.replace("function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return true; return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }", "function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return Boolean(member?.permissions?.has('Administrator')); return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }", 1)
 s = s.replace("type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[] };", "type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[]; botEnabled?: boolean };", 1)
 s = s.replace("db.playlists ??= [];", "db.playlists ??= [];\ndb.botEnabled ??= true;", 1)
@@ -21,7 +21,6 @@ if queue_old in s:
 else:
     s = s.replace("if (replace) { await stopGuild(guildId); state.queue = items; }", "if (replace) { await stopGuild(guildId); state.manualStop = false; state.queue = items; }", 1)
 
-# Add serialized playback wrapper without changing the playback body or brace structure.
 if "const playLocks = new Map" in s:
     if "async function playNextUnlocked(guildId: string)" not in s and "async function playNext(guildId: string)" in s:
         s = s.replace("async function playNext(guildId: string) {", "async function playNextUnlocked(guildId: string) {", 1)
@@ -38,7 +37,6 @@ if "const playLocks = new Map" in s:
         if "async function stopGuild(guildId: string)" in s:
             s = s.replace("async function stopGuild(guildId: string)", wrapper + "async function stopGuild(guildId: string)", 1)
 
-# Ensure stop always clears the transient manual-stop latch even when older hardening did not patch it.
 stop_marker = "const state = guildState(guildId); state.queue = []; state.playing = undefined; state.playingType = undefined; state.currentPlaylist = undefined;"
 stop_new = "const state = guildState(guildId); state.manualStop = true; state.queue = []; state.playing = undefined; state.playingType = undefined; state.currentPlaylist = undefined; state.activePlaylistId = undefined; state.lastItem = undefined;"
 if stop_marker in s:
@@ -90,12 +88,19 @@ function consumeDiscordCooldown(interaction: any) {
   const delay = search ? DISCORD_SEARCH_COOLDOWN_MS : DISCORD_COOLDOWN_MS;
   const last = discordCooldowns.get(key) ?? 0;
   if (now - last < delay) return false;
+  const guildBucket = discordGuildBuckets.get(guildId);
+  if (!guildBucket || now - guildBucket.start >= DISCORD_GUILD_WINDOW_MS) discordGuildBuckets.set(guildId, { start: now, count: 1 });
+  else {
+    guildBucket.count += 1;
+    if (guildBucket.count > DISCORD_GUILD_MAX_COMMANDS) return false;
+  }
   discordCooldowns.set(key, now);
   return true;
 }
 setInterval(() => {
   const cutoff = Date.now() - 60_000;
   for (const [key, ts] of discordCooldowns) if (ts < cutoff) discordCooldowns.delete(key);
+  for (const [guildId, bucket] of discordGuildBuckets) if (bucket.start < cutoff) discordGuildBuckets.delete(guildId);
 }, 30_000).unref();
 '''
 if "async function privilegedAction" not in s:
@@ -134,17 +139,14 @@ else:
     raise SystemExit('interactionCreate marker missing')
 
 backend.write_text(s, encoding='utf-8')
-
 html = frontend.read_text(encoding='utf-8')
 if 'id="systemOpen"' not in html:
     needle = '<div class="row"><button id="metricsOpen" title="Systemleistung und Netzwerk">Leistung</button><button id="update" title="MusikBot187 aktualisieren">Update</button><button id="refresh" title="Aktualisieren">↻</button></div>'
     repl = '<div class="row"><button id="metricsOpen" title="Systemleistung und Netzwerk">Leistung</button><button id="systemOpen" title="Bot- und Serversteuerung">System</button><button id="update" title="MusikBot187 aktualisieren">Update</button><button id="refresh" title="Aktualisieren">↻</button></div>'
-    if needle in html:
-        html = html.replace(needle, repl, 1)
-    else:
+    if needle not in html:
         raise SystemExit('header button marker missing')
+    html = html.replace(needle, repl, 1)
 if 'system-controls.js' not in html:
     html = html.replace('</body>', '<script src="/system-controls.js"></script></body>', 1)
 frontend.write_text(html, encoding='utf-8')
-
 print('system operations + Discord cooldown patch applied')
