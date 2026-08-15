@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 RELEASE_REF=v2.1.0
-PINNED_COMMIT=c70f6a54b4f882f7b03fd1af2efba19af9d12e2c
+PINNED_COMMIT=5347d32f0a024d1836ec7c0772df040aedc82051
 REPO=jonascool19-pixel/radiobot
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -14,6 +14,7 @@ sed -i "s/^RELEASE_REF=v2\.1\.0$/RELEASE_REF=${PINNED_COMMIT}/" "$TMP_DIR/instal
 sed -i 's#refs/heads/\$RELEASE_REF#\$RELEASE_REF#' "$TMP_DIR/install.sh"
 grep -q "^RELEASE_REF=${PINNED_COMMIT}$" "$TMP_DIR/install.sh"
 bash "$TMP_DIR/install.sh"
+if [[ -x /usr/bin/python3 && -f /opt/radiobot/patches/instance-routing.py ]]; then python3 /opt/radiobot/patches/instance-routing.py; fi
 if [[ -f /opt/radiobot/patches/web-auth.py ]]; then
   python3 /opt/radiobot/patches/web-auth.py
   cd /opt/radiobot/backend
@@ -21,4 +22,5 @@ if [[ -f /opt/radiobot/patches/web-auth.py ]]; then
   npm run build
   npm prune --omit=dev --no-audit --no-fund
   systemctl restart radiobot.service
+  systemctl restart radiobot-ts3.service 2>/dev/null || true
 fi
