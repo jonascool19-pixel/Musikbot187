@@ -6,12 +6,14 @@ ROOT = Path('/opt/radiobot')
 p = ROOT / 'backend/src/index.ts'
 s = p.read_text(encoding='utf-8')
 
+
 def replace(old: str, new: str, label: str) -> None:
     global s
     if old in s:
         s = s.replace(old, new, 1)
     elif new not in s:
         raise SystemExit(f'missing security marker: {label}')
+
 
 replace(
     "function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return true; return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }",
@@ -40,19 +42,13 @@ compat = ROOT / 'patches/ensure-privileged-config.py'
 if compat.exists():
     subprocess.run(['python3', str(compat)], check=True)
 
-# Security patching must not start systemd services. The installer/CI owns the
-# lifecycle ordering and starts the privileged controller only after all files
-# and helpers have been installed.
-if subprocess.run(['getent', 'group', 'radiobot-ops'], capture_output=True).returncode != 0:
-    subprocess.run(['groupadd', '--system', 'radiobot-ops'], check=True)
-if subprocess.run(['id', '-u', 'radiobot'], capture_output=True).returncode == 0:
-    subprocess.run(['usermod', '-a', '-G', 'radiobot-ops', 'radiobot'], check=True)
-
+# Security patching must not start systemd services or create a second socket
+# group. The installer owns user creation and the privileged socket uses the
+# existing radiobot primary group.
 service = ROOT / 'radiobot.service'
 if service.exists():
     ss = service.read_text(encoding='utf-8')
-    if 'SupplementaryGroups=radiobot-ops' not in ss:
-        ss = ss.replace('Group=radiobot', 'Group=radiobot\nSupplementaryGroups=radiobot-ops', 1)
+    ss = ss.replace('\nSupplementaryGroups=radiobot-ops', '', 1)
     service.write_text(ss, encoding='utf-8')
 
 print('security-final applied')
