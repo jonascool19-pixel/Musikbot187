@@ -6,8 +6,8 @@ APP_DIR=/opt/radiobot
 DATA_DIR=/var/lib/radiobot
 CONF_DIR=/etc/radiobot
 ROOT_BIN_DIR=/usr/local/libexec/radiobot
-RELEASE_TAG=v2.1.0
-REPO_TGZ=https://codeload.github.com/jonascool19-pixel/radiobot/tar.gz/refs/tags/$RELEASE_TAG
+RELEASE_REF=v2.1.0
+REPO_TGZ=https://codeload.github.com/jonascool19-pixel/radiobot/tar.gz/refs/heads/$RELEASE_REF
 TMP_DIR=$(mktemp -d)
 cleanup(){ rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
@@ -37,7 +37,7 @@ deno --version | head -n1
 echo '[4/10] Anwendung herunterladen...'
 curl -fsSL "$REPO_TGZ" -o "$TMP_DIR/radiobot.tgz"
 tar -xzf "$TMP_DIR/radiobot.tgz" -C "$TMP_DIR"
-SRC_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name 'radiobot-v2.1.0*' | head -n1)
+SRC_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name 'radiobot-*' | head -n1)
 [[ -n "$SRC_DIR" ]] || { echo 'Download fehlgeschlagen.'; exit 1; }
 mkdir -p "$APP_DIR" "$DATA_DIR/music" "$CONF_DIR" "$ROOT_BIN_DIR"
 rm -rf "$APP_DIR/backend" "$APP_DIR/frontend" "$APP_DIR/patches" "$APP_DIR/scripts"
@@ -95,11 +95,11 @@ npm prune --omit=dev --no-audit --no-fund
 echo '[6/10] Root-Konfigurations- und Updatehelfer einrichten...'
 cat > /usr/local/sbin/radiobot-configure <<'PYEOF'
 #!/usr/bin/env python3
-import json, shlex, subprocess, tempfile, sys
+import json, shlex, subprocess, tempfile
 from pathlib import Path
 CONF=Path('/etc/radiobot/radiobot.env')
 allowed={'DISCORD_TOKEN','WEB_USER','WEB_PASSWORD','PORT','DISCORD_CONTROL_ROLE','SPOTIFY_CLIENT_ID','SPOTIFY_CLIENT_SECRET','SPOTIFY_REDIRECT_URI','YOUTUBE_API_KEY','YTDLP_PATH','SETUP_TOKEN'}
-raw=json.load(sys.stdin)
+raw=json.load(__import__('sys').stdin)
 if not isinstance(raw,dict): raise SystemExit('invalid configuration')
 current={}
 if CONF.exists():
@@ -110,27 +110,19 @@ for key in allowed:
     if key in raw and raw[key] is not None:
         value=str(raw[key])
         if '\n' in value or '\r' in value: raise SystemExit(f'invalid value for {key}')
-        if key in {'WEB_PASSWORD','SPOTIFY_CLIENT_SECRET','YOUTUBE_API_KEY','DISCORD_TOKEN'} and value == '' and current.get(key):
-            continue
+        if key in {'WEB_PASSWORD','SPOTIFY_CLIENT_SECRET','YOUTUBE_API_KEY','DISCORD_TOKEN'} and value == '' and current.get(key): continue
         current[key]=value
 if not current.get('DISCORD_TOKEN'): raise SystemExit('DISCORD_TOKEN is required')
 if len(current.get('WEB_PASSWORD','')) < 12: raise SystemExit('WEB_PASSWORD must contain at least 12 characters')
-try:
-    port=int(current.get('PORT','3000'))
-    if not 1 <= port <= 65535: raise ValueError
-    current['PORT']=str(port)
-except ValueError: raise SystemExit('invalid PORT')
-if raw.get('publicUrl') and not current.get('SPOTIFY_REDIRECT_URI'):
-    current['SPOTIFY_REDIRECT_URI']=str(raw['publicUrl']).rstrip('/')+'/api/spotify/callback'
+port=int(current.get('PORT','3000'))
+if not 1 <= port <= 65535: raise SystemExit('invalid PORT')
+current['PORT']=str(port)
+if raw.get('publicUrl') and not current.get('SPOTIFY_REDIRECT_URI'): current['SPOTIFY_REDIRECT_URI']=str(raw['publicUrl']).rstrip('/')+'/api/spotify/callback'
 lines=[f"{k}={shlex.quote(str(current.get(k,'')))}" for k in ['DISCORD_TOKEN','PORT','WEB_USER','WEB_PASSWORD','DISCORD_CONTROL_ROLE','SPOTIFY_CLIENT_ID','SPOTIFY_CLIENT_SECRET','SPOTIFY_REDIRECT_URI','YOUTUBE_API_KEY','YTDLP_PATH','SETUP_TOKEN']]
 CONF.parent.mkdir(mode=0o700,exist_ok=True)
 fd,tmp=tempfile.mkstemp(dir=CONF.parent,prefix='.radiobot.env.',text=True)
 import os
-os.fchmod(fd,0o600)
-os.write(fd, ('\n'.join(lines)+'\n').encode())
-os.close(fd)
-os.replace(tmp,CONF)
-os.chown(CONF,0,0)
+os.fchmod(fd,0o600); os.write(fd, ('\n'.join(lines)+'\n').encode()); os.close(fd); os.replace(tmp,CONF); os.chown(CONF,0,0)
 subprocess.run(['systemctl','restart','radiobot.service'],check=False)
 PYEOF
 chmod 0755 /usr/local/sbin/radiobot-configure
@@ -142,22 +134,16 @@ set -euo pipefail
 exec 9>/run/lock/radiobot-update.lock
 flock -n 9 || { echo 'Update läuft bereits.' >&2; exit 1; }
 LOG=/var/lib/radiobot/update.status
-RELEASE_TAG=v2.1.0
-REPO_TGZ="https://codeload.github.com/jonascool19-pixel/radiobot/tar.gz/refs/tags/${RELEASE_TAG}"
-printf 'started %s release=%s\n' "$(date -Is)" "$RELEASE_TAG" > "$LOG"
+RELEASE_REF=v2.1.0
+REPO_TGZ="https://codeload.github.com/jonascool19-pixel/radiobot/tar.gz/refs/heads/${RELEASE_REF}"
+printf 'started %s release=%s\n' "$(date -Is)" "$RELEASE_REF" > "$LOG"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 curl -fsSL "$REPO_TGZ" -o "$TMP/radiobot.tgz"
 tar -xzf "$TMP/radiobot.tgz" -C "$TMP"
-SRC=$(find "$TMP" -maxdepth 1 -type d -name 'radiobot-v2.1.0*' | head -n1)
+SRC=$(find "$TMP" -maxdepth 1 -type d -name 'radiobot-*' | head -n1)
 [[ -n "$SRC" ]] || { echo 'Pinned release archive invalid.' >&2; exit 1; }
-if ! grep -q '^RELEASE_TAG=v2.1.0$' "$SRC/install.sh"; then echo 'Pinned release mismatch.' >&2; exit 1; fi
-if bash "$SRC/install.sh" >> "$LOG" 2>&1; then
-  printf 'finished %s success release=%s\n' "$(date -Is)" "$RELEASE_TAG" >> "$LOG"
-else
-  code=$?
-  printf 'finished %s failed:%s release=%s\n' "$(date -Is)" "$code" "$RELEASE_TAG" >> "$LOG"
-  exit "$code"
-fi
+grep -q '^RELEASE_REF=v2.1.0$' "$SRC/install.sh" || { echo 'Pinned release mismatch.' >&2; exit 1; }
+if bash "$SRC/install.sh" >> "$LOG" 2>&1; then printf 'finished %s success release=%s\n' "$(date -Is)" "$RELEASE_REF" >> "$LOG"; else code=$?; printf 'finished %s failed:%s release=%s\n' "$(date -Is)" "$code" "$RELEASE_REF" >> "$LOG"; exit "$code"; fi
 EOF
 chown root:root /usr/local/sbin/radiobot-update /usr/local/sbin/radiobot-configure
 chmod 0755 /usr/local/sbin/radiobot-update
