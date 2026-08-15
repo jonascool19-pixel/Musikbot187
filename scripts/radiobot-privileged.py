@@ -7,6 +7,7 @@ SOCKET = '/run/radiobot-privileged.sock'
 ALLOWED = {'bot-restart', 'bot-update', 'server-reboot', 'server-shutdown', 'config-write'}
 MAX_REQUEST = 16 * 1024
 
+
 def main() -> None:
     try:
         os.unlink(SOCKET)
@@ -17,7 +18,9 @@ def main() -> None:
     os.chmod(SOCKET, 0o660)
     try:
         import grp
-        os.chown(SOCKET, 0, grp.getgrnam('radiobot-ops').gr_gid)
+        # Use the service account's primary group. This avoids creating a
+        # second, installer-specific system group just for the socket.
+        os.chown(SOCKET, 0, grp.getgrnam('radiobot').gr_gid)
     except Exception:
         pass
     server.listen(8)
@@ -64,6 +67,7 @@ def main() -> None:
             else:
                 subprocess.Popen(['/usr/bin/systemctl', 'poweroff'])
             conn.sendall(b'OK\n')
+
 
 if __name__ == '__main__':
     main()
