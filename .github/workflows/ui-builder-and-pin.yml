@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: 679fe95c86f005161ae9a41792a33e7924db8f24
+          EXPECTED_PIN: 6fe29729ab90d03698e7f55e744e78935b85e402
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
