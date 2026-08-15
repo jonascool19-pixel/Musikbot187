@@ -15,13 +15,16 @@ Der Installer installiert Node.js 24, FFmpeg, yt-dlp, Deno, den Bot, das respons
 Für **einen Discord-Server, einen Voice-Channel und normale Radio-/Musikwiedergabe** ist ein kleiner Proxmox-LXC/CT ausreichend:
 
 - **1 vCPU**
-- **512 MB RAM** empfohlen
-- **256 MB RAM** als theoretisches Minimum für sehr einfache Nutzung
+- **768 MB RAM** empfohlen für stabile Radio-, Lokal- und YouTube-Wiedergabe
+- **512 MB RAM** als Minimalprofil für einfache Radio-/Lokalnutzung
+- **2 vCPU / 1 GB RAM** bei mehreren parallelen Voice-Instanzen oder deutlich höherer Last
 - etwa **10–20 GB SSD** für System, Logs und lokale Musik
 
-Der Dienst ist auf **480 MB RAM** und **90 % eines CPU-Kerns** begrenzt. `Nice=5` lässt dem CT-System zusätzlich Priorität. Das bedeutet: Du brauchst nicht dauerhaft mehrere Kerne; FFmpeg/yt-dlp erzeugen nur während aktiver Wiedergabe bzw. Suche zusätzliche Last. Bei mehreren parallelen Voice-Verbindungen, vielen gleichzeitigen YouTube-Auflösungen oder großen lokalen Bibliotheken sollte der CT auf **2 vCPU / 1 GB RAM** erhöht werden.
+Der laufende Dienst ist auf **720 MB RAM** und **90 % eines CPU-Kerns** begrenzt. `MemoryHigh=640M` regelt vorher und `Nice=5` lässt dem CT-System Priorität. Damit wird der Bot nicht unnötig auf 500 MB künstlich ausgehungert, bleibt aber deutlich ressourcenschonender als ein typischer Voll-Server-Bot.
 
-> Die Werte sind ein konservatives Betriebsprofil, keine Garantie für jede Quelle. Die tatsächliche Last hängt insbesondere von FFmpeg-Quelle, Codec, Anzahl paralleler Wiedergaben und Suchvorgängen ab.
+Die Node-Laufzeit ist auf einen kleinen Heap begrenzt; FFmpeg und yt-dlp sind nur bei aktiver Wiedergabe beziehungsweise Suche aktiv. Ein einzelner Radio- oder lokaler Audio-Stream benötigt normalerweise nur einen kleinen Teil eines CPU-Kerns. YouTube-Auflösung und FFmpeg sind die deutlich variableren Lastquellen.
+
+> Die Werte sind ein konservatives Betriebsprofil, keine Garantie für jede Quelle. Die tatsächliche Last hängt insbesondere von Codec, Quelle, Anzahl paralleler Wiedergaben und Suchvorgängen ab.
 
 ## Webinterface
 
