@@ -4,8 +4,8 @@ set -euo pipefail
 # Final pinned installer for MusikBot187.
 # Includes Deno PATH handling, curl diagnostics, Node 24/AF_NETLINK compatibility,
 # privileged setup fixes, deterministic dev-dependency installation, interactive
-# web-account setup, and a colored final status summary.
-PINNED_COMMIT="3fe52932895aa3c73c7878343a1a8babbac53608"
+# web-account setup, optional TeamSpeak 3 setup, and a colored final status summary.
+PINNED_COMMIT="c70f6a54b4f882f7b03fd1af2efba19af9d12e2c"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
