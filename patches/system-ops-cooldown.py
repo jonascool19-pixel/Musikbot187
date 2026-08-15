@@ -79,6 +79,20 @@ setInterval(() => {
 if "async function privilegedAction" not in s:
     s = s.replace("async function unifiedSearch(query: string) {", priv + "\nasync function unifiedSearch(query: string) {", 1)
 
+# final-hardening may have renamed playNext without finding its exact wrapper boundary.
+# Ensure the public serialized wrapper exists after hardening, regardless of the exact playback body shape.
+if "async function playNext(guildId: string)" not in s and "async function playNextUnlocked(guildId: string)" in s and "const playLocks = new Map" in s:
+    wrapper = """async function playNext(guildId: string) {
+  const running = playLocks.get(guildId);
+  if (running) return running;
+  const run = playNextUnlocked(guildId).finally(() => { if (playLocks.get(guildId) === run) playLocks.delete(guildId); });
+  playLocks.set(guildId, run);
+  return run;
+}
+
+"""
+    s = s.replace("async function stopGuild(guildId: string)", wrapper + "async function stopGuild(guildId: string)", 1)
+
 ops = r'''app.post('/api/system/bot/disable', async () => {
   if (!db.botEnabled) return { ok: true, enabled: false };
   db.botEnabled = false;
@@ -95,12 +109,14 @@ if "/api/system/reboot" not in s:
     s = s.replace("app.get('/api/health'", ops + "\napp.get('/api/health'", 1)
 
 old_update = "app.post('/api/update', async (req, reply) => { if (!fs.existsSync('/usr/local/sbin/radiobot-update')) return reply.code(503).send('Update-Helfer ist nicht installiert.'); fs.writeFileSync(UPDATE_LOG, `started ${new Date().toISOString()}\\n`, { mode: 0o600 }); const child = spawn('sudo', ['-n', '/usr/local/sbin/radiobot-update'], { detached: true, stdio: 'ignore' }); child.unref(); return { ok: true, message: 'Update gestartet. Der Dienst wird danach automatisch neu gestartet.' }; });"
-new_update = "app.post('/api/update', async (_req, reply) => { if (!fs.existsSync('/usr/local/sbin/radiobot-update')) return reply.code(503).send('Update-Helfer ist nicht installiert.'); fs.writeFileSync(UPDATE_LOG, `started ${new Date().toISOString()}\\n`, { mode: 0o600 }); await privilegedAction('bot-update'); return { ok: true, message: 'Update gestartet. Der Dienst wird danach automatisch neu gestartet.' }; });"
+new_update = "app.post('/api/update', async (_req, reply) => { if (!fs.existsSync('/usr/local/sbin/radiobot-update')) return reply.code(503).send('Update-Helfer ist nicht installiert.'); fs.writeFileSync(UPDATE_LOG, `started ${new Date().toISOString()}\\n`, { mode: '600' as any }); await privilegedAction('bot-update'); return { ok: true, message: 'Update gestartet. Der Dienst wird danach automatisch neu gestartet.' }; });"
 if old_update in s:
     s = s.replace(old_update, new_update, 1)
+# Fix any accidental mode string from the patching layer.
+s = s.replace("{ mode: '600' as any }", "{ mode: 0o600 }")
 
 needle = "client.on('interactionCreate', async interaction => {\n  try {"
-replacement = "client.on('interactionCreate', async interaction => {\n  try {\n    if (interaction.guildId && !db.botEnabled) { if (interaction.isRepliable()) await interaction.reply({ content: '🛑 Der Bot ist derzeit über das Webinterface deaktiviert.', ephemeral: true }); return; }\n    if (interaction.guildId && !consumeDiscordCooldown(interaction)) return;"
+replacement = "client.on('interactionCreate', async interaction => {\n  try {\n    if (interaction.guildId && !consumeDiscordCooldown(interaction)) return;\n    if (interaction.guildId && !db.botEnabled) { if (interaction.isRepliable()) await interaction.reply({ content: '🛑 Der Bot ist derzeit über das Webinterface deaktiviert.', ephemeral: true }); return; }"
 if needle in s:
     s = s.replace(needle, replacement, 1)
 else:
