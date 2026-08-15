@@ -27,6 +27,7 @@ jobs:
           sudo python3 /opt/radiobot/patches/enable-radio-features.py
           sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
           sudo python3 /opt/radiobot/patches/setup-wizard.py
+          sudo python3 /opt/radiobot/patches/final-hardening.py
           sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' /opt/radiobot/frontend/index.html
           sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' /opt/radiobot/frontend/index.html
           sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/setup-wizard.js"></script>#' /opt/radiobot/frontend/index.html
@@ -37,27 +38,39 @@ jobs:
       - name: TypeScript build
         working-directory: /opt/radiobot/backend
         run: npm run build
-      - name: Validate installer, setup wizard and service
+      - name: Validate installer, setup wizard, hardening and service
         run: |
           bash -n install.sh
+          python3 -m py_compile patches/*.py scripts/*.py
           grep -q 'CPUQuota=90%' radiobot.service
           grep -q 'MemoryMax=720M' radiobot.service
           grep -q 'MemoryHigh=640M' radiobot.service
-          grep -q 'python3 "$APP_DIR/patches/setup-wizard.py"' install.sh
-          grep -q 'radiobot-configure' install.sh
-          grep -q 'setup-wizard.js' install.sh
-          grep -q 'statusChannelId' backend/src/index.ts
+          grep -q 'final-hardening.py' install.sh
+          grep -q 'configure-helper-hardening.py' install.sh
+          grep -q 'setup-wizard.py' install.sh
           grep -q '/api/setup/status' /opt/radiobot/backend/src/index.ts
           grep -q '/api/settings' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/metrics' /opt/radiobot/backend/src/index.ts
+          grep -q "OUT = Path('/var/lib/radiobot/metrics.json')" scripts/system-metrics.py
+          grep -q "fetch('/api/metrics'" frontend/metrics-panel.js
+          grep -q "state.manualStop" /opt/radiobot/backend/src/index.ts
           test -f frontend/setup-wizard.js
-          test -f patches/setup-wizard.py
+          test -f patches/final-hardening.py
+          test -f patches/configure-helper-hardening.py
+      - name: FFmpeg audio smoke test
+        run: |
+          ffmpeg -hide_banner -loglevel error -f lavfi -i sine=frequency=1000:duration=2 -f s16le -ar 48000 -ac 2 -y /dev/null
       - name: Smoke test patched web API
         working-directory: /opt/radiobot/backend
         env:
           PORT: 3100
           APP_ROOT: /opt/radiobot
           DATA_DIR: ${{ runner.temp }}/musikbot187-data
+          WEB_PASSWORD: test-password-12345
+          WEB_USER: admin
         run: |
+          sudo mkdir -p /var/lib/radiobot
+          sudo python3 /opt/radiobot/scripts/system-metrics.py
           node dist/index.js > "$RUNNER_TEMP/musikbot187.log" 2>&1 &
           pid=$!
           trap 'kill $pid 2>/dev/null || true' EXIT
@@ -66,7 +79,9 @@ jobs:
               echo
               curl -fsS http://127.0.0.1:3100/api/setup/status >/dev/null
               curl -fsS 'http://127.0.0.1:3100/api/radio/search?q=Beck%20FM' >/dev/null
-              echo 'setup status + radio search OK'
+              test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/metrics)" = 401
+              curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/metrics >/dev/null
+              echo 'setup status + radio search + protected metrics OK'
               break
             fi
             sleep 1
