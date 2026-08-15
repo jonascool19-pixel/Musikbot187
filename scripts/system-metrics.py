@@ -5,7 +5,7 @@ import shutil
 import time
 from pathlib import Path
 
-OUT = Path('/opt/radiobot/frontend/metrics.json')
+OUT = Path('/var/lib/radiobot/metrics.json')
 OUT.parent.mkdir(parents=True, exist_ok=True)
 
 def cpu_counters():
@@ -56,6 +56,7 @@ def main():
     }
     tmp = OUT.with_suffix('.tmp')
     tmp.write_text(json.dumps(payload, separators=(',', ':')) + '\n')
+    tmp.chmod(0o600)
     os.replace(tmp, OUT)
 
 if __name__ == '__main__':
