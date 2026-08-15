@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import os
 import subprocess
 
 ROOT = Path('/opt/radiobot')
@@ -31,7 +30,7 @@ replace(
 )
 marker = "const requestBuckets = new Map<string, { start: number; count: number }>();"
 if marker in s and "requestBucketsCleanup" not in s:
-    s = s.replace(marker, marker + "\nconst requestBucketsCleanup = setInterval(() => { const cutoff = Date.now() - RATE_WINDOW_MS * 2; for (const [ip, bucket] of requestBuckets) if (bucket.start < cutoff) requestBuckets.delete(ip); }, RATE_WINDOW_MS); requestBucketsCleanup.unref?.();", 1)
+    s = s.replace(marker, marker + "\nconst requestBucketsCleanup = setInterval(() => { const cutoff = Date.now() - RATE_WINDOW_MS * 2; for (const [ip, bucket] of requestBuckets) if (bucket.start < cutoff) requestBuckets.delete(ip); }, RATE_WINDOW_MS * 2); requestBucketsCleanup.unref?.();", 1)
 
 ops = ROOT / 'patches/system-ops-cooldown.py'
 if ops.exists():
@@ -41,29 +40,19 @@ compat = ROOT / 'patches/ensure-privileged-config.py'
 if compat.exists():
     subprocess.run(['python3', str(compat)], check=True)
 
+# Security patching must not start systemd services. The installer/CI owns the
+# lifecycle ordering and starts the privileged controller only after all files
+# and helpers have been installed.
 if subprocess.run(['getent', 'group', 'radiobot-ops'], capture_output=True).returncode != 0:
     subprocess.run(['groupadd', '--system', 'radiobot-ops'], check=True)
 if subprocess.run(['id', '-u', 'radiobot'], capture_output=True).returncode == 0:
     subprocess.run(['usermod', '-a', '-G', 'radiobot-ops', 'radiobot'], check=True)
 
-privileged_service = '''[Unit]\nDescription=MusikBot187 privileged operations controller\nAfter=local-fs.target\n\n[Service]\nType=simple\nUser=root\nGroup=root\nExecStart=/usr/bin/python3 /usr/local/libexec/radiobot/radiobot-privileged.py\nRestart=always\nRestartSec=1\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nProtectKernelTunables=true\nProtectKernelModules=true\nProtectControlGroups=true\nRestrictNamespaces=true\nRestrictSUIDSGID=true\nLockPersonality=true\nMemoryDenyWriteExecute=true\nReadWritePaths=/run\nUMask=0077\n\n[Install]\nWantedBy=multi-user.target\n'''
-Path('/etc/systemd/system/radiobot-privileged.service').write_text(privileged_service, encoding='utf-8')
-os.chmod('/etc/systemd/system/radiobot-privileged.service', 0o644)
-
 service = ROOT / 'radiobot.service'
 if service.exists():
     ss = service.read_text(encoding='utf-8')
-    if 'After=radiobot-privileged.service' not in ss:
-        ss = ss.replace('After=network-online.target', 'After=network-online.target radiobot-privileged.service', 1)
-    if 'Wants=radiobot-privileged.service' not in ss:
-        ss = ss.replace('Wants=network-online.target', 'Wants=network-online.target radiobot-privileged.service', 1)
     if 'SupplementaryGroups=radiobot-ops' not in ss:
         ss = ss.replace('Group=radiobot', 'Group=radiobot\nSupplementaryGroups=radiobot-ops', 1)
     service.write_text(ss, encoding='utf-8')
 
-# Route patching is intentionally NOT executed here. The installer/CI owns the
-# patch order and runs each route patch exactly once after security hardening.
-
-subprocess.run(['systemctl', 'daemon-reload'], check=False)
-subprocess.run(['systemctl', 'enable', '--now', 'radiobot-privileged.service'], check=False)
 print('security-final applied')
