@@ -10,12 +10,6 @@ ExecStart=/usr/bin/python3 -u /usr/local/libexec/radiobot/radiobot-privileged.py
 Restart=always
 RestartSec=1
 NoNewPrivileges=false
-PrivateTmp=true
-ProtectSystem=full
-ProtectHome=true
-RestrictNamespaces=true
-RestrictSUIDSGID=true
-LockPersonality=true
 ReadWritePaths=/run
 UMask=0077
 
