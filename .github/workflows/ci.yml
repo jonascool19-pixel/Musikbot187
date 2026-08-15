@@ -26,8 +26,8 @@ jobs:
           install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           update_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' update.sh)
           if [ -z "$update_pin" ]; then update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh); fi
-          test "$install_pin" = "15ae208124328dcff68f44e8e06468a7327f8f82"
-          test "$update_pin" = "15ae208124328dcff68f44e8e06468a7327f8f82"
+          test "$install_pin" = "b1fa7524b0d1ada87305479592b2deb06bd2142d"
+          test "$update_pin" = "b1fa7524b0d1ada87305479592b2deb06bd2142d"
 
       - name: Prepare patched tree
         run: |
