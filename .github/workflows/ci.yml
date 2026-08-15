@@ -1,5 +1,4 @@
-name: MusikBot187 CI
-
+name: RadioBot CI
 on:
   push:
     branches: [main]
@@ -7,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  build-test:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -15,109 +14,21 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: backend/package.json
-
-      - name: Syntax and pin checks
+          cache-dependency-path: backend/package-lock.json
+      - name: Syntax
         run: |
           set -euo pipefail
-          bash -n install.sh update.sh install-final.sh
-          python3 -m py_compile patches/*.py scripts/*.py
-          for f in frontend/*.js tests/*.js; do node --check "$f"; done
-          install_pin=$(sed -nE 's/^PINNED_COMMIT="?([0-9a-f]{40})"?$/\1/p' install-final.sh | head -n1)
-          update_pin=$(sed -nE 's/^PINNED_COMMIT="?([0-9a-f]{40})"?$/\1/p' update.sh | head -n1)
-          test -n "$install_pin"
-          test -n "$update_pin"
-          test "$install_pin" = "$update_pin"
-          test "$install_pin" = "b1fa7524b0d1ada87305479592b2deb06bd2142d"
-          printf 'INSTALL_PIN=%s\nUPDATE_PIN=%s\n' "$install_pin" "$update_pin"
-
-      - name: Prepare patched tree
-        run: |
-          set -euo pipefail
-          sudo rm -rf /opt/radiobot
-          sudo mkdir -p /opt/radiobot/backend /opt/radiobot/frontend /opt/radiobot/patches /opt/radiobot/scripts
-          sudo cp -a backend/. /opt/radiobot/backend/
-          sudo cp -a frontend/. /opt/radiobot/frontend/
-          sudo cp -a patches/. /opt/radiobot/patches/
-          sudo cp -a scripts/. /opt/radiobot/scripts/
-          sudo cp radiobot.service /opt/radiobot/radiobot.service
-          sudo cp radiobot-privileged.service /opt/radiobot/radiobot-privileged.service
-          sudo python3 /opt/radiobot/patches/enable-radio-features.py
-          sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
-          sudo python3 /opt/radiobot/patches/setup-wizard.py
-          sudo python3 /opt/radiobot/patches/ui-builder.py
-          sudo python3 /opt/radiobot/patches/ui-builder-pointer.py
-          sudo python3 /opt/radiobot/patches/final-ui-handles.py
-          sudo python3 /opt/radiobot/patches/final-hardening.py
-          sudo python3 /opt/radiobot/patches/instance-routing.py
-          sudo python3 /opt/radiobot/patches/security-final.py
-          sudo python3 /opt/radiobot/patches/final-setup-routes.py
-          sudo python3 /opt/radiobot/patches/final-radio-routes.py
-          sudo python3 /opt/radiobot/patches/configure-helper-hardening.py
-          sudo python3 /opt/radiobot/patches/web-auth.py
-          if ! getent group radiobot >/dev/null 2>&1; then sudo groupadd --system radiobot; fi
-          if ! id -u radiobot >/dev/null 2>&1; then sudo useradd --system --no-create-home --gid radiobot --shell /usr/sbin/nologin radiobot; else sudo usermod --gid radiobot radiobot; fi
-          getent group radiobot >/dev/null
-          test "$(id -gn radiobot)" = radiobot
-
-      - name: Backend build
-        working-directory: /opt/radiobot/backend
+          bash -n install.sh install-final.sh update.sh scripts/resource-benchmark.sh
+          node --check frontend/app.js
+          node --check tests/smoke.mjs
+      - name: Build
+        working-directory: backend
         run: |
           npm install --include=dev --no-audit --no-fund
           npm run build
-
-      - name: Functional checks
+      - name: Smoke test
+        run: node tests/smoke.mjs
+      - name: Resource benchmark
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          backend = Path('/opt/radiobot/backend/src/index.ts').read_text()
-          checks = [
-              ('setup status', "'/api/setup/status'" in backend),
-              ('first user', '/api/setup/user' in backend),
-              ('bootstrap helper', 'bootstrapUserOnly' in Path('/opt/radiobot/scripts/radiobot-configure.py').read_text()),
-              ('layout api', '/api/ui/layout' in backend),
-              ('login api', "'/api/auth/login'" in backend),
-              ('logout api', "'/api/auth/logout'" in backend),
-              ('radio search', "'/api/radio/search'" in backend),
-          ]
-          for label, ok in checks:
-              print(f'CHECK {label}: {"OK" if ok else "MISSING"}')
-              if not ok: raise SystemExit(1)
-          PY
-
-      - name: Privileged bootstrap end-to-end
-        run: |
-          set -euo pipefail
-          getent group radiobot >/dev/null
-          test "$(id -gn radiobot)" = radiobot
-          sudo install -d -m 0755 -o root -g root /usr/local/libexec/radiobot
-          sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-privileged.py /usr/local/libexec/radiobot/radiobot-privileged.py
-          sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-configure.py /usr/local/sbin/radiobot-configure
-          sudo install -m 0644 /opt/radiobot/radiobot-privileged.service /etc/systemd/system/radiobot-privileged.service
-          sudo install -d -m 0700 /etc/radiobot
-          printf '%s\n' 'DISCORD_TOKEN=' 'PORT=3000' 'WEB_USER=' 'WEB_PASSWORD=' 'DISCORD_CONTROL_ROLE=' 'SPOTIFY_CLIENT_ID=' 'SPOTIFY_CLIENT_SECRET=' 'SPOTIFY_REDIRECT_URI=' 'YOUTUBE_API_KEY=' 'YTDLP_PATH=/usr/local/bin/yt-dlp' 'SETUP_TOKEN=ci-test-token' | sudo tee /etc/radiobot/radiobot.env >/dev/null
-          sudo chmod 0600 /etc/radiobot/radiobot.env
-          sudo systemctl daemon-reload
-          if ! sudo systemctl restart radiobot-privileged.service; then
-            sudo systemctl --no-pager --full status radiobot-privileged.service || true
-            sudo journalctl -u radiobot-privileged.service -n 80 --no-pager || true
-            sudo /usr/bin/python3 -u /usr/local/libexec/radiobot/radiobot-privileged.py >/tmp/radiobot-privileged-direct.log 2>&1 & echo $! >/tmp/radiobot-privileged.pid
-            sleep 1
-            sudo cat /tmp/radiobot-privileged-direct.log || true
-            sudo kill "$(cat /tmp/radiobot-privileged.pid)" 2>/dev/null || true
-            exit 1
-          fi
-          test -S /run/radiobot-privileged.sock
-          socket_owner=$(stat -c '%U:%G' /run/radiobot-privileged.sock)
-          test "$socket_owner" = 'root:radiobot' || { echo "Unexpected socket owner: $socket_owner"; ls -l /run/radiobot-privileged.sock; id radiobot; getent group radiobot; exit 1; }
-          sudo -u radiobot python3 -c 'import socket,json; p=json.dumps({"bootstrapUserOnly":True,"webUser":"ci-test","webPassword":"123456789012","setupToken":"ci-test-token"},separators=(",",":")); s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(3); s.connect("/run/radiobot-privileged.sock"); s.sendall(("config-write\n"+p).encode()); assert s.recv(128)==b"OK\n"'
-          sudo grep -q '^WEB_USER=ci-test$' /etc/radiobot/radiobot.env
-          sudo grep -q '^WEB_PASSWORD=123456789012$' /etc/radiobot/radiobot.env
-
-      - name: Browser smoke test
-        run: |
-          npm init -y >/dev/null 2>&1
-          npm install --no-audit --no-fund --save-dev playwright@1.55.0
-          npx playwright install chromium
-          UI_TEST_ROOT=/opt/radiobot/frontend UI_TEST_PORT=4173 node tests/ui-builder-browser.js
+          chmod +x scripts/resource-benchmark.sh
+          scripts/resource-benchmark.sh
