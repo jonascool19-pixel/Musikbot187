@@ -83,7 +83,7 @@ jobs:
           sudo mkdir -p /var/lib/radiobot
           sudo python3 /opt/radiobot/scripts/system-metrics.py
           sudo rm -f /run/radiobot-privileged.sock
-          python3 - <<'PY' &
+          sudo python3 - <<'PY' &
           import os, socket
           path='/run/radiobot-privileged.sock'
           try: os.unlink(path)
