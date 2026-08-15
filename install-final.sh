@@ -4,16 +4,13 @@ set -euo pipefail
 # Final pinned installer for MusikBot187.
 # The initial web account is created in the first-run web wizard before
 # Discord/Spotify/YouTube configuration becomes available.
-PINNED_COMMIT="b8db3e2527158ad51618e40ae1b427a7c289bd16"
+PINNED_COMMIT="628b9d893735886258242b603d5de97cc8a32170"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 if [[ $EUID -ne 0 ]]; then echo 'Bitte als root ausführen.'; exit 1; fi
 if ! command -v curl >/dev/null 2>&1; then echo 'curl fehlt. Der Installer benötigt curl; installiere es mit: apt-get update && apt-get install -y curl' >&2; exit 1; fi
-
-WEB_USER=""
-WEB_PASSWORD=""
 
 curl -fsSL "https://raw.githubusercontent.com/${REPO}/${PINNED_COMMIT}/install.sh" -o "$TMP_DIR/install.sh"
 sed -i "s/^RELEASE_REF=v2\.1\.0$/RELEASE_REF=${PINNED_COMMIT}/" "$TMP_DIR/install.sh"
