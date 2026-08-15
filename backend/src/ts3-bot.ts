@@ -6,6 +6,8 @@ import { Client, generateIdentity, identityFromString } from '@honeybbq/teamspea
 const DATA_DIR = path.resolve(process.env.DATA_DIR ?? '/var/lib/radiobot');
 const MUSIC_DIR = path.join(DATA_DIR, 'music');
 const IDENTITY_FILE = path.join(DATA_DIR, 'ts3-identity.txt');
+const CONTROL_FILE = path.join(DATA_DIR, 'ts3-control.json');
+const STATUS_FILE = path.join(DATA_DIR, 'ts3-status.json');
 const HOST = process.env.TEAMSPEAK_HOST ?? '';
 const NICKNAME = process.env.TEAMSPEAK_NICKNAME ?? 'MusikBot187 TS3';
 const CHANNEL = process.env.TEAMSPEAK_CHANNEL ?? '';
@@ -22,6 +24,11 @@ function escapeQuery(value: string) {
   return value.replaceAll('\\', '\\\\').replaceAll('|', '\\p').replaceAll(' ', '\\s').replaceAll('\n', '\\n').replaceAll('\r', '\\r');
 }
 function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function safeWriteJson(file: string, value: unknown) {
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(value, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, file);
+}
 
 async function resolveInput(input: string) {
   if (/^https?:\/\//i.test(input)) return input;
@@ -86,12 +93,18 @@ function opusPacketsFromOgg() {
   };
 }
 
+type Ts3QueueItem = { input: string; label: string };
+type Ts3Status = { enabled: true; connected: boolean; host: string; channel: string; playing?: string; paused: boolean; volume: number; queue: Ts3QueueItem[]; updatedAt: string };
+type Ts3Command = { id: string; action: 'play' | 'queue' | 'skip' | 'pause' | 'resume' | 'stop' | 'volume'; input?: string; label?: string; volume?: number };
+
 class Ts3MusicBot {
   private client!: Client;
-  private queue: { input: string; label: string }[] = [];
+  private queue: Ts3QueueItem[] = [];
   private current?: { input: string; label: string; ffmpeg?: ChildProcessWithoutNullStreams; paused?: boolean };
   private playing = false;
   private stopping = false;
+  private volume = 80;
+  private lastControlId = '';
 
   async start() {
     this.client = new Client(this.loadIdentity(), HOST, NICKNAME, {
@@ -105,8 +118,9 @@ class Ts3MusicBot {
     this.client.on('textMessage', msg => { this.handleMessage(msg.message, msg.targetId).catch(error => console.error('TS3 command:', error)); });
     await this.client.connect();
     await this.client.waitConnected(AbortSignal.timeout(15000));
+    this.writeStatus();
     console.log('TS3-Bot online. Befehle: !play <Suche/URL>, !queue, !skip, !pause, !resume, !stop, !radio <URL>');
-    await this.playNext();
+    await Promise.all([this.controlLoop(), this.playNext()]);
   }
 
   private loadIdentity() {
@@ -117,6 +131,45 @@ class Ts3MusicBot {
     const identity = generateIdentity(8);
     try { fs.writeFileSync(IDENTITY_FILE, identity.exportString(), { mode: 0o600 }); } catch (error) { console.error('TS3-Identität konnte nicht gespeichert werden:', error); }
     return identity;
+  }
+
+  private writeStatus() {
+    const status: Ts3Status = { enabled: true, connected: Boolean(this.client?.isReady), host: HOST, channel: CHANNEL, playing: this.current?.label, paused: Boolean(this.current?.paused), volume: this.volume, queue: this.queue.slice(0, 50), updatedAt: new Date().toISOString() };
+    try { safeWriteJson(STATUS_FILE, status); } catch (error) { console.error('TS3-Status konnte nicht gespeichert werden:', error); }
+  }
+
+  private async controlLoop() {
+    while (true) {
+      try {
+        if (fs.existsSync(CONTROL_FILE)) {
+          const cmd = JSON.parse(fs.readFileSync(CONTROL_FILE, 'utf8')) as Ts3Command;
+          if (cmd?.id && cmd.id !== this.lastControlId) {
+            this.lastControlId = cmd.id;
+            fs.unlinkSync(CONTROL_FILE);
+            await this.handleControl(cmd);
+          }
+        }
+      } catch (error) { console.error('TS3 control loop:', error); }
+      await sleep(250);
+    }
+  }
+
+  private async handleControl(cmd: Ts3Command) {
+    switch (cmd.action) {
+      case 'play':
+      case 'queue':
+        if (!cmd.input) return;
+        this.queue.push({ input: cmd.input, label: cmd.label || await resolveLabel(cmd.input) });
+        if (cmd.action === 'play') this.current?.ffmpeg?.kill('SIGTERM');
+        if (!this.playing) await this.playNext();
+        break;
+      case 'skip': this.current?.ffmpeg?.kill('SIGTERM'); break;
+      case 'pause': if (this.current?.ffmpeg && !this.current.paused) { this.current.paused = true; this.current.ffmpeg.kill('SIGSTOP'); } break;
+      case 'resume': if (this.current?.ffmpeg && this.current.paused) { this.current.paused = false; this.current.ffmpeg.kill('SIGCONT'); } break;
+      case 'stop': this.stopping = true; this.queue = []; this.current?.ffmpeg?.kill('SIGTERM'); this.current = undefined; this.playing = false; break;
+      case 'volume': this.volume = Math.max(0, Math.min(100, Number(cmd.volume ?? 80))); break;
+    }
+    this.writeStatus();
   }
 
   private async reply(targetMode: number, targetId: number, text: string) {
@@ -130,27 +183,16 @@ class Ts3MusicBot {
     const arg = rest.join(' ').trim();
     try {
       switch (command.toLowerCase()) {
-        case 'play':
-          if (!arg) return this.reply(2, targetId, 'Nutzung: !play <Titel, Suche oder URL>');
-          await this.enqueue(arg, targetId); break;
-        case 'radio':
-          if (!arg || !/^https?:\/\//i.test(arg)) return this.reply(2, targetId, 'Nutzung: !radio <Stream-URL>');
-          await this.enqueue(arg, targetId); break;
-        case 'queue':
-          await this.reply(2, targetId, this.queue.length ? `Queue:\n${this.queue.slice(0, 10).map((x, i) => `${i + 1}. ${x.label}`).join('\n')}` : 'Queue ist leer.'); break;
-        case 'skip':
-          this.current?.ffmpeg?.kill('SIGTERM'); await this.reply(2, targetId, 'Übersprungen.'); break;
-        case 'pause':
-          if (this.current?.ffmpeg && !this.current.paused) { this.current.paused = true; this.current.ffmpeg.kill('SIGSTOP'); await this.reply(2, targetId, 'Pausiert.'); } break;
-        case 'resume':
-          if (this.current?.ffmpeg && this.current.paused) { this.current.paused = false; this.current.ffmpeg.kill('SIGCONT'); await this.reply(2, targetId, 'Fortgesetzt.'); } break;
-        case 'stop':
-          this.stopping = true; this.queue = []; this.current?.ffmpeg?.kill('SIGTERM'); this.current = undefined; this.playing = false; await this.reply(2, targetId, 'Wiedergabe gestoppt.'); break;
-        default: break;
+        case 'play': if (!arg) return this.reply(2, targetId, 'Nutzung: !play <Titel, Suche oder URL>'); await this.enqueue(arg, targetId); break;
+        case 'radio': if (!arg || !/^https?:\/\//i.test(arg)) return this.reply(2, targetId, 'Nutzung: !radio <Stream-URL>'); await this.enqueue(arg, targetId); break;
+        case 'queue': await this.reply(2, targetId, this.queue.length ? `Queue:\n${this.queue.slice(0, 10).map((x, i) => `${i + 1}. ${x.label}`).join('\n')}` : 'Queue ist leer.'); break;
+        case 'skip': this.current?.ffmpeg?.kill('SIGTERM'); await this.reply(2, targetId, 'Übersprungen.'); break;
+        case 'pause': if (this.current?.ffmpeg && !this.current.paused) { this.current.paused = true; this.current.ffmpeg.kill('SIGSTOP'); await this.reply(2, targetId, 'Pausiert.'); } break;
+        case 'resume': if (this.current?.ffmpeg && this.current.paused) { this.current.paused = false; this.current.ffmpeg.kill('SIGCONT'); await this.reply(2, targetId, 'Fortgesetzt.'); } break;
+        case 'stop': this.stopping = true; this.queue = []; this.current?.ffmpeg?.kill('SIGTERM'); this.current = undefined; this.playing = false; await this.reply(2, targetId, 'Wiedergabe gestoppt.'); break;
       }
-    } catch (error) {
-      await this.reply(2, targetId, `Fehler: ${error instanceof Error ? error.message : String(error)}`).catch(() => undefined);
-    }
+      this.writeStatus();
+    } catch (error) { await this.reply(2, targetId, `Fehler: ${error instanceof Error ? error.message : String(error)}`).catch(() => undefined); }
   }
 
   private async enqueue(input: string, targetId: number) {
@@ -158,18 +200,20 @@ class Ts3MusicBot {
     this.queue.push({ input, label });
     await this.reply(2, targetId, `Zur Queue hinzugefügt: ${label}`);
     if (!this.playing) await this.playNext();
+    this.writeStatus();
   }
 
   private async playNext() {
     if (this.stopping || this.playing) return;
     const item = this.queue.shift();
-    if (!item) return;
+    if (!item) { this.writeStatus(); return; }
     this.stopping = false;
     this.playing = true;
     this.current = { ...item };
+    this.writeStatus();
     try {
       const input = await resolveInput(item.input);
-      const ffmpeg = spawn(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-i', input, '-vn', '-c:a', 'libopus', '-application', 'audio', '-frame_duration', '20', '-b:a', '128k', '-f', 'ogg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'inherit'] });
+      const ffmpeg = spawn(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-i', input, '-vn', '-af', `volume=${this.volume / 100}`, '-c:a', 'libopus', '-application', 'audio', '-frame_duration', '20', '-b:a', '128k', '-f', 'ogg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'inherit'] });
       this.current.ffmpeg = ffmpeg;
       const parser = opusPacketsFromOgg();
       for await (const chunk of ffmpeg.stdout) {
@@ -181,12 +225,12 @@ class Ts3MusicBot {
         }
       }
       await new Promise<void>(resolve => ffmpeg.once('close', () => resolve()));
-    } catch (error) {
-      console.error('TS3 playback failed:', item.label, error);
-    } finally {
+    } catch (error) { console.error('TS3 playback failed:', item.label, error); }
+    finally {
       this.current?.ffmpeg?.kill('SIGTERM');
       this.current = undefined;
       this.playing = false;
+      this.writeStatus();
       if (!this.stopping) await this.playNext();
     }
   }
