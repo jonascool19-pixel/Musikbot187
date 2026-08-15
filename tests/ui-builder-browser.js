@@ -10,6 +10,9 @@ const channels = { voice:[{id:'v1',name:'Voice'}], text:[{id:'t1',name:'general'
 
 function sendJson(res,status,body){const data=Buffer.from(JSON.stringify(body));res.writeHead(status,{'Content-Type':'application/json','Content-Length':data.length});res.end(data);}
 function routeApi(req,res){
+  if(req.method==='GET'&&req.url==='/api/auth/session')return sendJson(res,200,{authenticated:true,user:'admin',expiresAt:Date.now()+3600000});
+  if(req.method==='POST'&&req.url==='/api/auth/login')return sendJson(res,200,{ok:true,user:'admin'});
+  if(req.method==='POST'&&req.url==='/api/auth/logout')return sendJson(res,200,{ok:true});
   if(req.method==='GET'&&req.url==='/api/ui/layout')return sendJson(res,200,savedLayout);
   if(req.method==='PUT'&&req.url==='/api/ui/layout'){let body='';req.on('data',c=>body+=c);req.on('end',()=>{savedLayout=JSON.parse(body);sendJson(res,200,savedLayout);});return;}
   if(req.url==='/api/health')return sendJson(res,200,{ok:true,discord:false,version:'test',youtube:true,spotify:false});
@@ -58,6 +61,7 @@ async function syntheticPointerDrag(page,sourceSelector,targetSelector){
     });
     await page.goto(`http://127.0.0.1:${port}/index.html`,{waitUntil:'networkidle'});
     await page.locator('#layoutBuilderOpen').waitFor();
+    if(await page.locator('#musikbot-login-overlay').count())throw new Error('browser login overlay remained after authenticated session check');
     await page.locator('#layoutBuilderOpen').click();
     const diagnostics=await page.evaluate(()=>({tiles:[...document.querySelectorAll('.grid > [data-tile-id]')].map(e=>e.dataset.tileId),fields:[...document.querySelectorAll('.builder-field')].map(e=>e.dataset.fieldId),handles:[...document.querySelectorAll('.builder-tile-handle')].length,fieldHandles:[...document.querySelectorAll('.builder-field-handle')].length,builder:!!document.querySelector('#builderPanel')}));
     console.log('UI diagnostics',JSON.stringify(diagnostics));
