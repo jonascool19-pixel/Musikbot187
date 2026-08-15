@@ -65,6 +65,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
           backend = Path('/opt/radiobot/backend/src/index.ts').read_text()
           install = Path('install.sh').read_text()
           update = Path('update.sh').read_text()
@@ -79,8 +80,8 @@ jobs:
               ('systemd hardening', 'ProtectSystem=strict' in Path('radiobot.service').read_text()),
               ('memory limit', 'MemoryMax=720M' in Path('radiobot.service').read_text()),
               ('cpu limit', 'CPUQuota=90%' in Path('radiobot.service').read_text()),
-              ('install release', 'RELEASE_REF=v2.1.0' in install),
-              ('update release', 'RELEASE_REF=v2.1.0' in update),
+              ('install release', re.search(r'^PINNED_COMMIT="[0-9a-f]{40}"$', Path('install-final.sh').read_text(), re.M) is not None),
+              ('update release', re.search(r'^PINNED_COMMIT="?[0-9a-f]{40}"?$', update, re.M) is not None),
           ]
           for label, ok in checks:
               print(f'CHECK {label}: {"OK" if ok else "MISSING"}')
@@ -90,16 +91,9 @@ jobs:
       - name: Privileged bootstrap end-to-end
         run: |
           set -euo pipefail
-          if ! getent group radiobot-ops >/dev/null 2>&1; then
-            if ! sudo groupadd --system radiobot-ops; then
-              sudo getent group radiobot-ops >/dev/null
-            fi
-          fi
-          sudo getent group radiobot-ops >/dev/null
           if ! id -u radiobot >/dev/null 2>&1; then
             sudo useradd --system --no-create-home --shell /usr/sbin/nologin radiobot
           fi
-          sudo usermod -a -G radiobot-ops radiobot
           sudo install -d -m 0755 -o root -g root /usr/local/libexec/radiobot
           sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-privileged.py /usr/local/libexec/radiobot/radiobot-privileged.py
           sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-configure.py /usr/local/sbin/radiobot-configure
@@ -108,17 +102,9 @@ jobs:
           printf '%s\n' 'DISCORD_TOKEN=' 'PORT=3000' 'WEB_USER=' 'WEB_PASSWORD=' 'DISCORD_CONTROL_ROLE=' 'SPOTIFY_CLIENT_ID=' 'SPOTIFY_CLIENT_SECRET=' 'SPOTIFY_REDIRECT_URI=' 'YOUTUBE_API_KEY=' 'YTDLP_PATH=/usr/local/bin/yt-dlp' 'SETUP_TOKEN=ci-test-token' | sudo tee /etc/radiobot/radiobot.env >/dev/null
           sudo chmod 0600 /etc/radiobot/radiobot.env
           sudo systemctl daemon-reload
-          if ! sudo systemctl restart radiobot-privileged.service; then
-            sudo systemctl --no-pager --full status radiobot-privileged.service || true
-            sudo journalctl -u radiobot-privileged.service -n 80 --no-pager || true
-            sudo /usr/bin/python3 -u /usr/local/libexec/radiobot/radiobot-privileged.py >/tmp/radiobot-privileged-direct.log 2>&1 & echo $! >/tmp/radiobot-privileged.pid
-            sleep 1
-            sudo cat /tmp/radiobot-privileged-direct.log || true
-            sudo kill "$(cat /tmp/radiobot-privileged.pid)" 2>/dev/null || true
-            exit 1
-          fi
+          sudo systemctl restart radiobot-privileged.service
           test -S /run/radiobot-privileged.sock
-          test "$(stat -c '%U:%G' /run/radiobot-privileged.sock)" = 'root:radiobot-ops'
+          test "$(stat -c '%U:%G' /run/radiobot-privileged.sock)" = 'root:radiobot'
           sudo -u radiobot python3 -c 'import socket,json; p=json.dumps({"bootstrapUserOnly":True,"webUser":"ci-test","webPassword":"123456789012","setupToken":"ci-test-token"},separators=(",",":")); s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(3); s.connect("/run/radiobot-privileged.sock"); s.sendall(("config-write\\n"+p).encode()); assert s.recv(128)==b"OK\\n"'
           sudo grep -q '^WEB_USER=ci-test$' /etc/radiobot/radiobot.env
           sudo grep -q '^WEB_PASSWORD=123456789012$' /etc/radiobot/radiobot.env
