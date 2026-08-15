@@ -59,6 +59,8 @@ jobs:
           grep -q 'security-final.py' install.sh
           grep -q 'configure-helper-hardening.py' install.sh
           grep -q 'setup-wizard.py' install.sh
+          grep -q 'ROOT_BIN_DIR=/usr/local/libexec/radiobot' install.sh
+          grep -q 'install -m 0755 -o root -g root' install.sh
           grep -q 'system-ops-cooldown.py' patches/security-final.py
           grep -q 'systemOpen' /opt/radiobot/frontend/index.html
           grep -q 'system-controls.js' /opt/radiobot/frontend/index.html
@@ -71,8 +73,9 @@ jobs:
           grep -q 'botEnabled' /opt/radiobot/backend/src/index.ts
           test -f scripts/radiobot-privileged.py
           test -f frontend/system-controls.js
+          test -f radiobot-privileged.service
           test -f /etc/systemd/system/radiobot-privileged.service
-          grep -q 'ExecStart=/usr/bin/python3 /opt/radiobot/scripts/radiobot-privileged.py' /etc/systemd/system/radiobot-privileged.service
+          grep -q 'ExecStart=/usr/bin/python3 /usr/local/libexec/radiobot/radiobot-privileged.py' /etc/systemd/system/radiobot-privileged.service
           grep -q '/run/radiobot-privileged.sock' scripts/radiobot-privileged.py
           grep -q 'config-write' scripts/radiobot-privileged.py
           grep -q 'bot-update' scripts/radiobot-privileged.py
