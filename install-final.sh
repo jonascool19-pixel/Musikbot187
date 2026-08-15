@@ -4,7 +4,7 @@ set -euo pipefail
 # Final pinned installer for MusikBot187.
 # The initial web account is created in the first-run web wizard before
 # Discord/Spotify/YouTube configuration becomes available.
-PINNED_COMMIT="dc9c540f5dbe7c52649b6ee1fd6ffacec5cc0998"
+PINNED_COMMIT="92231e9ec7f253379bb8e88d9318a940e1c60d21"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
