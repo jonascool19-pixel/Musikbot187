@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Final pinned installer for MusikBot187.
-# The application payload is pinned to the CI-tested commit below.
-PINNED_COMMIT="679fe95c86f005161ae9a41792a33e7924db8f24"
+# The application payload is pinned to the fully tested code commit below.
+PINNED_COMMIT="6fe29729ab90d03698e7f55e744e78935b85e402"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
