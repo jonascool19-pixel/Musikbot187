@@ -1,0 +1,104 @@
+name: Resource Benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - benchmark/resource-profile
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package.json
+      - name: Install runtime prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg python3
+          ffmpeg -version | head -n 1
+      - name: Prepare production-patched tree
+        run: |
+          set -Eeuo pipefail
+          sudo rm -rf /opt/radiobot
+          sudo mkdir -p /opt/radiobot/backend /opt/radiobot/frontend /opt/radiobot/patches /opt/radiobot/scripts
+          sudo cp -a backend/. /opt/radiobot/backend/
+          sudo cp -a frontend/. /opt/radiobot/frontend/
+          sudo cp -a patches/. /opt/radiobot/patches/
+          sudo cp -a scripts/. /opt/radiobot/scripts/
+          sudo python3 /opt/radiobot/patches/enable-radio-features.py
+          sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
+          sudo python3 /opt/radiobot/patches/setup-wizard.py
+          sudo python3 /opt/radiobot/patches/ui-builder.py
+          sudo python3 /opt/radiobot/patches/ui-builder-pointer.py
+          sudo python3 /opt/radiobot/patches/final-hardening.py
+          sudo python3 /opt/radiobot/patches/security-final.py
+          sudo python3 /opt/radiobot/patches/final-setup-routes.py
+          sudo python3 /opt/radiobot/patches/final-radio-routes.py
+          sudo python3 /opt/radiobot/patches/web-auth.py
+      - name: Install backend dependencies
+        working-directory: /opt/radiobot/backend
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Build production-patched backend
+        working-directory: /opt/radiobot/backend
+        run: npm run build
+      - name: Start isolated benchmark process
+        env:
+          NODE_OPTIONS: --max-old-space-size=256 --max-semi-space-size=2
+          UV_THREADPOOL_SIZE: 1
+          PORT: 3099
+          APP_ROOT: /opt/radiobot
+          DATA_DIR: ${{ runner.temp }}/radiobot-data
+          WEB_PASSWORD: ''
+          YTDLP_PATH: /usr/bin/false
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$DATA_DIR"
+          node /opt/radiobot/backend/dist/index.js > "$RUNNER_TEMP/radiobot.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/radiobot.pid"
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3099/api/health >/dev/null 2>&1; then
+              echo "RadioBot health check passed after ${i}s"
+              curl -fsS http://127.0.0.1:3099/api/health
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/radiobot.pid")" 2>/dev/null; then
+              echo 'RadioBot exited during startup' >&2
+              cat "$RUNNER_TEMP/radiobot.log" >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+          echo 'RadioBot health check timed out' >&2
+          cat "$RUNNER_TEMP/radiobot.log" >&2 || true
+          exit 1
+      - name: Benchmark process resources
+        env:
+          PID_FILE: ${{ runner.temp }}/radiobot.pid
+          OUT: ${{ runner.temp }}/resource-benchmark.csv
+        run: |
+          chmod +x /opt/radiobot/scripts/resource-benchmark.sh
+          PID="$(cat "$PID_FILE")" /opt/radiobot/scripts/resource-benchmark.sh 45
+      - name: Stop benchmark process
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/radiobot.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/radiobot.pid")" 2>/dev/null || true
+          fi
+      - name: Upload benchmark results and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: radiobot-resource-benchmark
+          path: |
+            ${{ runner.temp }}/resource-benchmark.csv
+            ${{ runner.temp }}/radiobot.log
+          if-no-files-found: warn
