@@ -40,6 +40,18 @@ http://SERVER-IP:3000
 
 Die Oberfläche ist für Desktop und Smartphone optimiert. Sie enthält Player-Steuerung, Queue, Radioverwaltung, lokale Musik, Playlists, globale Suche, Spotify-Playlist-Import, YouTube-Playlist-Import, Status-Channel-Konfiguration, Leistungs-/Netzwerkmonitor und einen **Update-Button**.
 
+### Instanzen wie beim SinusBot
+
+Wenn TeamSpeak 3 aktiviert wurde, erscheint oben im Dashboard ein **Instanz-Schalter**:
+
+```text
+Discord  ↔  TeamSpeak 3
+```
+
+Der Webplayer arbeitet immer auf der aktuell ausgewählten Instanz. Damit kannst du im selben Browser nacheinander den Discord-Bot und den TS3-Bot steuern, ohne zwei getrennte Oberflächen zu benötigen. Player, Pause/Resume, Stop, Skip, Lautstärke, Suche, Radios, lokale Musik, Playlists und Queue werden auf die aktive Instanz angewendet.
+
+Discord und TS3 bleiben technisch getrennte Prozesse. Ein Wechsel im Webinterface schaltet nur den **Steuerkontext**, nicht den jeweils anderen Bot aus.
+
 Beim ersten Aufruf über die Ersteinrichtungs-URL erscheint ein geführter Assistent für:
 
 - Discord Bot Token
@@ -76,7 +88,7 @@ Damit können Freunde Musik direkt in Discord suchen, Titel starten, Playlists w
 
 TeamSpeak 3 ist optional und läuft als **eigene Musikinstanz**. Discord und TS3 teilen sich die installierten Audio-Werkzeuge, aber nicht den Voice-Prozess.
 
-Der TS3-Bot verbindet sich als normaler Client mit einem vorhandenen TeamSpeak-3-Server und kann Musik per Opus in den konfigurierten Kanal senden. Die aktuelle Clientbibliothek unterstützt TS3 und rohe Opus-Voice-Pakete. citeturn194503search0turn467166search0
+Der TS3-Bot verbindet sich als normaler Client mit einem vorhandenen TeamSpeak-3-Server und kann Musik per Opus in den konfigurierten Kanal senden. Die aktuelle Clientbibliothek unterstützt TS3 und rohe Opus-Voice-Pakete.
 
 Befehle im TS3-Kanal:
 
@@ -92,7 +104,7 @@ Befehle im TS3-Kanal:
 
 Die TS3-Instanz besitzt eine eigene persistent gespeicherte Identität unter `/var/lib/radiobot/ts3-identity.txt` und wird bei der Installation als `radiobot-ts3.service` eingerichtet. Bei Updates bleibt eine bestehende TS3-Konfiguration erhalten.
 
-Der Installer richtet **keinen TeamSpeak-Server** ein; er verbindet den Bot mit einem bereits vorhandenen TS3-Server. TeamSpeak stellt weiterhin offizielle TS3-Server-Downloads bereit; TS3 befindet sich laut TeamSpeak aktuell in einer Übergangsphase mit geplantem Support bis Ende 2027. citeturn240171search8turn240171search9
+Der Installer richtet **keinen TeamSpeak-Server** ein; er verbindet den Bot mit einem bereits vorhandenen TS3-Server.
 
 ## Discord-Statuskanal
 
@@ -152,7 +164,7 @@ Die Netzwerkwerte beziehen sich auf den gesamten Ubuntu-CT, nicht ausschließlic
 
 ## Update-System
 
-Im Webinterface gibt es einen **Update-Button**. Er startet einen root-owned Update-Helfer, lädt die fest gepinnte getestete Version, baut das Backend neu und startet den systemd-Dienst automatisch neu. Konfiguration, TS3-Identität und Musikdaten bleiben erhalten.
+Im Webinterface gibt es einen **Update-Button**. Er startet einen root-owned Update-Helfer, lädt die fest gepinnte getestete Version, baut das Backend neu und startet die systemd-Dienste automatisch neu. Konfiguration, TS3-Identität und Musikdaten bleiben erhalten.
 
 Alternativ per Konsole:
 
