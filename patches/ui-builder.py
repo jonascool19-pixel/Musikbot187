@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 ROOT = Path('/opt/radiobot')
 BACKEND = ROOT / 'backend/src/index.ts'
@@ -16,12 +17,15 @@ def replace_once(path, old, new, label):
     path.write_text(s, encoding='utf-8')
 
 # Persist TS3 as a first-class dashboard tile in the backend layout model.
-replace_once(
-    BACKEND,
-    "const DEFAULT_UI_TILES: UiTile[] = ['hero','discord','search','radio','media','playlists','spotify','youtube','update','queue'].map(id => ({ id, visible: true, span: 1, rowSpan: 1, icon: '◼', label: id }));",
-    "const DEFAULT_UI_TILES: UiTile[] = ['ts3','hero','discord','search','radio','media','playlists','spotify','youtube','update','queue'].map(id => ({ id, visible: true, span: 1, rowSpan: 1, icon: id === 'ts3' ? '🗣️' : '◼', label: id === 'ts3' ? 'TeamSpeak 3' : id }));",
-    'TS3 default tile',
-)
+backend_source = BACKEND.read_text(encoding='utf-8')
+if "'ts3'" not in backend_source.split('const DEFAULT_UI_TILES', 1)[-1].split(';', 1)[0]:
+    backend_source = re.sub(
+        r"const DEFAULT_UI_TILES: UiTile\[\] = .*?;",
+        "const DEFAULT_UI_TILES: UiTile[] = ['ts3','hero','discord','search','radio','media','playlists','spotify','youtube','update','queue'].map(id => ({ id, visible: true, span: 1, rowSpan: 1, icon: id === 'ts3' ? '🗣️' : '◼', label: id === 'ts3' ? 'TeamSpeak 3' : id }));",
+        backend_source,
+        count=1,
+    )
+BACKEND.write_text(backend_source, encoding='utf-8')
 
 # Keep the UI assets loaded exactly once.
 replace_once(INDEX, '<link rel="stylesheet" href="/style.css">', '<link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/ui-builder.css">', 'builder css')
@@ -47,34 +51,35 @@ for old, new in replacements.items():
 INDEX.write_text(s, encoding='utf-8')
 
 # Make TS3 a normal preset tile and a named builder tile, not an unknown DOM child.
-replace_once(
-    UI_JS,
-    "const DEFAULTS = {\n    midnight: { name: 'Midnight', density: 'comfortable', accent: '#7dd3fc', bg: '#070b14', panel: '#111929', tiles: ['hero','discord','search','radio','media','playlists','spotify','youtube','update','queue'] },\n    compact: { name: 'Compact', density: 'compact', accent: '#a78bfa', bg: '#0b0b12', panel: '#171321', tiles: ['hero','discord','search','queue','radio','playlists','media','youtube','spotify','update'] },\n    studio: { name: 'Studio', density: 'spacious', accent: '#86efac', bg: '#06120d', panel: '#102118', tiles: ['hero','search','queue','radio','media','playlists','discord','youtube','spotify','update'] }\n  };",
-    "const DEFAULTS = {\n    midnight: { name: 'Midnight', density: 'comfortable', accent: '#7dd3fc', bg: '#070b14', panel: '#111929', tiles: ['ts3','hero','discord','search','radio','media','playlists','spotify','youtube','update','queue'] },\n    compact: { name: 'Compact', density: 'compact', accent: '#a78bfa', bg: '#0b0b12', panel: '#171321', tiles: ['ts3','hero','discord','search','queue','radio','playlists','media','youtube','spotify','update'] },\n    studio: { name: 'Studio', density: 'spacious', accent: '#86efac', bg: '#06120d', panel: '#102118', tiles: ['ts3','hero','search','queue','radio','media','playlists','discord','youtube','spotify','update'] }\n  };",
-    'builder defaults',
-)
-replace_once(
-    UI_JS,
-    "const tileMeta = { hero:['hero','Now Playing','🎵'], discord:['discord','Discord','🎙️'], search:['search','Suche','🔎'], radio:['radio','Radiosender','📻'], media:['media','Lokale Musik','💿'], playlists:['playlists','Playlists','🎵'], spotify:['spotify','Spotify','🟢'], youtube:['youtube','YouTube','▶️'], update:['update','Update','⚙️'], queue:['queue','Queue','📜'] };",
-    "const tileMeta = { ts3:['ts3','TeamSpeak 3','🗣️'], hero:['hero','Now Playing','🎵'], discord:['discord','Discord','🎙️'], search:['search','Suche','🔎'], radio:['radio','Radiosender','📻'], media:['media','Lokale Musik','💿'], playlists:['playlists','Playlists','🎵'], spotify:['spotify','Spotify','🟢'], youtube:['youtube','YouTube','▶️'], update:['update','Update','⚙️'], queue:['queue','Queue','📜'] };",
-    'TS3 tile metadata',
-)
-replace_once(
-    UI_JS,
+ui_source = UI_JS.read_text(encoding='utf-8')
+if "ts3:['ts3','TeamSpeak 3','🗣️']" not in ui_source:
+    ui_source = re.sub(
+        r"const tileMeta = \{.*?\};",
+        "const tileMeta = { ts3:['ts3','TeamSpeak 3','🗣️'], hero:['hero','Now Playing','🎵'], discord:['discord','Discord','🎙️'], search:['search','Suche','🔎'], radio:['radio','Radiosender','📻'], media:['media','Lokale Musik','💿'], playlists:['playlists','Playlists','🎵'], spotify:['spotify','Spotify','🟢'], youtube:['youtube','YouTube','▶️'], update:['update','Update','⚙️'], queue:['queue','Queue','📜'] };",
+        ui_source,
+        count=1,
+    )
+# Add TS3 to every built-in preset while preserving the existing preset order.
+def add_ts3_to_preset(match):
+    block = match.group(0)
+    if "'ts3'" not in block:
+        block = block.replace("tiles: ['", "tiles: ['ts3','", 1)
+    return block
+ui_source = re.sub(r"(?:midnight|compact|studio): \{.*?\},", add_ts3_to_preset, ui_source, count=3, flags=re.S)
+# Keep custom layouts in the exact saved tile order.
+ui_source = re.sub(
+    r"const order=DEFAULTS\[l\.preset\]\?\.tiles\|\|DEFAULTS\.midnight\.tiles;",
     "const order=(l.preset==='custom'&&source.length)?source.map(x=>x.id||x):((DEFAULTS[l.preset]?.tiles)||DEFAULTS.midnight.tiles);",
-    "const order=(l.preset==='custom'&&source.length)?source.map(x=>x.id||x):((DEFAULTS[l.preset]?.tiles)||DEFAULTS.midnight.tiles);",
-    'custom tile order',
+    ui_source,
+    count=1,
 )
-
-# If the patch has not yet been applied, add the tile-aware persistence rules to the current source.
-s = UI_JS.read_text(encoding='utf-8')
-if "const tileMap=new Map(state.layout.tiles.map(t=>[t.id,t]));" not in s:
+# Persist actual DOM tile order.
+if "const tileMap=new Map(state.layout.tiles.map(t=>[t.id,t]));" not in ui_source:
     old = "return{...state.layout,tiles:state.layout.tiles.map(t=>({...t})),fields:fieldData};"
     new = "const tileMap=new Map(state.layout.tiles.map(t=>[t.id,t]));const tileData=tiles().map((el,i)=>{const old=tileMap.get(el.dataset.tileId);return old?{...old,visible:!el.hidden,order:i}:null;}).filter(Boolean).sort((a,b)=>a.order-b.order);return{...state.layout,tiles:tileData,fields:fieldData};"
-    if old in s:
-        s = s.replace(old,new,1)
-    else:
+    if old not in ui_source:
         raise SystemExit('tile persistence marker missing')
-    UI_JS.write_text(s, encoding='utf-8')
+    ui_source = ui_source.replace(old, new, 1)
+UI_JS.write_text(ui_source, encoding='utf-8')
 
 print('TS3 registered as persistent UI tile')
