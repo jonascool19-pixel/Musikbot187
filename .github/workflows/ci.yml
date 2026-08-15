@@ -87,7 +87,7 @@ jobs:
           PY
           test -s frontend/ui-builder.js
           test -s frontend/ui-builder.css
-          test -s frontend/web-auth.js
+          test -s /opt/radiobot/frontend/web-auth.js
       - name: FFmpeg audio smoke test
         run: |
           ffmpeg -version | head -n 1
@@ -196,7 +196,7 @@ jobs:
           with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as ex:
               for fut in concurrent.futures.as_completed([ex.submit(hit,i) for i in range(TOTAL)]):
                   try: fut.result()
-                  except Exception as e: errors+=1
+                  except Exception: errors+=1
           elapsed=time.perf_counter()-start
           print(f'perf_total={TOTAL} perf_workers={WORKERS} perf_errors={errors} perf_seconds={elapsed:.3f} perf_rps={TOTAL/elapsed:.1f}')
           if errors: raise SystemExit(f'{errors} request(s) failed')
