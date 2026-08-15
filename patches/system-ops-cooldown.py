@@ -14,7 +14,6 @@ s = s.replace("function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE)
 s = s.replace("type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[] };", "type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[]; botEnabled?: boolean };", 1)
 s = s.replace("db.playlists ??= [];", "db.playlists ??= [];\ndb.botEnabled ??= true;", 1)
 
-# The radio feature patch changes queuePlaylist before this patch runs. Normalize both shapes.
 queue_old = "if (replace) { await stopGuild(guildId); state.activePlaylistId = playlist.id; state.queue = items; }"
 queue_new = "if (replace) { await stopGuild(guildId); state.manualStop = false; state.activePlaylistId = playlist.id; state.queue = items; }"
 if queue_old in s:
@@ -79,8 +78,12 @@ setInterval(() => {
 if "async function privilegedAction" not in s:
     s = s.replace("async function unifiedSearch(query: string) {", priv + "\nasync function unifiedSearch(query: string) {", 1)
 
-# final-hardening may have renamed playNext without finding its exact wrapper boundary.
-# Ensure the public serialized wrapper exists after hardening, regardless of the exact playback body shape.
+# The final-hardening patch adds the request limiter to preHandler. Keep /api/health and setup status cheap for monitoring and the stress test.
+old_hook = "const openSetup = req.url.startsWith('/api/setup') || req.url.startsWith('/api/health') || req.url.startsWith('/api/spotify/callback'); if (req.url.startsWith('/api/') && !openSetup && !req.url.startsWith('/api/spotify/callback') && !auth(req, reply)) return reply; const key = String(req.ip ?? 'unknown'); const now = Date.now(); const bucket = requestBuckets.get(key); if (!bucket || now - bucket.start >= RATE_WINDOW_MS) requestBuckets.set(key, { start: now, count: 1 }); else { bucket.count += 1; if (bucket.count > REQUEST_LIMIT) return reply.code(429).send('Too many requests'); }"
+new_hook = "const openSetup = req.url.startsWith('/api/setup') || req.url.startsWith('/api/health') || req.url.startsWith('/api/spotify/callback'); if (req.url.startsWith('/api/') && !openSetup && !req.url.startsWith('/api/spotify/callback') && !auth(req, reply)) return reply; const limited = req.url.startsWith('/api/') && !req.url.startsWith('/api/health') && !req.url.startsWith('/api/setup/status'); if (limited) { const key = String(req.ip ?? 'unknown'); const now = Date.now(); const bucket = requestBuckets.get(key); if (!bucket || now - bucket.start >= RATE_WINDOW_MS) requestBuckets.set(key, { start: now, count: 1 }); else { bucket.count += 1; if (bucket.count > REQUEST_LIMIT) return reply.code(429).send('Too many requests'); } }"
+if old_hook in s:
+    s = s.replace(old_hook, new_hook, 1)
+
 if "async function playNext(guildId: string)" not in s and "async function playNextUnlocked(guildId: string)" in s and "const playLocks = new Map" in s:
     wrapper = """async function playNext(guildId: string) {
   const running = playLocks.get(guildId);
@@ -109,11 +112,9 @@ if "/api/system/reboot" not in s:
     s = s.replace("app.get('/api/health'", ops + "\napp.get('/api/health'", 1)
 
 old_update = "app.post('/api/update', async (req, reply) => { if (!fs.existsSync('/usr/local/sbin/radiobot-update')) return reply.code(503).send('Update-Helfer ist nicht installiert.'); fs.writeFileSync(UPDATE_LOG, `started ${new Date().toISOString()}\\n`, { mode: 0o600 }); const child = spawn('sudo', ['-n', '/usr/local/sbin/radiobot-update'], { detached: true, stdio: 'ignore' }); child.unref(); return { ok: true, message: 'Update gestartet. Der Dienst wird danach automatisch neu gestartet.' }; });"
-new_update = "app.post('/api/update', async (_req, reply) => { if (!fs.existsSync('/usr/local/sbin/radiobot-update')) return reply.code(503).send('Update-Helfer ist nicht installiert.'); fs.writeFileSync(UPDATE_LOG, `started ${new Date().toISOString()}\\n`, { mode: '600' as any }); await privilegedAction('bot-update'); return { ok: true, message: 'Update gestartet. Der Dienst wird danach automatisch neu gestartet.' }; });"
+new_update = "app.post('/api/update', async (_req, reply) => { if (!fs.existsSync('/usr/local/sbin/radiobot-update')) return reply.code(503).send('Update-Helfer ist nicht installiert.'); fs.writeFileSync(UPDATE_LOG, `started ${new Date().toISOString()}\\n`, { mode: 0o600 }); await privilegedAction('bot-update'); return { ok: true, message: 'Update gestartet. Der Dienst wird danach automatisch neu gestartet.' }; });"
 if old_update in s:
     s = s.replace(old_update, new_update, 1)
-# Fix any accidental mode string from the patching layer.
-s = s.replace("{ mode: '600' as any }", "{ mode: 0o600 }")
 
 needle = "client.on('interactionCreate', async interaction => {\n  try {"
 replacement = "client.on('interactionCreate', async interaction => {\n  try {\n    if (interaction.guildId && !consumeDiscordCooldown(interaction)) return;\n    if (interaction.guildId && !db.botEnabled) { if (interaction.isRepliable()) await interaction.reply({ content: '🛑 Der Bot ist derzeit über das Webinterface deaktiviert.', ephemeral: true }); return; }"
