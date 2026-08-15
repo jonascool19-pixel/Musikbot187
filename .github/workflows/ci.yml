@@ -1,0 +1,45 @@
+name: RadioBot CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package.json
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install
+      - name: TypeScript build
+        working-directory: backend
+        run: npm run build
+      - name: Validate installer
+        run: bash -n install.sh
+      - name: Smoke test web API
+        working-directory: backend
+        env:
+          PORT: 3100
+          APP_ROOT: ${{ github.workspace }}
+          DATA_DIR: ${{ runner.temp }}/radiobot-data
+        run: |
+          node dist/index.js > "$RUNNER_TEMP/radiobot.log" 2>&1 &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:3100/api/health; then
+              echo
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/radiobot.log"
+          exit 1
