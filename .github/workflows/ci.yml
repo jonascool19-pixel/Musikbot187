@@ -86,6 +86,7 @@ jobs:
         run: |
           sudo mkdir -p /var/lib/radiobot
           sudo python3 /opt/radiobot/scripts/system-metrics.py
+          sudo chmod 0644 /var/lib/radiobot/metrics.json
           sudo rm -f /run/radiobot-privileged.sock
           sudo python3 - <<'PY' &
           import os, socket
