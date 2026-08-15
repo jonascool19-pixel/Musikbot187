@@ -33,7 +33,7 @@ if "app.get('/api/setup/status'" not in s:
         raise SystemExit('health anchor not found')
     s = s.replace(anchor, route_block + "\n" + anchor, 1)
 
-metrics_block = "app.get('/api/metrics', async (_req, reply) => { const file = '/var/lib/radiobot/metrics.json'; if (!fs.existsSync(file)) return reply.send({ ok: true, cpu: 0, memory: { used: 0, total: 0 }, disk: { used: 0, total: 0 }, network: { rxBytes: 0, txBytes: 0 } }); try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return reply.code(503).send({ error: 'Metrics nicht verfügbar' }); } });"
+metrics_block = "app.get('/api/metrics', async (_req, reply) => { const file = '/var/lib/radiobot/metrics.json'; if (!fs.existsSync(file)) return reply.send({ ok: true, ts: Date.now(), cpuTotal: 0, cpuIdle: 0, cpuCount: 1, load1: 0, memoryTotal: 0, memoryUsed: 0, diskTotal: 0, diskUsed: 0, networkRx: 0, networkTx: 0 }); try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return reply.send({ ok: true, ts: Date.now(), cpuTotal: 0, cpuIdle: 0, cpuCount: 1, load1: 0, memoryTotal: 0, memoryUsed: 0, diskTotal: 0, diskUsed: 0, networkRx: 0, networkTx: 0, stale: true }); } });"
 if "app.get('/api/metrics'" not in s:
     anchor = "app.get('/api/health'"
     if anchor not in s:
