@@ -26,11 +26,13 @@ ProtectHome=true
 ReadWritePaths=/var/lib/radiobot
 MemoryHigh=420M
 MemoryMax=480M
+MemorySwapMax=0
 CPUQuota=100%
 TasksMax=64
 LimitNOFILE=4096
 Nice=5
 UMask=0027
+OOMPolicy=stop
 
 [Install]
 WantedBy=multi-user.target
