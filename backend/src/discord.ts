@@ -5,7 +5,7 @@ import { spawnPcm, mediaTitle } from './media.js';
 
 export class DiscordInstance {
   cfg: any;
-  client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+  client: Client;
   player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
   connection?: VoiceConnection;
   queue: any[] = [];
@@ -18,6 +18,9 @@ export class DiscordInstance {
 
   constructor(cfg: any) {
     this.cfg = cfg;
+    const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages];
+    if (cfg.messageContentIntent === true) intents.push(GatewayIntentBits.MessageContent);
+    this.client = new Client({ intents });
     this.client.on('ready', () => {
       this.connected = true;
       this.lastError = '';
@@ -26,6 +29,7 @@ export class DiscordInstance {
     });
     this.client.on('error', error => { this.connected = false; this.lastError = error instanceof Error ? error.message : String(error); });
     this.client.on('shardError', error => { this.connected = false; this.lastError = error instanceof Error ? error.message : String(error); });
+    this.client.on('invalidated', () => { this.connected = false; this.lastError = 'Discord-Session wurde ungültig. Token prüfen.'; });
     this.client.on('messageCreate', m => this.onMessage(m).catch(e => console.error('Discord command', e)));
     this.player.on(AudioPlayerStatus.Idle, () => { void this.next(); });
   }
@@ -33,11 +37,8 @@ export class DiscordInstance {
   private botIdFromToken(): string {
     try {
       const first = String(this.cfg.token || '').split('.')[0];
-      if (!first) return '';
-      return Buffer.from(first, 'base64url').toString('utf8').trim();
-    } catch {
-      return '';
-    }
+      return first ? Buffer.from(first, 'base64url').toString('utf8').trim() : '';
+    } catch { return ''; }
   }
 
   private buildInviteUrl(): string {
@@ -53,14 +54,17 @@ export class DiscordInstance {
     return `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&scope=bot%20applications.commands&permissions=${permissions}`;
   }
 
+  isEnabled() { return this.cfg.prefix !== '__RADIOBOT_DISABLED__'; }
+
   async start() {
+    if (!this.isEnabled()) { this.connected = false; this.lastError = 'Instanz deaktiviert.'; return; }
     if (!this.cfg.token) { this.connected = false; this.lastError = 'Bot-Token fehlt.'; return; }
     this.inviteUrl = this.buildInviteUrl();
     try { this.lastError = ''; await this.client.login(this.cfg.token); }
     catch (error) { this.connected = false; this.lastError = error instanceof Error ? error.message : String(error); throw error; }
   }
 
-  async stop() { this.ffmpeg?.kill('SIGTERM'); this.connection?.destroy(); this.connected = false; this.inviteUrl = ''; await this.client.destroy(); }
+  async stop() { this.ffmpeg?.kill('SIGTERM'); this.connection?.destroy(); this.connected = false; this.inviteUrl = ''; try { await this.client.destroy(); } catch {} }
   async restart() { await this.stop(); await this.start(); }
 
   private async ensureVoice() {
@@ -95,23 +99,10 @@ export class DiscordInstance {
     finally { this.ffmpeg = undefined; this.current = undefined; if (this.queue.length) void this.next(); }
   }
 
-  state() {
-    return {
-      id: this.cfg.id,
-      name: this.cfg.name,
-      type: 'discord',
-      connected: this.connected,
-      playing: this.current?.title ?? null,
-      queue: this.queue.map(x => x.title),
-      volume: this.volume,
-      error: this.lastError || null,
-      inviteUrl: this.inviteUrl || this.buildInviteUrl() || null,
-      botUser: this.client.user?.tag ?? null
-    };
-  }
+  state() { return { id:this.cfg.id, name:this.cfg.name, type:'discord', enabled:this.isEnabled(), connected:this.connected, playing:this.current?.title ?? null, queue:this.queue.map(x=>x.title), volume:this.volume, error:this.lastError||null, inviteUrl:this.inviteUrl||this.buildInviteUrl()||null, botUser:this.client.user?.tag??null }; }
 
   private async onMessage(message: any) {
-    if (message.author.bot) return;
+    if (message.author.bot || this.cfg.messageContentIntent !== true) return;
     const prefix = this.cfg.prefix ?? '!';
     if (!message.content.startsWith(prefix)) return;
     const [command, ...rest] = message.content.slice(prefix.length).trim().split(/\s+/);
@@ -122,11 +113,11 @@ export class DiscordInstance {
         case 'radio': await this.add(arg); await message.reply('📻 Radio zur Queue hinzugefügt.'); break;
         case 'queue': await message.reply(this.queue.length ? this.queue.map((x, i) => `${i + 1}. ${x.title}`).join('\n') : 'Queue ist leer.'); break;
         case 'skip': this.ffmpeg?.kill('SIGTERM'); await message.reply('⏭️ Übersprungen.'); break;
-        case 'stop': this.queue = []; this.ffmpeg?.kill('SIGTERM'); this.player.stop(); await message.reply('⏹️ Gestoppt.'); break;
+        case 'stop': this.queue=[]; this.ffmpeg?.kill('SIGTERM'); this.player.stop(); await message.reply('⏹️ Gestoppt.'); break;
         case 'pause': this.player.pause(); await message.reply('⏸️ Pausiert.'); break;
         case 'resume': this.player.unpause(); await message.reply('▶️ Fortgesetzt.'); break;
-        case 'volume': this.volume = Math.max(0, Math.min(100, Number(rest[0] ?? 80))); await message.reply(`🔊 ${this.volume}%`); break;
+        case 'volume': this.volume=Math.max(0,Math.min(100,Number(rest[0]??80))); await message.reply(`🔊 ${this.volume}%`); break;
       }
-    } catch (error) { await message.reply(`Fehler: ${error instanceof Error ? error.message : String(error)}`).catch(() => undefined); }
+    } catch(error){ await message.reply(`Fehler: ${error instanceof Error?error.message:String(error)}`).catch(()=>undefined); }
   }
 }
