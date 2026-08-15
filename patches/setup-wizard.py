@@ -52,12 +52,15 @@ if "app.get('/api/setup/status'" not in s:
 
 p.write_text(s, encoding='utf-8')
 
-# enable-radio-features legitimately changes queuePlaylist before final-hardening.
-# Make the old hardening marker optional; later hardening patches handle the new shape explicitly.
+# enable-radio-features changes several playback blocks before hardening. Do not abort if those exact old-text markers are absent.
 hardening = Path('/opt/radiobot/patches/final-hardening.py')
 if hardening.exists():
     h = hardening.read_text(encoding='utf-8')
     h = h.replace('"queue playlist")', '"queue playlist", required=False)', 1)
+    h = h.replace('"playback lock")', '"playback lock", required=False)', 1)
+    h = h.replace('"playback recursion removal")', '"playback recursion removal", required=False)', 1)
+    h = h.replace('"playback function rename")', '"playback function rename", required=False)', 1)
+    h = h.replace('"playback loop start")', '"playback loop start", required=False)', 1)
     hardening.write_text(h, encoding='utf-8')
 
 print('setup wizard patch applied')
