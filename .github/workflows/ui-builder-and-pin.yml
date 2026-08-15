@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: 3b026e1501a4ae31694b33a27b04b63555049e34
+          EXPECTED_PIN: 3302012d7cde33baa73de21c003d7347313b45f8
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -49,6 +49,7 @@ jobs:
           sudo python3 /opt/radiobot/patches/final-hardening.py
           sudo python3 /opt/radiobot/patches/security-final.py
           sudo python3 /opt/radiobot/patches/final-setup-routes.py
+          sudo python3 /opt/radiobot/patches/final-radio-routes.py
           sudo python3 /opt/radiobot/patches/web-auth.py
       - name: Build backend
         working-directory: /opt/radiobot/backend
@@ -71,6 +72,7 @@ jobs:
           grep -q "'/api/auth/login'" /opt/radiobot/backend/src/index.ts
           grep -q "'/api/auth/logout'" /opt/radiobot/backend/src/index.ts
           grep -q 'musikbot187_session' /opt/radiobot/backend/src/index.ts
+          grep -q 'ORIGIN_FORBIDDEN' /opt/radiobot/backend/src/index.ts
       - name: Verify clock UI wiring
         run: |
           grep -q 'clock.js' /opt/radiobot/frontend/index.html
