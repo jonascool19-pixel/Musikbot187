@@ -40,7 +40,7 @@ if "'/api/ui/layout'" not in backend_source:
     health = "app.get('/api/health', async () => ({ ok: true, discord: client.isReady(), version: '2.0.0', youtube: fs.existsSync(YTDLP), spotify: Boolean(spotify.refreshToken) }));"
     if health not in backend_source:
         raise SystemExit('health route marker missing')
-    routes = health + "\napp.get('/api/ui/layout', async () => uiLayout);\napp.put<{ Body: UiLayout }>('/api/ui/layout', async req => {\n  const b = req.body ?? ({} as UiLayout);\n  if (!Array.isArray(b.tiles) || b.tiles.length > 32 || !Array.isArray(b.fields) || b.fields.length > 256) throw new Error('Ungültiges UI-Layout.');\n  const allowedTiles = new Set(DEFAULT_UI_TILES.map(t => t.id));\n  const seenTiles = new Set<string>(); const tiles: UiTile[] = [];\n  for (const raw of b.tiles) { const id = String(raw.id ?? ''); if (!allowedTiles.has(id) || seenTiles.has(id)) continue; seenTiles.add(id); tiles.push({ id, visible: raw.visible !== false, span: Math.max(1, Math.min(4, Number(raw.span) || 1)), rowSpan: Math.max(1, Math.min(3, Number(raw.rowSpan) || 1)), icon: String(raw.icon ?? '◼').slice(0, 8), label: String(raw.label ?? id).trim().slice(0, 40) || id }); }\n  for (const def of DEFAULT_UI_TILES) if (!seenTiles.has(def.id)) tiles.push(def);\n  const seenFields = new Set<string>(); const fields: UiField[] = [];\n  for (const raw of b.fields) { const id = String(raw.id ?? '').slice(0, 120); const tileId = String(raw.tileId ?? ''); if (!id || seenFields.has(id) || !allowedTiles.has(tileId)) continue; seenFields.add(id); fields.push({ id, tileId, visible: raw.visible !== false, span: Math.max(1, Math.min(4, Number(raw.span) || 1)), rowSpan: Math.max(1, Math.min(3, Number(raw.rowSpan) || 1)), order: Math.max(0, Math.min(999, Number(raw.order) || 0)) }); }\n  uiLayout.preset = String(b.preset ?? 'custom').slice(0, 24); uiLayout.name = String(b.name ?? 'Mein Dashboard').slice(0, 60); uiLayout.density = (['compact','comfortable','spacious'].includes(String(b.density)) ? String(b.density) : 'comfortable') as UiLayout['density']; uiLayout.accent = /^#[0-9a-f]{6}$/i.test(String(b.accent)) ? String(b.accent) : '#7dd3fc'; uiLayout.bg = /^#[0-9a-f]{6}$/i.test(String(b.bg)) ? String(b.bg) : '#070b14'; uiLayout.panel = /^#[0-9a-f]{6}$/i.test(String(b.panel)) ? String(b.panel) : '#111929'; uiLayout.tiles = tiles; uiLayout.fields = fields.sort((a,b) => a.order - b.order); saveJson(UI_LAYOUT_FILE, uiLayout); return uiLayout;\n});"
+    routes = health + "\napp.get('/api/ui/layout', async () => uiLayout);\napp.put<{ Body: UiLayout }>('/api/ui/layout', async req => {\n  const b = req.body ?? ({} as UiLayout);\n  if (!Array.isArray(b.tiles) || b.tiles.length > 32 || !Array.isArray(b.fields) || b.fields.length > 256) throw new Error('Ungültiges UI-Layout.');\n  const allowedTiles = new Set(DEFAULT_UI_TILES.map(t => t.id));\n  const seenTiles = new Set<string>(); const tiles: UiTile[] = [];\n  for (const raw of b.tiles) { const id = String(raw.id ?? ''); if (!allowedTiles.has(id) || seenTiles.has(id)) continue; seenTiles.add(id); tiles.push({ id, visible: raw.visible !== false, span: Math.max(1, Math.min(4, Number(raw.span) || 1)), rowSpan: Math.max(1, Math.min(3, Number(raw.rowSpan) || 1)), icon: String(raw.icon ?? '◼').slice(0, 8), label: String(raw.label ?? id).trim().slice(0, 40) || id }); }\n  for (const def of DEFAULT_UI_TILES) if (!seenTiles.has(def.id)) tiles.push(def);\n  const seenFields = new Set<string>(); const fields: UiField[] = [];\n  for (const raw of b.fields) { const id = String(raw.id ?? '').slice(0, 120); const tileId = String(raw.tileId ?? ''); if (!id || seenFields.has(id) || !allowedTiles.has(tileId)) continue; seenFields.add(id); fields.push({ id, tileId, visible: raw.visible !== false, span: Math.max(1, Math.min(4, Number(raw.span) || 1)), rowSpan: Math.max(1, Math.min(3, Number(raw.rowSpan) || 1)), order: Math.max(0, Math.min(999, Number(raw.order) || 0)) }); }\n  uiLayout.preset = String(b.preset ?? 'custom').slice(0, 24); uiLayout.name = String(b.name ?? 'Mein Dashboard').slice(0, 60); uiLayout.density = (['compact','comfortable','spacious'].includes(String(b.density)) ? String(b.density) : 'comfortable') as UiLayout['density']; uiLayout.accent = /^#[0-9a-f]{6}$/i.test(String(b.accent)) ? String(b.accent) : '#7dd3fc'; uiLayout.bg = /^#[0-9a-f]{6}$/i.test(String(b.bg)) ? String(b.bg) : '#070b14'; uiLayout.panel = /^#[0-9a-f]{6}$/i.test(String(b.panel)) ? String(b.panel) : '#111929'; uiLayout.tiles = tiles; uiLayout.fields = fields.sort((a,b) => a.order-b.order); saveJson(UI_LAYOUT_FILE, uiLayout); return uiLayout;\n});"
     backend_source = backend_source.replace(health, routes, 1)
 BACKEND.write_text(backend_source, encoding='utf-8')
 
@@ -86,18 +86,34 @@ def add_ts3(match):
 ui_source = re.sub(r"(?:midnight|compact|studio): \{.*?\},", add_ts3, ui_source, count=3, flags=re.S)
 if "const order=(l.preset==='custom'&&source.length)?source.map(x=>x.id||x):((DEFAULTS[l.preset]?.tiles)||DEFAULTS.midnight.tiles);" not in ui_source:
     ui_source = re.sub(r"const order=DEFAULTS\[l\.preset\]\?\.tiles\|\|DEFAULTS\.midnight\.tiles;", "const order=(l.preset==='custom'&&source.length)?source.map(x=>x.id||x):((DEFAULTS[l.preset]?.tiles)||DEFAULTS.midnight.tiles);", ui_source, count=1)
-
-# Ensure movable fields are discovered even when a previous patch already created an empty zone.
-field_fn_old = "function fieldCandidates(tile){const zone=tile.querySelector(':scope > .builder-field-zone');if(zone)return[];return[...tile.children].filter(el=>!el.matches('h1,h2,h3,.eyebrow')&&(el.matches('label,.row,.card,.list,.hint,p,.controls')||el.id==='queue'));}"
 field_fn_new = "function fieldCandidates(tile){const zone=tile.querySelector(':scope > .builder-field-zone');const scope=zone?[...tile.children].filter(el=>el!==zone):[...tile.children];return scope.filter(el=>!el.matches('h1,h2,h3,.eyebrow,.builder-tile-handle,.builder-field-zone')&&(el.matches('label,.row,.card,.list,.hint,p,.controls')||el.id==='queue'||el.querySelector?.('input,select,button'))); }"
+field_fn_old = "function fieldCandidates(tile){const zone=tile.querySelector(':scope > .builder-field-zone');if(zone)return[];return[...tile.children].filter(el=>!el.matches('h1,h2,h3,.eyebrow')&&(el.matches('label,.row,.card,.list,.hint,p,.controls')||el.id==='queue'));}"
 if field_fn_old in ui_source:
     ui_source = ui_source.replace(field_fn_old, field_fn_new, 1)
 elif field_fn_new not in ui_source:
     ui_source = re.sub(r"function fieldCandidates\(tile\)\{.*?\}", field_fn_new, ui_source, count=1, flags=re.S)
+
+# Ensure every tile has a dedicated drag handle; create it idempotently in applyTiles.
+handle_snippet = "const handle=el.querySelector(':scope > .builder-tile-handle');if(!handle){const h=document.createElement('div');h.className='builder-tile-handle';h.textContent='☷';h.setAttribute('aria-label','Kachel verschieben');el.insertBefore(h,el.firstChild);}else{handle.hidden=false;}"
+handle_regex = re.compile(r"function applyTiles\(\)\{.*?\}", re.S)
+if '.builder-tile-handle' not in ui_source:
+    m = handle_regex.search(ui_source)
+    if not m:
+        raise SystemExit('applyTiles marker missing for tile handle')
+    current = m.group(0)
+    current = current.replace("if(title&&el.id!=='nowTitle')title.textContent=`${t.icon} ${t.label}`;", "if(title&&el.id!=='nowTitle')title.textContent=`${t.icon} ${t.label}`;" + handle_snippet + "el.draggable=state.editing;")
+    ui_source = ui_source[:m.start()] + current + ui_source[m.end():]
+else:
+    # Make sure an existing handle is initialized for every tile.
+    m = handle_regex.search(ui_source)
+    if m and handle_snippet not in m.group(0):
+        current = m.group(0)
+        current = current.replace("if(title&&el.id!=='nowTitle')title.textContent=`${t.icon} ${t.label}`;", "if(title&&el.id!=='nowTitle')title.textContent=`${t.icon} ${t.label}`;" + handle_snippet + "el.draggable=state.editing;")
+        ui_source = ui_source[:m.start()] + current + ui_source[m.end():]
 if "const tileMap=new Map(state.layout.tiles.map(t=>[t.id,t]));" not in ui_source:
     old = "return{...state.layout,tiles:state.layout.tiles.map(t=>({...t})),fields:fieldData};"
     if old not in ui_source:
         raise SystemExit('tile persistence marker missing')
     ui_source = ui_source.replace(old, "const tileMap=new Map(state.layout.tiles.map(t=>[t.id,t]));const tileData=tiles().map((el,i)=>{const old=tileMap.get(el.dataset.tileId);return old?{...old,visible:!el.hidden,order:i}:null;}).filter(Boolean).sort((a,b)=>a.order-b.order);return{...state.layout,tiles:tileData,fields:fieldData};", 1)
 UI_JS.write_text(ui_source, encoding='utf-8')
-print('TS3 registered, UI assets/API ensured, and movable-field discovery made idempotent')
+print('TS3 registered, UI assets/API ensured, movable fields discovered, and tile handles ensured')
