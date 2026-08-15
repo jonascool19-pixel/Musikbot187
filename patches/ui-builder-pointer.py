@@ -77,7 +77,10 @@ s, n = init_re.subn(init_new, s, count=1)
 if n != 1:
     raise SystemExit('initDrag function not found')
 
-s = s.replace("applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>toggle(true);document.querySelector('header .row')?.prepend(btn);initDrag();", "applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>toggle(true);document.querySelector('header .row')?.prepend(btn);")
-
+# Do not bind handlers during initial page load. Bind exactly once when the builder is opened.
+s = s.replace(
+    "applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>toggle(true);document.querySelector('header .row')?.prepend(btn);initDrag();",
+    "applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>{toggle(true);initDrag();};document.querySelector('header .row')?.prepend(btn);"
+)
 UI_JS.write_text(s, encoding='utf-8')
 print('event-delegated pointer drag patch applied')
