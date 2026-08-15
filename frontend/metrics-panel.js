@@ -25,7 +25,7 @@
     if(previous){const sec=Math.max(.1,(d.ts-previous.ts)/1000);$('mDown').textContent=fmtBytes((d.networkRx-previous.networkRx)/sec);$('mUp').textContent=fmtBytes((d.networkTx-previous.networkTx)/sec);}
     $('mDownTotal').textContent=`Gesamt: ${fmtGB(d.networkRx)}`; $('mUpTotal').textContent=`Gesamt: ${fmtGB(d.networkTx)}`; previous=d;
   }
-  async function poll(){try{const r=await fetch('/metrics.json',{cache:'no-store'});if(r.ok)update(await r.json());}catch{}}
+  async function poll(){try{const r=await fetch('/api/metrics',{cache:'no-store'});if(r.ok)update(await r.json());}catch{}}
   document.querySelector('#metricsOpen')?.addEventListener('click',()=>{modal.classList.add('open');poll();});
   $('metricsClose').addEventListener('click',()=>modal.classList.remove('open'));
   modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open');});
