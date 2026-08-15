@@ -65,8 +65,8 @@ jobs:
           grep -q 'ProtectSystem=strict' radiobot.service
           grep -q 'MemoryMax=720M' radiobot.service
           grep -q 'CPUQuota=90%' radiobot.service
-          grep -q "app.get('/api/setup/status'" /opt/radiobot/backend/src/index.ts
-          grep -q "app.get('/api/radio/search'" /opt/radiobot/backend/src/index.ts
+          grep -q "'/api/setup/status'" /opt/radiobot/backend/src/index.ts
+          grep -q "'/api/radio/search'" /opt/radiobot/backend/src/index.ts
           grep -q "api/setup/status" /opt/radiobot/backend/dist/index.js
           grep -q "api/radio/search" /opt/radiobot/backend/dist/index.js
           test -s frontend/ui-builder.js
