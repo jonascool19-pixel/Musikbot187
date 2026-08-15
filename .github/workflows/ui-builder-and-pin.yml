@@ -115,7 +115,17 @@ jobs:
           grep -q 'config-write' /opt/radiobot/scripts/radiobot-privileged.py
           grep -q 'Benutzer erstellen' /opt/radiobot/frontend/setup-wizard.js
           grep -q '/api/setup/user' /opt/radiobot/frontend/setup-wizard.js
-          grep -q 'bootstrap_user_only' /opt/radiobot/install.sh
+          grep -q 'bootstrap_user_only' install.sh
+      - name: Verify first-user bootstrap helper logic
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('install.sh').read_text()
+          assert 'bootstrap_user_only = (' in text
+          assert "not current.get('DISCORD_TOKEN')" in text
+          assert "len(current.get('WEB_PASSWORD','')) >= 12" in text
+          print('first-user bootstrap helper: OK')
+          PY
       - name: Install Chromium for browser test
         run: |
           npm init -y >/dev/null 2>&1
