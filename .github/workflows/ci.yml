@@ -19,10 +19,11 @@ jobs:
       - name: Prepare patched build tree
         run: |
           sudo rm -rf /opt/radiobot
-          sudo mkdir -p /opt/radiobot/backend /opt/radiobot/frontend /opt/radiobot/patches
+          sudo mkdir -p /opt/radiobot/backend /opt/radiobot/frontend /opt/radiobot/patches /opt/radiobot/scripts
           sudo cp -a backend/. /opt/radiobot/backend/
           sudo cp -a frontend/. /opt/radiobot/frontend/
           sudo cp -a patches/. /opt/radiobot/patches/
+          sudo cp -a scripts/. /opt/radiobot/scripts/
           sudo sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' /opt/radiobot/backend/src/index.ts
           sudo python3 /opt/radiobot/patches/enable-radio-features.py
           sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
@@ -53,7 +54,7 @@ jobs:
           grep -q '/api/metrics' /opt/radiobot/backend/src/index.ts
           grep -q "OUT = Path('/var/lib/radiobot/metrics.json')" scripts/system-metrics.py
           grep -q "fetch('/api/metrics'" frontend/metrics-panel.js
-          grep -q "state.manualStop" /opt/radiobot/backend/src/index.ts
+          grep -q 'state.manualStop' /opt/radiobot/backend/src/index.ts
           test -f frontend/setup-wizard.js
           test -f patches/final-hardening.py
           test -f patches/configure-helper-hardening.py
