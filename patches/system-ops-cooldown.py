@@ -39,7 +39,7 @@ elif 'searchInFlight' not in s:
     raise SystemExit('unifiedSearch marker missing')
 
 priv = r'''
-async function privilegedAction(action: 'bot-restart' | 'server-reboot' | 'server-shutdown') {
+async function privilegedAction(action: 'bot-restart' | 'bot-update' | 'server-reboot' | 'server-shutdown') {
   return new Promise<void>((resolve, reject) => {
     const socket = net.createConnection(PRIVILEGED_SOCKET);
     let done = false;
@@ -85,6 +85,12 @@ app.post('/api/system/shutdown', async (_req, reply) => { await privilegedAction
 '''
 if "/api/system/reboot" not in s:
     s = s.replace("app.get('/api/health'", ops + "\napp.get('/api/health'", 1)
+
+# Existing update route uses sudo, which cannot elevate under NoNewPrivileges. Route it through the same root controller.
+old_update = "app.post('/api/update', async (req, reply) => { if (!fs.existsSync('/usr/local/sbin/radiobot-update')) return reply.code(503).send('Update-Helfer ist nicht installiert.'); fs.writeFileSync(UPDATE_LOG, `started ${new Date().toISOString()}\\n`, { mode: 0o600 }); const child = spawn('sudo', ['-n', '/usr/local/sbin/radiobot-update'], { detached: true, stdio: 'ignore' }); child.unref(); return { ok: true, message: 'Update gestartet. Der Dienst wird danach automatisch neu gestartet.' }; });"
+new_update = "app.post('/api/update', async (_req, reply) => { if (!fs.existsSync('/usr/local/sbin/radiobot-update')) return reply.code(503).send('Update-Helfer ist nicht installiert.'); fs.writeFileSync(UPDATE_LOG, `started ${new Date().toISOString()}\\n`, { mode: 0o600 }); await privilegedAction('bot-update'); return { ok: true, message: 'Update gestartet. Der Dienst wird danach automatisch neu gestartet.' }; });"
+if old_update in s:
+    s = s.replace(old_update, new_update, 1)
 
 needle = "client.on('interactionCreate', async interaction => {\n  try {"
 replacement = "client.on('interactionCreate', async interaction => {\n  try {\n    if (interaction.guildId && !db.botEnabled) { if (interaction.isRepliable()) await interaction.reply({ content: '🛑 Der Bot ist derzeit über das Webinterface deaktiviert.', ephemeral: true }); return; }\n    if (interaction.guildId && !consumeDiscordCooldown(interaction)) return;"
