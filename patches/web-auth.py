@@ -128,11 +128,23 @@ ui = r'''(() => {
   const state = { authenticated: false, user: null };
   const css = `#musikbot-login-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(7,10,18,.78);backdrop-filter:blur(12px);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}#musikbot-login-card{width:min(420px,calc(100vw - 32px));padding:32px;border-radius:24px;background:#111827;color:#f8fafc;box-shadow:0 24px 80px rgba(0,0,0,.45)}#musikbot-login-card h1{margin:0 0 8px;font-size:28px}#musikbot-login-card p{margin:0 0 22px;color:#94a3b8}#musikbot-login-card label{display:block;margin:14px 0 6px;font-size:13px;color:#cbd5e1}#musikbot-login-card input{width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid #334155;border-radius:12px;background:#0f172a;color:#fff;font-size:15px}#musikbot-login-card button{width:100%;margin-top:18px;padding:12px 14px;border:0;border-radius:12px;background:#6366f1;color:#fff;font-weight:700;cursor:pointer}#musikbot-login-error{min-height:20px;margin-top:10px;color:#fca5a5;font-size:13px}.musikbot-user-menu{display:flex;gap:8px;align-items:center}.musikbot-logout{border:1px solid #334155;background:transparent;color:inherit;border-radius:10px;padding:7px 10px;cursor:pointer}`;
   const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
-  function overlay(){if(document.getElementById('musikbot-login-overlay'))return;const wrap=document.createElement('div');wrap.id='musikbot-login-overlay';wrap.innerHTML='<div id="musikbot-login-card"><h1>MusikBot187</h1><p>Anmelden, um das Webinterface zu öffnen.</p><form id="musikbot-login-form"><label>Benutzername</label><input name="username" autocomplete="username" required><label>Passwort</label><input name="password" type="password" autocomplete="current-password" required><div id="musikbot-login-error"></div><button type="submit">Anmelden</button></form></div>';document.body.appendChild(wrap);wrap.querySelector('input[name=username]')?.focus();wrap.querySelector('form')?.addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;const data=Object.fromEntries(new FormData(form));const err=wrap.querySelector('#musikbot-login-error');err.textContent='';try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(!r.ok)throw new Error('Benutzername oder Passwort ist falsch.');location.reload();}catch(ex){err.textContent=ex instanceof Error?ex.message:'Anmeldung fehlgeschlagen.';}})}
+  function overlay(){if(document.getElementById('musikbot-login-overlay'))return;const wrap=document.createElement('div');wrap.id='musikbot-login-overlay';wrap.innerHTML='<div id="musikbot-login-card"><h1>MusikBot187</h1><p>Anmelden, um das Webinterface zu öffnen.</p><form id="musikbot-login-form"><label>Benutzername</label><input name="username" autocomplete="username" required><label>Passwort</label><input name="password" type="password" autocomplete="current-password" required><div id="musikbot-login-error"></div><button type="submit">Anmelden</button></form></div></div>';document.body.appendChild(wrap);wrap.querySelector('input[name=username]')?.focus();wrap.querySelector('form')?.addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;const data=Object.fromEntries(new FormData(form));const err=wrap.querySelector('#musikbot-login-error');err.textContent='';try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(!r.ok)throw new Error('Benutzername oder Passwort ist falsch.');location.reload();}catch(ex){err.textContent=ex instanceof Error?ex.message:'Anmeldung fehlgeschlagen.';}})}
   function hide(){document.getElementById('musikbot-login-overlay')?.remove()}
   function addLogout(){if(document.querySelector('.musikbot-user-menu'))return;const row=document.querySelector('header .row');if(!row)return;const box=document.createElement('div');box.className='musikbot-user-menu';box.innerHTML='<span id="musikbot-user-name"></span><button class="musikbot-logout" type="button">Abmelden</button>';row.appendChild(box);box.querySelector('.musikbot-logout')?.addEventListener('click',async()=>{await fetch('/api/auth/logout',{method:'POST'});location.reload()});const name=box.querySelector('#musikbot-user-name');if(name)name.textContent=state.user||'admin'}
-  async function check(){try{const r=await fetch('/api/auth/session',{cache:'no-store'});if(!r.ok){state.authenticated=false;overlay();return}const d=await r.json();state.authenticated=Boolean(d.authenticated);state.user=d.user||null;if(state.authenticated){hide();setTimeout(addLogout,0)}else overlay()}catch{overlay()}}
-  const originalFetch=window.fetch;window.fetch=async(...args)=>{const r=await originalFetch(...args);const url=typeof args[0]==='string'?args[0]:args[0]?.url||'';if(r.status===401&&!url.includes('/api/auth/')){state.authenticated=false;overlay()}return r};
+  async function check(){
+    try {
+      const setup = await fetch('/api/setup/status',{cache:'no-store'}).then(r => r.ok ? r.json() : null);
+      if (setup && setup.requiresSetup && !setup.webConfigured) {
+        hide();
+        return;
+      }
+      const r=await fetch('/api/auth/session',{cache:'no-store'});
+      if(!r.ok){state.authenticated=false;overlay();return}
+      const d=await r.json();state.authenticated=Boolean(d.authenticated);state.user=d.user||null;
+      if(state.authenticated){hide();setTimeout(addLogout,0)}else overlay()
+    } catch { overlay(); }
+  }
+  const originalFetch=window.fetch;window.fetch=async(...args)=>{const r=await originalFetch(...args);const url=typeof args[0]==='string'?args[0]:args[0]?.url||'';if(r.status===401&&!url.includes('/api/auth/')&&!url.includes('/api/setup/')){state.authenticated=false;overlay()}return r};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',check);else check();
 })();
 '''
@@ -142,4 +154,4 @@ html = index.read_text(encoding='utf-8')
 if 'web-auth.js' not in html:
     html = html.replace('</body>', '<script src="/web-auth.js"></script></body>', 1) if '</body>' in html else html + '<script src="/web-auth.js"></script>\n'
     index.write_text(html, encoding='utf-8')
-print('web auth patch applied with origin protection + first-user gate')
+print('web auth patch applied with origin protection + first-run setup precedence + first-user gate')
