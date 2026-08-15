@@ -12,7 +12,9 @@ sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL
 
 Während der Installation fragt der Installer auf einem interaktiven Terminal verbindlich nach **Web-Benutzername und Web-Passwort**. Das Passwort muss mindestens 12 Zeichen lang sein und wird zweimal bestätigt. Anschließend werden Dashboard, Benutzername und Ersteinrichtungs-URL farblich hervorgehoben ausgegeben. Deno wird ohne zusätzliche Rückfrage installiert.
 
-Der `install-final.sh`-Installer lädt einen fest gepinnten Code-Stand und baut das Backend reproduzierbar mit seinen Build-Abhängigkeiten. Er installiert Node.js 24, FFmpeg, yt-dlp, Deno, MusikBot187, das responsive Web-Dashboard und einen systemd-Dienst. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
+Optional kann im selben Installationslauf eine **separate TeamSpeak-3-Musikinstanz** aktiviert werden. Dafür werden TS3-Server, Botname, Zielkanal und optional die Server-/Kanalpasswörter abgefragt. Die TS3-Instanz läuft als eigener systemd-Dienst neben dem Discord-Bot.
+
+Der `install-final.sh`-Installer lädt einen fest gepinnten Code-Stand und baut das Backend reproduzierbar mit seinen Build-Abhängigkeiten. Er installiert Node.js 24, FFmpeg, yt-dlp, Deno, MusikBot187, das responsive Web-Dashboard und die systemd-Dienste. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
 
 Nach der Installation ist keine manuelle Linux-Konfiguration nötig: Der Installer zeigt eine einmalige **Ersteinrichtungs-URL** an. Darüber werden Discord, Web-Zugang, Spotify, YouTube und weitere Einstellungen direkt im Browser eingerichtet. Der einmalige Code steckt im URL-Fragment (`#setup=...`) und wird nach erfolgreicher Einrichtung gelöscht.
 
@@ -70,6 +72,28 @@ Slash Commands:
 
 Damit können Freunde Musik direkt in Discord suchen, Titel starten, Playlists wechseln und die Wiedergabe steuern. Eine optionale `DISCORD_CONTROL_ROLE` kann festlegen, welche Rolle steuern darf.
 
+## TeamSpeak 3
+
+TeamSpeak 3 ist optional und läuft als **eigene Musikinstanz**. Discord und TS3 teilen sich die installierten Audio-Werkzeuge, aber nicht den Voice-Prozess.
+
+Der TS3-Bot verbindet sich als normaler Client mit einem vorhandenen TeamSpeak-3-Server und kann Musik per Opus in den konfigurierten Kanal senden. Die aktuelle Clientbibliothek unterstützt TS3 und rohe Opus-Voice-Pakete. citeturn194503search0turn467166search0
+
+Befehle im TS3-Kanal:
+
+```text
+!play <Titel, Suche oder URL>
+!radio <Stream-URL>
+!queue
+!skip
+!pause
+!resume
+!stop
+```
+
+Die TS3-Instanz besitzt eine eigene persistent gespeicherte Identität unter `/var/lib/radiobot/ts3-identity.txt` und wird bei der Installation als `radiobot-ts3.service` eingerichtet. Bei Updates bleibt eine bestehende TS3-Konfiguration erhalten.
+
+Der Installer richtet **keinen TeamSpeak-Server** ein; er verbindet den Bot mit einem bereits vorhandenen TS3-Server. TeamSpeak stellt weiterhin offizielle TS3-Server-Downloads bereit; TS3 befindet sich laut TeamSpeak aktuell in einer Übergangsphase mit geplantem Support bis Ende 2027. citeturn240171search8turn240171search9
+
 ## Discord-Statuskanal
 
 Mit:
@@ -98,7 +122,7 @@ MP3/WAV/OGG/FLAC/M4A nach:
 
 ### Radio
 
-Sender werden über das Radio-Browser-Verzeichnis gesucht; gespeicherte Streams werden direkt über FFmpeg im Discord-Voice-Channel wiedergegeben.
+Sender werden über das Radio-Browser-Verzeichnis gesucht; gespeicherte Streams werden direkt über FFmpeg im Discord-Voice-Channel wiedergegeben. Der TS3-Bot kann zusätzlich direkte Radio-Stream-URLs abspielen.
 
 ### YouTube
 
@@ -128,7 +152,7 @@ Die Netzwerkwerte beziehen sich auf den gesamten Ubuntu-CT, nicht ausschließlic
 
 ## Update-System
 
-Im Webinterface gibt es einen **Update-Button**. Er startet einen root-owned Update-Helfer, lädt die fest gepinnte getestete Version, baut das Backend neu und startet den systemd-Dienst automatisch neu. Konfiguration und Musikdaten bleiben erhalten.
+Im Webinterface gibt es einen **Update-Button**. Er startet einen root-owned Update-Helfer, lädt die fest gepinnte getestete Version, baut das Backend neu und startet den systemd-Dienst automatisch neu. Konfiguration, TS3-Identität und Musikdaten bleiben erhalten.
 
 Alternativ per Konsole:
 
@@ -140,15 +164,17 @@ radiobot update
 
 Das Dashboard nutzt eine **sessionbasierte Web-Authentifizierung per HttpOnly-Cookie**. Für CLI-/CI-Aufrufe wird zusätzlich HTTP Basic Authentication als kompatible Alternative akzeptiert. Die Konfiguration liegt mit restriktiven Dateirechten unter `/etc/radiobot`. Der laufende Dienst läuft als unprivilegierter Benutzer `radiobot` mit `NoNewPrivileges`, `ProtectSystem`, `ProtectHome`, ohne Swap und mit begrenzter CPU-/RAM-Nutzung. Der Installer erzwingt Same-Origin-CORS.
 
+Die TS3-Zugangsdaten liegen getrennt und mit `0600` unter `/etc/radiobot/ts3.env`. Die TS3-Identität wird ebenfalls restriktiv gespeichert. Der TS3-Dienst läuft unprivilegiert und erhält nur Schreibzugriff auf `/var/lib/radiobot`.
+
 Der einmalige Ersteinrichtungs-Code wird nur als URL-Fragment verwendet und daher nicht an den Webserver gesendet. Nach erfolgreicher Einrichtung wird er aus der Konfiguration entfernt.
 
 Der Konfigurationshelfer akzeptiert nur eine feste Liste erlaubter Einstellungen, schreibt atomar mit `0600` und ist über eine restriktive sudo-Regel erreichbar. Das Webinterface bekommt niemals root-Rechte.
 
-Für einen öffentlich erreichbaren Server wird HTTPS über einen Reverse Proxy empfohlen. Das Repository enthält keine Discord-/Spotify-Schlüssel; diese werden nur lokal in `/etc/radiobot/radiobot.env` gespeichert.
+Für einen öffentlich erreichbaren Server wird HTTPS über einen Reverse Proxy empfohlen. Das Repository enthält keine Discord-/Spotify-/TS3-Zugangsdaten; diese werden nur lokal gespeichert.
 
 ## Autostart
 
-Der Bot wird als systemd-Dienst installiert und beim Systemstart automatisch aktiviert. Der Metrics-Timer wird ebenfalls automatisch aktiviert.
+Der Discord-Bot wird als systemd-Dienst installiert und beim Systemstart automatisch aktiviert. Der Metrics-Timer wird ebenfalls automatisch aktiviert. Wenn TS3 aktiviert wurde, startet zusätzlich `radiobot-ts3.service` automatisch zusammen mit dem MusikBot.
 
 ## Statuskanal-Rechte
 
