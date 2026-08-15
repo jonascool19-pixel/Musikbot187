@@ -30,7 +30,7 @@ app.post<{ Body: { url: string; name: string } }>('/api/radio/add', async req =>
 });
 '''
 
-if "app.get('/api/radio/search'" not in s:
+if "'/api/radio/search'" not in s:
     anchor = "app.get('/api/playlists'"
     if anchor not in s:
         anchor = "app.get('/api/health'"
@@ -38,7 +38,7 @@ if "app.get('/api/radio/search'" not in s:
         raise SystemExit('radio route anchor not found')
     s = s.replace(anchor, block + "\n" + anchor, 1)
 
-if "app.get('/api/radio/search'" not in s:
+if "'/api/radio/search'" not in s:
     raise SystemExit('final radio route insertion failed')
 
 p.write_text(s, encoding='utf-8')
