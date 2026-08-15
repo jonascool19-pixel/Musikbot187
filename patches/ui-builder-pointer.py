@@ -27,9 +27,10 @@ apply_new = r'''  function applyFields(){
     }
   }
   function layoutFromDom'''
-s,n=apply_re.subn(apply_new,s,count=1)
-if n!=1: raise SystemExit('applyFields function not found')
-s=n and s or s
+s, n = apply_re.subn(apply_new, s, count=1)
+if n != 1:
+    raise SystemExit('applyFields function not found')
+
 init_re = re.compile(r"  function initDrag\(\)\{.*?\}\n  async function applyPreset", re.S)
 init_new = r'''  function initDrag(){
     const grid=document.querySelector('.grid'); if(!grid||grid.dataset.builderReady)return; grid.dataset.builderReady='1';
@@ -67,7 +68,13 @@ init_new = r'''  function initDrag(){
     grid.querySelectorAll('.builder-field-handle').forEach(handle=>{handle.draggable=false;handle.addEventListener('pointerdown',e=>begin('field',handle,e));});
   }
   async function applyPreset'''
-s,n=init_re.subn(init_new,s,count=1)
-if n!=1: raise SystemExit('initDrag function not found')
-UI_JS.write_text(s,encoding='utf-8')
+s, n = init_re.subn(init_new, s, count=1)
+if n != 1:
+    raise SystemExit('initDrag function not found')
+
+# Do not bind drag handlers during initial page load. Bind when the builder is opened,
+# after the field/tile handles have been created and state.editing is true.
+s = s.replace("applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>toggle(true);document.querySelector('header .row')?.prepend(btn);initDrag();", "applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>toggle(true);document.querySelector('header .row')?.prepend(btn);")
+
+UI_JS.write_text(s, encoding='utf-8')
 print('document-level pointer drag patch applied')
