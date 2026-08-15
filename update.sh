@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-RELEASE_REF=v2.1.0
-curl -fsSL "https://raw.githubusercontent.com/jonascool19-pixel/radiobot/${RELEASE_REF}/install.sh" | sudo bash
+PINNED_COMMIT=54e2924e01745924cd6f0e404e5f28d58dea4667
+REPO=jonascool19-pixel/radiobot
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
+curl -fsSL "https://raw.githubusercontent.com/${REPO}/${PINNED_COMMIT}/install.sh" -o "$TMP_DIR/install.sh"
+sed -i "s/^RELEASE_REF=v2\.1\.0$/RELEASE_REF=${PINNED_COMMIT}/" "$TMP_DIR/install.sh"
+sed -i 's#refs/heads/\$RELEASE_REF#\$RELEASE_REF#' "$TMP_DIR/install.sh"
+grep -q "^RELEASE_REF=${PINNED_COMMIT}$" "$TMP_DIR/install.sh"
+exec bash "$TMP_DIR/install.sh"
