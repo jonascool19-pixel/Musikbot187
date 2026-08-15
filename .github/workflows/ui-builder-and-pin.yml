@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: d250e3b274355cca7895fb7cb2f372b83648c9bf
+          EXPECTED_PIN: a0cf1b172108f65f3753eaa7b2dd9e4b7253ec19
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -107,12 +107,16 @@ jobs:
       - name: Verify setup/config wiring
         run: |
           grep -q '/api/setup/status' /opt/radiobot/backend/src/index.ts
-          grep -q '/api/setup' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/setup/user' /opt/radiobot/backend/src/index.ts
+          grep -q 'requiresUserCreation' /opt/radiobot/backend/src/index.ts
+          grep -q 'Bitte zuerst einen Web-Benutzer anlegen.' /opt/radiobot/backend/src/index.ts
           grep -q 'privilegedConfigWrite' /opt/radiobot/backend/src/index.ts
           grep -q 'radiobot-ops' /opt/radiobot/scripts/radiobot-privileged.py
           grep -q 'config-write' /opt/radiobot/scripts/radiobot-privileged.py
           grep -q 'discordToken' /opt/radiobot/patches/setup-wizard.py
           grep -q 'DISCORD_TOKEN' /opt/radiobot/patches/configure-helper-hardening.py
+          grep -q 'Benutzer erstellen' /opt/radiobot/frontend/setup-wizard.js
+          grep -q '/api/setup/user' /opt/radiobot/frontend/setup-wizard.js
       - name: Install Chromium for browser test
         run: |
           npm init -y >/dev/null 2>&1
