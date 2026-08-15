@@ -3,8 +3,9 @@ set -euo pipefail
 
 # Final pinned installer for MusikBot187.
 # Includes Deno PATH handling, curl diagnostics, Node 24/AF_NETLINK compatibility,
-# privileged setup fixes, setup/configuration field compatibility, and browser sessions.
-PINNED_COMMIT="3b026e1501a4ae31694b33a27b04b63555049e34"
+# privileged setup fixes, setup/configuration field compatibility, browser sessions,
+# and cross-origin request protection.
+PINNED_COMMIT="3302012d7cde33baa73de21c003d7347313b45f8"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -31,7 +32,7 @@ fi
 
 bash "$TMP_DIR/install.sh"
 
-# Apply browser-session authentication after the base installer has materialized /opt/radiobot.
+# Re-apply browser-session authentication from the pinned source tree after base installation.
 if [[ -x /usr/bin/python3 && -f /opt/radiobot/patches/web-auth.py ]]; then
   python3 /opt/radiobot/patches/web-auth.py
   cd /opt/radiobot/backend
