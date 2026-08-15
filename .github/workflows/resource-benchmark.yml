@@ -2,6 +2,12 @@ name: Resource Benchmark
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - benchmark/resource-profile
+
+permissions:
+  contents: read
 
 jobs:
   benchmark:
@@ -14,12 +20,17 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/package.json
-      - name: Install backend
+      - name: Install backend dependencies
         working-directory: backend
-        run: npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund --ignore-scripts
       - name: Build backend
         working-directory: backend
         run: npm run build
+      - name: Install runtime prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg python3
+          ffmpeg -version | head -n 1
       - name: Start isolated benchmark process
         env:
           NODE_OPTIONS: --max-old-space-size=256 --max-semi-space-size=2
@@ -28,22 +39,41 @@ jobs:
           APP_ROOT: ${{ github.workspace }}
           DATA_DIR: ${{ runner.temp }}/radiobot-data
           WEB_PASSWORD: ''
+          YTDLP_PATH: /usr/bin/false
         run: |
+          set -Eeuo pipefail
           mkdir -p "$DATA_DIR"
           node backend/dist/index.js > "$RUNNER_TEMP/radiobot.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/radiobot.pid"
-          for i in {1..20}; do
-            if curl -fsS http://127.0.0.1:3099/api/health >/dev/null 2>&1; then break; fi
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3099/api/health >/dev/null 2>&1; then
+              echo "RadioBot health check passed after ${i}s"
+              curl -fsS http://127.0.0.1:3099/api/health
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/radiobot.pid")" 2>/dev/null; then
+              echo 'RadioBot exited during startup' >&2
+              cat "$RUNNER_TEMP/radiobot.log" >&2 || true
+              exit 1
+            fi
             sleep 1
           done
-          curl -fsS http://127.0.0.1:3099/api/health
+          echo 'RadioBot health check timed out' >&2
+          cat "$RUNNER_TEMP/radiobot.log" >&2 || true
+          exit 1
       - name: Benchmark process resources
         env:
           PID_FILE: ${{ runner.temp }}/radiobot.pid
           OUT: ${{ runner.temp }}/resource-benchmark.csv
         run: |
           PID="$(cat "$PID_FILE")" ./scripts/resource-benchmark.sh 45
-      - name: Upload benchmark results
+      - name: Stop benchmark process
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/radiobot.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/radiobot.pid")" 2>/dev/null || true
+          fi
+      - name: Upload benchmark results and logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
