@@ -56,8 +56,15 @@ getent group radiobot >/dev/null 2>&1 || groupadd --system radiobot
 if id -u radiobot >/dev/null 2>&1; then usermod --gid radiobot radiobot; else useradd --system --home-dir "$DATA_DIR" --gid radiobot --shell /usr/sbin/nologin radiobot; fi
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"
 chmod 0750 "$DATA_DIR"
-# Do not create a partial config here. backend/src/config.ts owns schema creation and migration.
 if [[ -f "$DATA_DIR/config.json" ]]; then chown radiobot:radiobot "$DATA_DIR/config.json"; chmod 0600 "$DATA_DIR/config.json"; fi
+
+# The web service may only invoke these exact system operations as root.
+install -d -m 0755 /etc/sudoers.d
+cat > /etc/sudoers.d/radiobot-web-system <<'EOF'
+radiobot ALL=(root) NOPASSWD: /usr/bin/systemctl restart radiobot, /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
+EOF
+chmod 0440 /etc/sudoers.d/radiobot-web-system
+visudo -cf /etc/sudoers.d/radiobot-web-system >/dev/null
 
 if [[ -f "$SOURCE_ROOT/update.sh" ]]; then install -m 0755 "$SOURCE_ROOT/update.sh" /usr/local/sbin/radiobot-update; fi
 
