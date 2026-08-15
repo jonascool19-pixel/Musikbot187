@@ -1,4 +1,4 @@
-name: RadioBot CI
+name: MusikBot187 CI
 
 on:
   push:
@@ -28,16 +28,18 @@ jobs:
           grep -q 'CPUQuota=90%' radiobot.service
           grep -q 'MemoryMax=720M' radiobot.service
           grep -q 'MemoryHigh=640M' radiobot.service
+          grep -q 'origin: false' install.sh
           grep -q '/usr/local/sbin/radiobot-update' install.sh
+          grep -q 'MusikBot187' install.sh
           grep -q 'statusChannelId' backend/src/index.ts
       - name: Smoke test web API
         working-directory: backend
         env:
           PORT: 3100
           APP_ROOT: ${{ github.workspace }}
-          DATA_DIR: ${{ runner.temp }}/radiobot-data
+          DATA_DIR: ${{ runner.temp }}/musikbot187-data
         run: |
-          node dist/index.js > "$RUNNER_TEMP/radiobot.log" 2>&1 &
+          node dist/index.js > "$RUNNER_TEMP/musikbot187.log" 2>&1 &
           pid=$!
           trap 'kill $pid 2>/dev/null || true' EXIT
           for i in {1..20}; do
@@ -47,5 +49,5 @@ jobs:
             fi
             sleep 1
           done
-          cat "$RUNNER_TEMP/radiobot.log"
+          cat "$RUNNER_TEMP/musikbot187.log"
           exit 1
