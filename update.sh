@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 RELEASE_REF=v2.1.0
-PINNED_COMMIT=da5d39965f39e4e8835fdba97248447d03a1318f
+PINNED_COMMIT=3b026e1501a4ae31694b33a27b04b63555049e34
 REPO=jonascool19-pixel/radiobot
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -13,4 +13,10 @@ curl -fsSL "https://raw.githubusercontent.com/${REPO}/${PINNED_COMMIT}/install.s
 sed -i "s/^RELEASE_REF=v2\.1\.0$/RELEASE_REF=${PINNED_COMMIT}/" "$TMP_DIR/install.sh"
 sed -i 's#refs/heads/\$RELEASE_REF#\$RELEASE_REF#' "$TMP_DIR/install.sh"
 grep -q "^RELEASE_REF=${PINNED_COMMIT}$" "$TMP_DIR/install.sh"
-exec bash "$TMP_DIR/install.sh"
+bash "$TMP_DIR/install.sh"
+if [[ -f /opt/radiobot/patches/web-auth.py ]]; then
+  python3 /opt/radiobot/patches/web-auth.py
+  cd /opt/radiobot/backend
+  npm run build
+  systemctl restart radiobot.service
+fi
