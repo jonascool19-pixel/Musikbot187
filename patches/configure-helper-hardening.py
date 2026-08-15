@@ -17,5 +17,13 @@ if p.exists():
     if target in s and replacement not in s:
         s = s.replace(target, replacement, 1)
 
+    # Bootstrap mode creates only the first web account. A Discord token is not yet
+    # available by design; normal configuration still requires it below.
+    marker = "if not current.get('DISCORD_TOKEN'): raise SystemExit('DISCORD_TOKEN is required')\n"
+    bootstrap = """bootstrap = bool(raw.get('bootstrapUserOnly'))\nif bootstrap:\n    if current.get('WEB_PASSWORD'):\n        raise SystemExit('WEB_USER already configured')\n    if raw.get('setupToken') != current.get('SETUP_TOKEN'):\n        raise SystemExit('invalid setup token')\n    username = str(raw.get('webUser') or '').strip()\n    password = str(raw.get('webPassword') or '')\n    if not username or len(username) > 64:\n        raise SystemExit('invalid WEB_USER')\n    if len(password) < 12:\n        raise SystemExit('WEB_PASSWORD must contain at least 12 characters')\n    current['WEB_USER'] = username\n    current['WEB_PASSWORD'] = password\nelse:\n    if not current.get('DISCORD_TOKEN'): raise SystemExit('DISCORD_TOKEN is required')\n"""
+    if marker in s and "bootstrap = bool(raw.get('bootstrapUserOnly'))" not in s:
+        s = s.replace(marker, bootstrap, 1)
+
+    # Bootstrap can intentionally leave DISCORD_TOKEN empty; normal writes cannot.
     p.write_text(s, encoding='utf-8')
-print('configure helper hardened: camelCase mapping + secret preservation')
+print('configure helper hardened: camelCase mapping + secret preservation + first-user bootstrap')
