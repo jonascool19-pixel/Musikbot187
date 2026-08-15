@@ -22,7 +22,7 @@ export class DiscordInstance {
       this.connected = true;
       this.lastError = '';
       this.inviteUrl = this.client.generateInvite({
-        scopes: ['bot', 'applications.commands'],
+        scopes: ['bot', 'applications.commands'] as any,
         permissions: new PermissionsBitField([
           PermissionsBitField.Flags.ViewChannel,
           PermissionsBitField.Flags.SendMessages,
