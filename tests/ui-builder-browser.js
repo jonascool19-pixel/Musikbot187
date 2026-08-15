@@ -29,6 +29,19 @@ function routeApi(req,res){
 const server=http.createServer((req,res)=>req.url.startsWith('/api/')?routeApi(req,res):null);
 const staticServer=childProcess.spawn('python3',['-m','http.server',String(port),'--directory',root],{stdio:'ignore'});
 
+async function browserDrag(page, sourceSelector, targetSelector){
+  await page.evaluate(({sourceSelector,targetSelector})=>{
+    const source=document.querySelector(sourceSelector); const target=document.querySelector(targetSelector);
+    if(!source||!target) throw new Error(`drag nodes missing: ${sourceSelector} -> ${targetSelector}`);
+    const data=new DataTransfer();
+    source.dispatchEvent(new DragEvent('dragstart',{bubbles:true,cancelable:true,dataTransfer:data}));
+    target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:data}));
+    target.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:data}));
+    source.dispatchEvent(new DragEvent('dragend',{bubbles:true,cancelable:true,dataTransfer:data}));
+  },{sourceSelector,targetSelector});
+  await page.waitForTimeout(120);
+}
+
 (async()=>{
   const browser=await chromium.launch({headless:true});
   const apiServer=server.listen(4174,'127.0.0.1');
@@ -45,22 +58,18 @@ const staticServer=childProcess.spawn('python3',['-m','http.server',String(port)
     await page.goto(`http://127.0.0.1:${port}/index.html`,{waitUntil:'networkidle'});
     await page.locator('#layoutBuilderOpen').waitFor();
     await page.locator('#layoutBuilderOpen').click();
-    const diagnostics=await page.evaluate(()=>({tiles:[...document.querySelectorAll('.grid > [data-tile-id]')].map(e=>e.dataset.tileId),fields:[...document.querySelectorAll('.builder-field')].map(e=>e.dataset.fieldId),handles:[...document.querySelectorAll('.builder-tile-handle')].length,articles:[...document.querySelectorAll('.grid > article')].map(e=>({tile:e.dataset.tileId,children:[...e.children].map(c=>c.tagName+'.'+c.className)})),builder:!!document.querySelector('#builderPanel')}));
+    const diagnostics=await page.evaluate(()=>({tiles:[...document.querySelectorAll('.grid > [data-tile-id]')].map(e=>e.dataset.tileId),fields:[...document.querySelectorAll('.builder-field')].map(e=>e.dataset.fieldId),handles:[...document.querySelectorAll('.builder-tile-handle')].length,builder:!!document.querySelector('#builderPanel')}));
     console.log('UI diagnostics',JSON.stringify(diagnostics));
     const fieldCount=await page.locator('.builder-field').count();
     if(fieldCount<8)throw new Error(`expected movable fields, got ${fieldCount}`);
     if(await page.locator('.builder-tile-handle').count()<8)throw new Error('expected tile drag handles');
 
-    const discord=page.locator('[data-tile-id="discord"] .builder-tile-handle');
-    const search=page.locator('[data-tile-id="search"]');
     const firstBefore=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
-    await discord.dragTo(search);
+    await browserDrag(page,'[data-tile-id="discord"] .builder-tile-handle','[data-tile-id="search"]');
     const firstAfter=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
     if(firstBefore===firstAfter)throw new Error('tile drag did not change order');
 
-    const guildField=page.locator('[data-tile-id="discord"] .builder-field').filter({hasText:'Server'}).first();
-    const radioZone=page.locator('[data-tile-id="radio"] > .builder-field-zone');
-    await guildField.dragTo(radioZone);
+    await browserDrag(page,'[data-tile-id="discord"] .builder-field','[data-tile-id="radio"] > .builder-field-zone');
     if(await page.locator('[data-tile-id="radio"] #guild').count()!==1)throw new Error('field drag did not move #guild to radio');
 
     await page.locator('#builderSave').click();
