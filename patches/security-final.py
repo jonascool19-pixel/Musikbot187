@@ -44,7 +44,6 @@ if subprocess.run(['getent', 'group', 'radiobot-ops'], capture_output=True).retu
 if subprocess.run(['id', '-u', 'radiobot'], capture_output=True).returncode == 0:
     subprocess.run(['usermod', '-a', '-G', 'radiobot-ops', 'radiobot'], check=True)
 
-# The root controller is copied to /usr/local/libexec/radiobot by install.sh, outside the bot's writable tree.
 privileged_service = '''[Unit]\nDescription=MusikBot187 privileged operations controller\nAfter=local-fs.target\n\n[Service]\nType=simple\nUser=root\nGroup=root\nExecStart=/usr/bin/python3 /usr/local/libexec/radiobot/radiobot-privileged.py\nRestart=always\nRestartSec=1\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nProtectKernelTunables=true\nProtectKernelModules=true\nProtectControlGroups=true\nRestrictNamespaces=true\nRestrictSUIDSGID=true\nLockPersonality=true\nMemoryDenyWriteExecute=true\nReadWritePaths=/run\nUMask=0077\n\n[Install]\nWantedBy=multi-user.target\n'''
 Path('/etc/systemd/system/radiobot-privileged.service').write_text(privileged_service, encoding='utf-8')
 os.chmod('/etc/systemd/system/radiobot-privileged.service', 0o644)
@@ -59,6 +58,13 @@ if service.exists():
     if 'SupplementaryGroups=radiobot-ops' not in ss:
         ss = ss.replace('Group=radiobot', 'Group=radiobot\nSupplementaryGroups=radiobot-ops', 1)
     service.write_text(ss, encoding='utf-8')
+
+# Run setup routing last so later hardening/system patches cannot remove the wizard routes.
+final_setup = ROOT / 'patches/final-setup-routes.py'
+if final_setup.exists():
+    subprocess.run(['python3', str(final_setup)], check=True)
+else:
+    raise SystemExit('final-setup-routes.py missing')
 
 subprocess.run(['systemctl', 'daemon-reload'], check=False)
 subprocess.run(['systemctl', 'enable', '--now', 'radiobot-privileged.service'], check=False)
