@@ -1,0 +1,27 @@
+[Unit]
+Description=MusikBot187 privileged operations controller
+After=local-fs.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /opt/radiobot/scripts/radiobot-privileged.py
+Restart=always
+RestartSec=1
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/run
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
