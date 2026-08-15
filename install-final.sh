@@ -2,14 +2,20 @@
 set -euo pipefail
 
 # Final pinned installer for MusikBot187.
-# The application payload is pinned to the fully tested code commit below.
-PINNED_COMMIT="6fe29729ab90d03698e7f55e744e78935b85e402"
+# The application payload is pinned to the installer commit below, which includes
+# the runtime Deno PATH fix and all previous release hardening.
+PINNED_COMMIT="696628e70e1c1e1dbe9a36935f0f7ad28d127432"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 if [[ $EUID -ne 0 ]]; then
   echo 'Bitte als root ausführen.'
+  exit 1
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo 'curl fehlt. Der Installer benötigt curl; installiere es mit: apt-get update && apt-get install -y curl' >&2
   exit 1
 fi
 
