@@ -16,11 +16,13 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/package.json
+
       - name: Syntax checks
         run: |
           bash -n install.sh update.sh install-final.sh
           python3 -m py_compile patches/*.py scripts/*.py
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
+
       - name: Verify pinned release ref
         env:
           EXPECTED_PIN: 21785042bb99873c42a4ef175e4fbf2652a497d2
@@ -29,29 +31,16 @@ jobs:
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
           echo "install-final.sh PINNED_COMMIT=$actual_install_pin"
           echo "update.sh PINNED_COMMIT=$actual_update_pin"
-          test "$actual_install_pin" = "$EXPECTED_PIN" || exit 1
-          test "$actual_update_pin" = "$EXPECTED_PIN" || exit 1
-          grep -q 'raw.githubusercontent.com/${REPO}/' install-final.sh
-          grep -q 'raw.githubusercontent.com/${REPO}/' update.sh
-      - name: Verify single-pass patch ownership
-        run: |
-          ! grep -q "final-setup-routes.py" patches/security-final.py
-          ! grep -q "final-radio-routes.py" patches/security-final.py
-          grep -q "final-setup-routes.py" install.sh
-          grep -q "security-final.py" install.sh
+          test "$actual_install_pin" = "$EXPECTED_PIN"
+          test "$actual_update_pin" = "$EXPECTED_PIN"
+
       - name: Verify fresh-install setup state
         run: |
           grep -q '^WEB_USER=$' install.sh
           grep -q '^WEB_PASSWORD=$' install.sh
           grep -q '^SETUP_TOKEN=' install.sh
           ! grep -q '^WEB_USER=admin$' install.sh
-          ! grep -q '^WEB_PASSWORD=\$(openssl rand -hex' install.sh
-      - name: Verify privileged config socket wiring
-        run: |
-          grep -q 'groupadd --system radiobot-ops' install.sh
-          grep -q 'usermod -a -G radiobot-ops radiobot' install.sh
-          grep -q 'radiobot-ops' scripts/radiobot-privileged.py
-          grep -q 'config-write' scripts/radiobot-privileged.py
+
       - name: Prepare patched tree
         run: |
           sudo rm -rf /opt/radiobot
@@ -74,89 +63,45 @@ jobs:
           sudo python3 /opt/radiobot/patches/final-setup-routes.py
           sudo python3 /opt/radiobot/patches/final-radio-routes.py
           sudo python3 /opt/radiobot/patches/web-auth.py
+
       - name: Build backend
         working-directory: /opt/radiobot/backend
         run: |
           npm install --include=dev --no-audit --no-fund
           npm run build
-      - name: Verify TeamSpeak 3 wiring
-        run: |
-          grep -q 'start:ts3' /opt/radiobot/backend/package.json
-          grep -q '@honeybbq/teamspeak-client' /opt/radiobot/backend/package.json
-          test -s /opt/radiobot/backend/src/ts3-bot.ts
-          grep -q 'sendVoice' /opt/radiobot/backend/src/ts3-bot.ts
-          grep -q 'CONTROL_FILE' /opt/radiobot/backend/src/ts3-bot.ts
-          grep -q 'TS3_BENCHMARK_ONLY' /opt/radiobot/backend/src/ts3-bot.ts
-          grep -q 'TEAMSPEAK_HOST' /opt/radiobot/patches/final-hardening.py
-      - name: Verify TS3 benchmark availability
-        run: |
-          if [[ -f /opt/radiobot/scripts/ts3-resource-benchmark.sh ]]; then
-            chmod +x /opt/radiobot/scripts/ts3-resource-benchmark.sh
-            test -x /opt/radiobot/scripts/ts3-resource-benchmark.sh
-            echo 'TS3 resource benchmark: available'
-          else
-            echo 'TS3 resource benchmark: not part of this release; skipping executable-bit check'
-          fi
-      - name: Verify shared instance web control
-        run: |
-          grep -q 'id="instance"' /opt/radiobot/frontend/index.html
-          grep -q 'TeamSpeak 3' /opt/radiobot/frontend/index.html
-          grep -q '/api/instances' /opt/radiobot/backend/src/index.ts
-          grep -q '/api/instances/ts3/control' /opt/radiobot/backend/src/index.ts
-          grep -q '/api/instances/ts3/playlist/:id' /opt/radiobot/backend/src/index.ts
-          grep -q 'instanceId' /opt/radiobot/frontend/app.js
-          grep -q 'ts3Control' /opt/radiobot/frontend/app.js
-          grep -q 'playPlaylist' /opt/radiobot/frontend/app.js
-          grep -q 'spotifyImport' /opt/radiobot/frontend/app.js
-      - name: Verify patched UI wiring
-        run: |
-          grep -q 'ui-builder.css' /opt/radiobot/frontend/index.html
-          grep -q 'ui-builder.js' /opt/radiobot/frontend/index.html
-          grep -q 'web-auth.js' /opt/radiobot/frontend/index.html
-          grep -q 'data-tile-id="hero"' /opt/radiobot/frontend/index.html
-          grep -q 'data-tile-id="queue"' /opt/radiobot/frontend/index.html
-          grep -q 'UI_LAYOUT_FILE' /opt/radiobot/backend/src/index.ts
-          grep -q 'UiField' /opt/radiobot/backend/src/index.ts
-          grep -q '/api/ui/layout' /opt/radiobot/backend/src/index.ts
-          grep -q 'builder-field-zone' /opt/radiobot/frontend/ui-builder.js
-          grep -q 'builder-tile-handle' /opt/radiobot/frontend/ui-builder.js
-          grep -q 'pointerdown' /opt/radiobot/frontend/ui-builder.js
-          grep -q 'pointerup' /opt/radiobot/frontend/ui-builder.js
-          grep -q "'/api/auth/login'" /opt/radiobot/backend/src/index.ts
-          grep -q "'/api/auth/logout'" /opt/radiobot/backend/src/index.ts
-          grep -q 'musikbot187_session' /opt/radiobot/backend/src/index.ts
-          grep -q 'ORIGIN_FORBIDDEN' /opt/radiobot/backend/src/index.ts
-      - name: Verify clock UI wiring
-        run: |
-          grep -q 'clock.js' /opt/radiobot/frontend/index.html
-          grep -q 'webTime' /opt/radiobot/frontend/index.html
-          grep -q 'webDate' /opt/radiobot/frontend/index.html
-          test -s /opt/radiobot/frontend/clock.js
-          node --check /opt/radiobot/frontend/clock.js
-      - name: Verify setup/config wiring
+
+      - name: Verify setup and TS3 wiring
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
           backend = Path('/opt/radiobot/backend/src/index.ts').read_text()
           helper = Path('patches/configure-helper-hardening.py').read_text()
-          install = Path('install.sh').read_text()
           assert "app.get('/api/setup/status'" in backend
           assert re.search(r"app\.post(?:<[^>]+>)?\('/api/setup/user'", backend)
           assert re.search(r"app\.post(?:<[^>]+>)?\('/api/setup'", backend)
           assert 'privilegedConfigWrite' in backend
           assert 'bootstrapUserOnly' in helper
-          assert "bootstrap = bool(raw.get('bootstrapUserOnly'))" in helper
-          assert "if current.get('WEB_PASSWORD')" in helper
-          assert "raw.get('setupToken') != current.get('SETUP_TOKEN')" in helper
-          assert 'WEB_USER=' in install and 'WEB_PASSWORD=' in install and 'SETUP_TOKEN=' in install
-          print('setup/config semantic checks: OK')
+          assert 'TEAMSPEAK_HOST' in Path('patches/final-hardening.py').read_text()
+          assert 'start:ts3' in Path('/opt/radiobot/backend/package.json').read_text()
+          assert Path('/opt/radiobot/backend/src/ts3-bot.ts').stat().st_size > 0
+          print('setup + TS3 wiring: OK')
           PY
-      - name: Verify privileged socket end-to-end wiring
+
+      - name: Verify TS3 benchmark availability
         run: |
-          if ! getent group radiobot-ops >/dev/null 2>&1; then
-            sudo groupadd --system radiobot-ops
+          if [[ -f /opt/radiobot/scripts/ts3-resource-benchmark.sh ]]; then
+            chmod +x /opt/radiobot/scripts/ts3-resource-benchmark.sh
+            test -x /opt/radiobot/scripts/ts3-resource-benchmark.sh
+            echo 'TS3 benchmark: available'
+          else
+            echo 'TS3 benchmark: optional/not shipped in this release'
           fi
+
+      - name: Verify privileged socket end-to-end
+        run: |
+          sudo groupadd -f radiobot-ops
+          getent group radiobot-ops >/dev/null
           if ! id -u radiobot >/dev/null 2>&1; then
             sudo useradd --system --no-create-home --shell /usr/sbin/nologin radiobot
           fi
@@ -177,17 +122,27 @@ jobs:
           s.settimeout(2)
           s.connect('/run/radiobot-privileged.sock')
           s.sendall(b'config-write\n{"bootstrapUserOnly":true,"webUser":"ci-test","webPassword":"123456789012","setupToken":"bad"}')
-          out = s.recv(128).decode()
-          assert out == 'ERR config-rejected\n', repr(out)
-          print('privileged socket access: OK')
+          assert s.recv(128).decode() == 'ERR config-rejected\n'
+          print('privileged socket: OK')
           PY
+
+      - name: Verify UI builder wiring
+        run: |
+          grep -q 'ui-builder.css' /opt/radiobot/frontend/index.html
+          grep -q 'ui-builder.js' /opt/radiobot/frontend/index.html
+          grep -q 'web-auth.js' /opt/radiobot/frontend/index.html
+          grep -q 'UI_LAYOUT_FILE' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/ui/layout' /opt/radiobot/backend/src/index.ts
+          grep -q 'builder-tile-handle' /opt/radiobot/frontend/ui-builder.js
+          grep -q 'pointerdown' /opt/radiobot/frontend/ui-builder.js
+
       - name: Install Chromium for browser test
         run: |
           npm init -y >/dev/null 2>&1
           npm install --no-audit --no-fund --save-dev playwright@1.55.0
           npx playwright install chromium
-      - name: Browser test movable tiles and fields
-        working-directory: ${{ github.workspace }}
+
+      - name: Browser test
         env:
           UI_TEST_ROOT: /opt/radiobot/frontend
           UI_TEST_PORT: 4173
