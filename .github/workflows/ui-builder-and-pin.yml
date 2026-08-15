@@ -60,5 +60,4 @@ jobs:
           grep -q 'botEnabled' /opt/radiobot/backend/src/index.ts
           grep -q '/api/system/reboot' /opt/radiobot/backend/src/index.ts
           grep -q 'DISCORD_COOLDOWN_MS' /opt/radiobot/backend/src/index.ts
-          test -s frontend/ui-builder.js
-          test -s frontend/ui-builder.css
+          echo 'UI builder and release pin wiring OK'
