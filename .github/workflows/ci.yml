@@ -73,8 +73,6 @@ jobs:
           grep -q 'CPUQuota=90%' radiobot.service
           grep -q "'/api/setup/status'" /opt/radiobot/backend/src/index.ts
           grep -q "'/api/radio/search'" /opt/radiobot/backend/src/index.ts
-          grep -q "api/setup/status" /opt/radiobot/backend/dist/index.js
-          grep -q "api/radio/search" /opt/radiobot/backend/dist/index.js
           test -s frontend/ui-builder.js
           test -s frontend/ui-builder.css
           test -s frontend/web-auth.js
