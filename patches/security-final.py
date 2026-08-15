@@ -61,11 +61,8 @@ if service.exists():
         ss = ss.replace('Group=radiobot', 'Group=radiobot\nSupplementaryGroups=radiobot-ops', 1)
     service.write_text(ss, encoding='utf-8')
 
-for name in ('final-setup-routes.py', 'final-radio-routes.py'):
-    path = ROOT / 'patches' / name
-    if not path.exists():
-        raise SystemExit(f'{name} missing')
-    subprocess.run(['python3', str(path)], check=True)
+# Route patching is intentionally NOT executed here. The installer/CI owns the
+# patch order and runs each route patch exactly once after security hardening.
 
 subprocess.run(['systemctl', 'daemon-reload'], check=False)
 subprocess.run(['systemctl', 'enable', '--now', 'radiobot-privileged.service'], check=False)
