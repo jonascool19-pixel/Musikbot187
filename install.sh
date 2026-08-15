@@ -20,10 +20,23 @@ node --version
 echo -e '\033[1;36m[3/8] Deno und yt-dlp installieren…\033[0m'
 install -d -m 0755 /usr/local/bin /usr/local/lib/deno
 if ! command -v deno >/dev/null 2>&1; then
-  DENO_INSTALL=/usr/local/lib/deno curl -fsSL https://deno.land/install.sh | sh -s -- -y
-  ln -sf /usr/local/lib/deno/bin/deno /usr/local/bin/deno
+  DENO_VERSION="$(curl -fsSL https://dl.deno.land/release-latest.txt)"
+  case "$(uname -m)" in
+    x86_64) DENO_TARGET='x86_64-unknown-linux-gnu' ;;
+    aarch64|arm64) DENO_TARGET='aarch64-unknown-linux-gnu' ;;
+    *) echo "Nicht unterstützte CPU-Architektur für Deno: $(uname -m)" >&2; exit 1 ;;
+  esac
+  DENO_TMP="$(mktemp -d)"
+  trap 'rm -rf "$DENO_TMP"' EXIT
+  curl -fsSL "https://dl.deno.land/release/${DENO_VERSION}/deno-${DENO_TARGET}.zip" -o "$DENO_TMP/deno.zip"
+  unzip -q -o "$DENO_TMP/deno.zip" -d /usr/local/lib/deno
+  install -m 0755 /usr/local/lib/deno/deno /usr/local/bin/deno
+  rm -rf "$DENO_TMP"
+  trap - EXIT
 fi
+deno --version
 if ! command -v yt-dlp >/dev/null 2>&1; then curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp; chmod 0755 /usr/local/bin/yt-dlp; fi
+yt-dlp --version
 
 echo -e '\033[1;36m[4/8] Anwendung installieren…\033[0m'
 mkdir -p "$APP_DIR" "$DATA_DIR"
