@@ -1,6 +1,6 @@
 import { Client, generateIdentity, identityFromString } from '@honeybbq/teamspeak-client';
-import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { spawnPcm, mediaTitle, opusPacketsFromOgg, FFMPEG, resolveMedia } from './media.js';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { mediaTitle, opusPacketsFromOgg, FFMPEG, resolveMedia } from './media.js';
 
 function esc(value: string) { return value.replaceAll('\\', '\\\\').replaceAll('|', '\\p').replaceAll(' ', '\\s').replaceAll('\n', '\\n').replaceAll('\r', '\\r'); }
 
@@ -19,14 +19,15 @@ export class Ts3Instance {
     if (!this.cfg.host) return;
     try {
       const mod: any = await import('@honeybbq/teamspeak-client');
-      const identity = this.cfg.identity ? identityFromString(this.cfg.identity) : generateIdentity(8);
+      const identity: any = this.cfg.identity ? identityFromString(this.cfg.identity) : generateIdentity(8);
       this.client = new Client(identity, this.cfg.host, this.cfg.nickname || 'RadioBot TS3', { serverPassword: this.cfg.serverPassword || undefined, defaultChannel: this.cfg.channel || undefined, defaultChannelPassword: this.cfg.channelPassword || undefined });
       this.client.on('connected', () => { this.connected = true; console.log(`TS3 ${this.cfg.name} online`); });
       this.client.on('disconnected', () => { this.connected = false; });
       this.client.on('textMessage', (message: any) => void this.onMessage(message));
       await this.client.connect();
       await this.client.waitConnected();
-      if (!this.cfg.identity && identity?.exportString) { this.cfg.identity = identity.exportString(); }
+      const exported = identity?.exportString?.();
+      if (!this.cfg.identity && exported) this.cfg.identity = exported;
     } catch (error) { console.error(`TS3 ${this.cfg.name}`, error); this.connected = false; }
   }
 
