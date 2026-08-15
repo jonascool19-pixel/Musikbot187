@@ -61,20 +61,23 @@ init_new = r'''  function initDrag(){
       const current=drag; const host=current.kind==='tile'?document.querySelector(`[data-tile-id="${CSS.escape(current.id)}"]`):document.querySelector(`.builder-field[data-field-id="${CSS.escape(current.id)}"]`);
       host?.classList.remove('builder-dragging'); drag=null; await saveLayout(true); renderEditor();
     }
+    grid.addEventListener('pointerdown',e=>{
+      if(!state.editing||e.button!==0)return;
+      const tileHandle=e.target.closest?.('.builder-tile-handle');
+      if(tileHandle&&grid.contains(tileHandle)){begin('tile',tileHandle,e);return;}
+      const fieldHandle=e.target.closest?.('.builder-field-handle');
+      if(fieldHandle&&grid.contains(fieldHandle)){begin('field',fieldHandle,e);}
+    },{capture:true});
     document.addEventListener('pointermove',move,{passive:false,capture:true});
     document.addEventListener('pointerup',end,{capture:true});
     document.addEventListener('pointercancel',end,{capture:true});
-    grid.querySelectorAll('.builder-tile-handle').forEach(handle=>{handle.draggable=false;handle.addEventListener('pointerdown',e=>begin('tile',handle,e));});
-    grid.querySelectorAll('.builder-field-handle').forEach(handle=>{handle.draggable=false;handle.addEventListener('pointerdown',e=>begin('field',handle,e));});
   }
   async function applyPreset'''
 s, n = init_re.subn(init_new, s, count=1)
 if n != 1:
     raise SystemExit('initDrag function not found')
 
-# Do not bind drag handlers during initial page load. Bind when the builder is opened,
-# after the field/tile handles have been created and state.editing is true.
 s = s.replace("applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>toggle(true);document.querySelector('header .row')?.prepend(btn);initDrag();", "applyTheme();applyTiles();applyFields();updateControls();const btn=document.createElement('button');btn.id='layoutBuilderOpen';btn.className='icon-btn';btn.title='UI-Baukasten';btn.textContent='🎨';btn.onclick=()=>toggle(true);document.querySelector('header .row')?.prepend(btn);")
 
 UI_JS.write_text(s, encoding='utf-8')
-print('document-level pointer drag patch applied')
+print('event-delegated pointer drag patch applied')
