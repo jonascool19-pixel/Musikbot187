@@ -26,11 +26,42 @@ echo '[3/10] yt-dlp und Deno installieren...'
 install -d -m 0755 /usr/local/bin
 curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
 chmod 0755 /usr/local/bin/yt-dlp
+
+# Deno is needed by yt-dlp for some YouTube extraction paths. Install it in a
+# system location and export the PATH immediately so the *current* installer
+# shell can use it; do not rely on reloading .bashrc/.profile.
 if ! command -v deno >/dev/null 2>&1; then
-  DENO_INSTALL=/usr/local curl -fsSL https://deno.land/install.sh | sh
-  if [[ -x /usr/local/bin/deno/deno ]]; then mv /usr/local/bin/deno/deno /usr/local/bin/deno.bin && rmdir /usr/local/bin/deno; fi
+  DENO_INSTALL=/usr/local
+  export DENO_INSTALL
+  echo 'Deno wird systemweit installiert...'
+  curl -fsSL https://deno.land/install.sh | sh
 fi
-if [[ -x /usr/local/bin/deno.bin ]]; then ln -sf /usr/local/bin/deno.bin /usr/local/bin/deno; fi
+
+# Older/current Deno installers may still place the binary under the invoking
+# user's home directory. Normalize either layout to /usr/local/bin/deno.
+if [[ -x /usr/local/bin/deno/deno ]]; then
+  mv /usr/local/bin/deno/deno /usr/local/bin/deno.bin
+  rmdir /usr/local/bin/deno
+fi
+if [[ -x /usr/local/bin/deno.bin ]]; then
+  ln -sfn /usr/local/bin/deno.bin /usr/local/bin/deno
+elif [[ -x "$DENO_INSTALL/bin/deno" ]]; then
+  ln -sfn "$DENO_INSTALL/bin/deno" /usr/local/bin/deno
+elif [[ -x "$HOME/.deno/bin/deno" ]]; then
+  ln -sfn "$HOME/.deno/bin/deno" /usr/local/bin/deno
+fi
+
+export PATH="/usr/local/bin:${DENO_INSTALL:-/usr/local}/bin:${HOME}/.deno/bin:${PATH}"
+hash -r
+
+if ! command -v deno >/dev/null 2>&1; then
+  echo 'Deno konnte nicht eingerichtet werden.' >&2
+  echo "PATH: $PATH" >&2
+  echo 'Prüfen Sie /usr/local/bin/deno und ~/.deno/bin/deno.' >&2
+  exit 1
+fi
+
+test -x "$(command -v deno)"
 yt-dlp --version
 deno --version | head -n1
 
