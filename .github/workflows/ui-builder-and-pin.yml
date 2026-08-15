@@ -25,7 +25,7 @@ jobs:
 
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: 21785042bb99873c42a4ef175e4fbf2652a497d2
+          EXPECTED_PIN: 6aa0a6bd594782bb9f4529bd7f1f0496de59a172
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -63,6 +63,7 @@ jobs:
           sudo python3 /opt/radiobot/patches/final-setup-routes.py
           sudo python3 /opt/radiobot/patches/final-radio-routes.py
           sudo python3 /opt/radiobot/patches/web-auth.py
+          sudo python3 /opt/radiobot/patches/configure-helper-hardening.py
 
       - name: Build backend
         working-directory: /opt/radiobot/backend
@@ -76,7 +77,7 @@ jobs:
           from pathlib import Path
           import re
           backend = Path('/opt/radiobot/backend/src/index.ts').read_text()
-          helper = Path('patches/configure-helper-hardening.py').read_text()
+          helper = Path('/opt/radiobot/scripts/radiobot-configure.py').read_text()
           assert "app.get('/api/setup/status'" in backend
           assert re.search(r"app\.post(?:<[^>]+>)?\('/api/setup/user'", backend)
           assert re.search(r"app\.post(?:<[^>]+>)?\('/api/setup'", backend)
@@ -98,7 +99,7 @@ jobs:
             echo 'TS3 benchmark: optional/not shipped in this release'
           fi
 
-      - name: Verify privileged socket end-to-end
+      - name: Verify privileged socket end-to-end bootstrap
         run: |
           sudo groupadd -f radiobot-ops
           getent group radiobot-ops >/dev/null
@@ -109,22 +110,45 @@ jobs:
           sudo install -d -m 0755 -o root -g root /usr/local/libexec/radiobot
           sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-privileged.py /usr/local/libexec/radiobot/radiobot-privileged.py
           sudo install -m 0644 /opt/radiobot/radiobot-privileged.service /etc/systemd/system/radiobot-privileged.service
-          test -x /usr/local/libexec/radiobot/radiobot-privileged.py
-          grep -q 'ExecStart=/usr/bin/python3 /usr/local/libexec/radiobot/radiobot-privileged.py' /etc/systemd/system/radiobot-privileged.service
+          sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-configure.py /usr/local/sbin/radiobot-configure
+          sudo install -d -m 0700 /etc/radiobot
+          sudo tee /etc/radiobot/radiobot.env >/dev/null <<'EOF'
+DISCORD_TOKEN=
+PORT=3000
+WEB_USER=
+WEB_PASSWORD=
+DISCORD_CONTROL_ROLE=
+SPOTIFY_CLIENT_ID=
+SPOTIFY_CLIENT_SECRET=
+SPOTIFY_REDIRECT_URI=
+YOUTUBE_API_KEY=
+YTDLP_PATH=/usr/local/bin/yt-dlp
+SETUP_TOKEN=ci-test-token
+EOF
+          sudo chmod 0600 /etc/radiobot/radiobot.env
           sudo systemctl daemon-reload
           sudo systemctl enable --now radiobot-privileged.service
           sudo systemctl restart radiobot-privileged.service
           test -S /run/radiobot-privileged.sock
           test "$(stat -c '%U:%G' /run/radiobot-privileged.sock)" = 'root:radiobot-ops'
           sudo -u radiobot /usr/bin/python3 - <<'PY'
-          import socket
+          import socket, json
+          payload = json.dumps({
+              'bootstrapUserOnly': True,
+              'webUser': 'ci-test',
+              'webPassword': '123456789012',
+              'setupToken': 'ci-test-token',
+          }, separators=(',', ':'))
           s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
           s.settimeout(2)
           s.connect('/run/radiobot-privileged.sock')
-          s.sendall(b'config-write\n{"bootstrapUserOnly":true,"webUser":"ci-test","webPassword":"123456789012","setupToken":"bad"}')
-          assert s.recv(128).decode() == 'ERR config-rejected\n'
-          print('privileged socket: OK')
+          s.sendall(('config-write\n' + payload).encode())
+          out = s.recv(128).decode()
+          assert out == 'OK\n', repr(out)
+          print('privileged bootstrap write: OK')
           PY
+          sudo grep -q '^WEB_USER=ci-test$' /etc/radiobot/radiobot.env
+          sudo grep -q '^WEB_PASSWORD=123456789012$' /etc/radiobot/radiobot.env
 
       - name: Verify UI builder wiring
         run: |
