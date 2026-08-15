@@ -9,14 +9,15 @@ fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o750 });
 
 export function defaultConfig() {
   return {
-    version: 2,
+    version: 3,
+    users: [],
     auth: { user: '', salt: '', hash: '' },
     setupComplete: false,
     setupToken: randomBytes(24).toString('hex'),
-    activeInstance: 'discord-main',
+    activeInstance: '',
     instances: { discord: [], ts3: [], spotify: [] },
     playlists: [],
-    uiOrder: ['hero','discord','ts3','search','radio','media','playlists','spotify','youtube','system','queue'],
+    uiOrder: ['hero','queue','controls','mode','quick','system','discord','ts3','search','radio','media','playlists','spotify','youtube'],
     settings: { prefix: '!', volume: 80 }
   };
 }
@@ -27,9 +28,14 @@ export function normalizeConfig(input: BotConfig): BotConfig {
   const instances = value.instances && typeof value.instances === 'object' ? value.instances : {};
   const auth = value.auth && typeof value.auth === 'object' ? value.auth : {};
   const settings = value.settings && typeof value.settings === 'object' ? value.settings : {};
-  return {
+  let users = Array.isArray(value.users) ? value.users.filter((u: any) => u && typeof u === 'object') : [];
+  if (!users.length && auth.user && auth.hash && auth.salt) {
+    users = [{ id: 'admin-1', username: String(auth.user), role: 'admin', salt: String(auth.salt), hash: String(auth.hash) }];
+  }
+  const normalized = {
     ...defaults,
     ...value,
+    users,
     auth: { ...defaults.auth, ...auth },
     instances: {
       ...defaults.instances,
@@ -43,6 +49,14 @@ export function normalizeConfig(input: BotConfig): BotConfig {
     settings: { ...defaults.settings, ...settings },
     setupToken: typeof value.setupToken === 'string' && value.setupToken ? value.setupToken : defaults.setupToken
   };
+  if (!normalized.activeInstance) {
+    normalized.activeInstance = normalized.instances.discord[0]?.id || normalized.instances.ts3[0]?.id || '';
+  }
+  if (normalized.users.length && !normalized.auth.user) {
+    const first = normalized.users[0];
+    normalized.auth = { user: first.username, salt: first.salt, hash: first.hash };
+  }
+  return normalized;
 }
 
 export function readConfig(): BotConfig {
