@@ -7,6 +7,8 @@ export const DATA_DIR = process.env.DATA_DIR ?? '/var/lib/radiobot';
 export const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o750 });
 
+const DEFAULT_UI_ORDER = ['hero','queue','controls','mode','quick','system','discord','ts3','search','radio','media','playlists','spotify','youtube'];
+
 export function defaultConfig() {
   return {
     version: 3,
@@ -17,7 +19,7 @@ export function defaultConfig() {
     activeInstance: '',
     instances: { discord: [], ts3: [], spotify: [] },
     playlists: [],
-    uiOrder: ['hero','queue','controls','mode','quick','system','discord','ts3','search','radio','media','playlists','spotify','youtube'],
+    uiOrder: [...DEFAULT_UI_ORDER],
     settings: { prefix: '!', volume: 80 }
   };
 }
@@ -29,12 +31,13 @@ export function normalizeConfig(input: BotConfig): BotConfig {
   const auth = value.auth && typeof value.auth === 'object' ? value.auth : {};
   const settings = value.settings && typeof value.settings === 'object' ? value.settings : {};
   let users = Array.isArray(value.users) ? value.users.filter((u: any) => u && typeof u === 'object') : [];
-  if (!users.length && auth.user && auth.hash && auth.salt) {
-    users = [{ id: 'admin-1', username: String(auth.user), role: 'admin', salt: String(auth.salt), hash: String(auth.hash) }];
-  }
+  if (!users.length && auth.user && auth.hash && auth.salt) users = [{ id: 'admin-1', username: String(auth.user), role: 'admin', salt: String(auth.salt), hash: String(auth.hash) }];
+  const oldOrder = Array.isArray(value.uiOrder) ? value.uiOrder.filter((x: any) => typeof x === 'string') : [];
+  const uiOrder = [...oldOrder, ...DEFAULT_UI_ORDER.filter(id => !oldOrder.includes(id))];
   const normalized = {
     ...defaults,
     ...value,
+    version: 3,
     users,
     auth: { ...defaults.auth, ...auth },
     instances: {
@@ -45,13 +48,11 @@ export function normalizeConfig(input: BotConfig): BotConfig {
       spotify: Array.isArray(instances.spotify) ? instances.spotify : []
     },
     playlists: Array.isArray(value.playlists) ? value.playlists : [],
-    uiOrder: Array.isArray(value.uiOrder) ? value.uiOrder : defaults.uiOrder,
+    uiOrder,
     settings: { ...defaults.settings, ...settings },
     setupToken: typeof value.setupToken === 'string' && value.setupToken ? value.setupToken : defaults.setupToken
   };
-  if (!normalized.activeInstance) {
-    normalized.activeInstance = normalized.instances.discord[0]?.id || normalized.instances.ts3[0]?.id || '';
-  }
+  if (!normalized.activeInstance) normalized.activeInstance = normalized.instances.discord[0]?.id || normalized.instances.ts3[0]?.id || '';
   if (normalized.users.length && !normalized.auth.user) {
     const first = normalized.users[0];
     normalized.auth = { user: first.username, salt: first.salt, hash: first.hash };
