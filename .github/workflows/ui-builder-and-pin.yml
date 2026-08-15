@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: 919e543bbc28eeb8a594cd683a788f47de073516
+          EXPECTED_PIN: 41e3d900912d3db1e8a18cfd51457d76d3f3a3f8
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -64,7 +64,9 @@ jobs:
           test -s /opt/radiobot/backend/src/ts3-bot.ts
           grep -q 'sendVoice' /opt/radiobot/backend/src/ts3-bot.ts
           grep -q 'TS3_CONTROL_FILE' /opt/radiobot/backend/src/ts3-bot.ts
+          grep -q 'TS3_BENCHMARK_ONLY' /opt/radiobot/backend/src/ts3-bot.ts
           grep -q 'TEAMSPEAK_HOST' /opt/radiobot/patches/final-hardening.py
+          test -x scripts/ts3-resource-benchmark.sh || chmod +x scripts/ts3-resource-benchmark.sh
       - name: Verify shared instance web control
         run: |
           grep -q 'id="instance"' /opt/radiobot/frontend/index.html
@@ -74,6 +76,8 @@ jobs:
           grep -q '/api/instances/ts3/playlist/:id' /opt/radiobot/backend/src/index.ts
           grep -q 'instanceId' /opt/radiobot/frontend/app.js
           grep -q 'ts3Control' /opt/radiobot/frontend/app.js
+          grep -q 'playPlaylist' /opt/radiobot/frontend/app.js
+          grep -q 'spotifyImport' /opt/radiobot/frontend/app.js
       - name: Verify patched UI wiring
         run: |
           grep -q 'ui-builder.css' /opt/radiobot/frontend/index.html
