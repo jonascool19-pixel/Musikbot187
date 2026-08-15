@@ -10,7 +10,7 @@ Das Repository muss öffentlich sein. Auf dem Ubuntu-24.04-Server:
 curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install.sh | sudo bash
 ```
 
-Der Installer installiert Node.js 24 LTS, FFmpeg, den Bot, das responsive Web-Dashboard und einen systemd-Dienst. Node.js 24 wird verwendet, weil `discord.js` und `@discordjs/voice` aktuelle Node-24-Versionen voraussetzen. citeturn681535search0turn681535search3
+Der Installer installiert Node.js 24 LTS, FFmpeg, den Bot, das responsive Web-Dashboard und einen systemd-Dienst.
 
 ## Nach der Installation
 
@@ -58,9 +58,9 @@ Das Dashboard ist responsive und kann auf dem Smartphone direkt im Browser verwe
 
 ## Spotify
 
-Spotify wird über die offizielle Spotify Web API integriert: Suche, Geräte, aktuelle Wiedergabe, Play/Pause/Next und Wiedergabe auf einem eigenen Spotify-Connect-Gerät. Die Wiedergabe-Endpoints benötigen Spotify Premium. citeturn111058search0turn111058search5turn111058search7turn111058search10
+Spotify wird über die offizielle Spotify Web API integriert: Suche, Geräte, aktuelle Wiedergabe, Play/Pause/Next und Wiedergabe auf einem eigenen Spotify-Connect-Gerät.
 
-Wichtig: Der Bot lädt Spotify-Audios nicht herunter, rippt keine Streams und schickt Spotify-Audio nicht als Discord-Ausgabe. Spotify verbietet Downloads/Stream-Ripping und nicht-interaktives Broadcasting; deshalb bleibt Spotify-Wiedergabe auf Spotify-Geräten. citeturn111058search14turn111058search0turn111058search2
+Wichtig: Der Bot lädt Spotify-Audios nicht herunter, rippt keine Streams und schickt Spotify-Audio nicht als Discord-Ausgabe. Spotify-Streaming/Playback wird über die offiziellen Spotify-Funktionen auf Spotify-Geräten gesteuert.
 
 ### Spotify einrichten
 
