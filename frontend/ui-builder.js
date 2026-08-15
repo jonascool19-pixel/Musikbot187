@@ -13,30 +13,36 @@
   async function api(url, options={}) { const r=await fetch(url,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options}); if(!r.ok) throw new Error(await r.text()); return r.status===204?null:r.json(); }
   function currentTiles() { return [...document.querySelectorAll('[data-tile-id]')]; }
   function ensureLayout(layout) {
-    const tiles = Array.isArray(layout?.tiles) ? layout.tiles : DEFAULTS.midnight.tiles;
-    const byId = new Map(tiles.map(x=>[x.id||x, typeof x==='string'?{id:x}:x]));
-    return { preset: layout?.preset || 'midnight', name: layout?.name || 'Mein Layout', density: layout?.density || 'comfortable', accent: layout?.accent || '#7dd3fc', bg: layout?.bg || '#070b14', panel: layout?.panel || '#111929', tiles: DEFAULTS.midnight.tiles.map(id => byId.get(id) || {id, visible:true, span:1, rowSpan:1, icon:tileMeta[id]?.[2], label:tileMeta[id]?.[1]}).map(x=>({visible:x.visible!==false,span:Math.max(1,Math.min(4,Number(x.span)||1)),rowSpan:Math.max(1,Math.min(3,Number(x.rowSpan)||1)),id:x.id,icon:x.icon||tileMeta[x.id]?.[2]||'◼',label:x.label||tileMeta[x.id]?.[1]||x.id})) };
+    const source = Array.isArray(layout?.tiles) ? layout.tiles : DEFAULTS.midnight.tiles;
+    const byId = new Map(source.map(x=>[x.id||x, typeof x==='string'?{id:x}:x]));
+    const order = layout?.preset && DEFAULTS[layout.preset]?.tiles ? DEFAULTS[layout.preset].tiles : DEFAULTS.midnight.tiles;
+    return { preset: layout?.preset || 'midnight', name: layout?.name || 'Mein Layout', density: layout?.density || 'comfortable', accent: layout?.accent || '#7dd3fc', bg: layout?.bg || '#070b14', panel: layout?.panel || '#111929', tiles: order.map(id => byId.get(id) || {id, visible:true, span:1, rowSpan:1, icon:tileMeta[id]?.[2], label:tileMeta[id]?.[1]}).map(x=>({visible:x.visible!==false,span:Math.max(1,Math.min(4,Number(x.span)||1)),rowSpan:Math.max(1,Math.min(3,Number(x.rowSpan)||1)),id:x.id,icon:x.icon||tileMeta[x.id]?.[2]||'◼',label:x.label||tileMeta[x.id]?.[1]||x.id})) };
   }
   function applyTheme(layout) {
     document.documentElement.style.setProperty('--builder-accent',layout.accent);
     document.documentElement.style.setProperty('--builder-bg',layout.bg);
     document.documentElement.style.setProperty('--builder-panel',layout.panel);
-    document.documentElement.dataset.density=layout.density;
+    const grid=document.querySelector('.grid'); if(grid) grid.dataset.density=layout.density;
     document.body.classList.toggle('builder-editing',state.editing);
   }
   function applyTileConfig(layout) {
+    const grid=document.querySelector('.grid');
     layout.tiles.forEach(t=>{
       const el=document.querySelector(`[data-tile-id="${CSS.escape(t.id)}"]`); if(!el) return;
       el.style.gridColumn=`span ${t.span}`; el.style.gridRow=`span ${t.rowSpan}`; el.hidden=!t.visible;
-      const title=el.querySelector('[data-tile-title]'); if(title) title.innerHTML=`${esc(t.icon)} ${esc(t.label)}`;
-      el.draggable=state.editing;
-      el.classList.toggle('builder-selected',state.editing);
+      el.dataset.icon=t.icon; el.dataset.label=t.label;
+      const title=el.querySelector('[data-tile-title]'); if(title) title.textContent=`${t.icon} ${t.label}`;
+      el.draggable=state.editing; el.classList.toggle('builder-selected',state.editing);
+      if(grid) grid.appendChild(el);
     });
   }
   function layoutFromDom() {
-    const tiles=currentTiles().map((el,i)=>({
-      id:el.dataset.tileId, visible:!el.hidden, span:parseInt((el.style.gridColumn||'span 1').match(/\d+/)?.[0]||'1',10), rowSpan:parseInt((el.style.gridRow||'span 1').match(/\d+/)?.[0]||'1',10), icon:el.dataset.icon||tileMeta[el.dataset.tileId]?.[2]||'◼', label:el.dataset.label||tileMeta[el.dataset.tileId]?.[1]||el.dataset.tileId, order:i
-    }));
+    const byId = new Map((state.layout?.tiles||[]).map(t=>[t.id,t]));
+    const tiles=currentTiles().map((el,i)=>{ const base=byId.get(el.dataset.tileId)||{}; return {
+      ...base, id:el.dataset.tileId, visible:!el.hidden,
+      span:parseInt((el.style.gridColumn||'span 1').match(/\d+/)?.[0]||'1',10), rowSpan:parseInt((el.style.gridRow||'span 1').match(/\d+/)?.[0]||'1',10),
+      icon:el.dataset.icon||base.icon||tileMeta[el.dataset.tileId]?.[2]||'◼', label:el.dataset.label||base.label||tileMeta[el.dataset.tileId]?.[1]||el.dataset.tileId, order:i
+    }; });
     return {...state.layout, tiles};
   }
   async function saveLayout(silent=false) {
@@ -61,18 +67,18 @@
   }
   function syncControls() {
     if(!state.layout) return;
-    state.layout.name=$('#builderName').value||'Mein Dashboard'; state.layout.density=$('#builderDensity').value; state.layout.accent=$('#builderAccent').value; state.layout.bg=$('#builderBg').value; state.layout.panel=$('#builderPanelColor').value; applyTheme(state.layout);
+    state.layout.name=$('#builderName').value||'Mein Dashboard'; state.layout.density=$('#builderDensity').value; state.layout.accent=$('#builderAccent').value; state.layout.bg=$('#builderBg').value; state.layout.panel=$('#builderPanelColor').value; state.layout.preset='custom'; applyTheme(state.layout);
   }
   function renderTileEditor() {
     const list=$('#builderTileList'); if(!list||!state.layout) return; list.innerHTML='';
-    state.layout.tiles.forEach((t,index)=>{
-      const row=document.createElement('div'); row.className='builder-tile-row'; row.innerHTML=`<div class="builder-tile-main"><span class="drag">☷</span><span class="tile-mini">${esc(t.icon)}</span><input class="tile-label" value="${esc(t.label)}" maxlength="40"><button class="icon-btn tile-visible">${t.visible?'👁️':'🚫'}</button></div><div class="builder-tile-sub"><input class="tile-icon" value="${esc(t.icon)}" maxlength="4" title="Icon"><label>Breite<select class="tile-span"><option value="1" ${t.span===1?'selected':''}>1</option><option value="2" ${t.span===2?'selected':''}>2</option><option value="3" ${t.span===3?'selected':''}>3</option><option value="4" ${t.span===4?'selected':''}>4</option></select></label><label>Höhe<select class="tile-rowspan"><option value="1" ${t.rowSpan===1?'selected':''}>1</option><option value="2" ${t.rowSpan===2?'selected':''}>2</option><option value="3" ${t.rowSpan===3?'selected':''}>3</option></select></label><button class="danger tile-remove">Entfernen</button></div>`;
-      row.querySelector('.tile-label').oninput=e=>{t.label=e.target.value; applyTileConfig(state.layout);};
-      row.querySelector('.tile-icon').oninput=e=>{t.icon=e.target.value||'◼'; applyTileConfig(state.layout);};
-      row.querySelector('.tile-span').onchange=e=>{t.span=Number(e.target.value); applyTileConfig(state.layout);};
-      row.querySelector('.tile-rowspan').onchange=e=>{t.rowSpan=Number(e.target.value); applyTileConfig(state.layout);};
-      row.querySelector('.tile-visible').onclick=()=>{t.visible=!t.visible; renderTileEditor(); applyTileConfig(state.layout);};
-      row.querySelector('.tile-remove').onclick=()=>{t.visible=false; renderTileEditor(); applyTileConfig(state.layout);};
+    state.layout.tiles.forEach(t=>{
+      const row=document.createElement('div'); row.className='builder-tile-row'; row.innerHTML=`<div class="builder-tile-main"><span class="drag">☷</span><span class="tile-mini">${esc(t.icon)}</span><input class="tile-label" value="${esc(t.label)}" maxlength="40"><button class="icon-btn tile-visible">${t.visible?'👁️':'🚫'}</button></div><div class="builder-tile-sub"><input class="tile-icon" value="${esc(t.icon)}" maxlength="4" title="Icon"><label>Breite<select class="tile-span"><option value="1" ${t.span===1?'selected':''}>1</option><option value="2" ${t.span===2?'selected':''}>2</option><option value="3" ${t.span===3?'selected':''}>3</option><option value="4" ${t.span===4?'selected':''}>4</option></select></label><label>Höhe<select class="tile-rowspan"><option value="1" ${t.rowSpan===1?'selected':''}>1</option><option value="2" ${t.rowSpan===2?'selected':''}>2</option><option value="3" ${t.rowSpan===3?'selected':''}>3</option></select></label><button class="danger tile-remove">Ausblenden</button></div>`;
+      row.querySelector('.tile-label').oninput=e=>{t.label=e.target.value; state.layout.preset='custom'; applyTileConfig(state.layout);};
+      row.querySelector('.tile-icon').oninput=e=>{t.icon=e.target.value||'◼'; state.layout.preset='custom'; applyTileConfig(state.layout);};
+      row.querySelector('.tile-span').onchange=e=>{t.span=Number(e.target.value); state.layout.preset='custom'; applyTileConfig(state.layout);};
+      row.querySelector('.tile-rowspan').onchange=e=>{t.rowSpan=Number(e.target.value); state.layout.preset='custom'; applyTileConfig(state.layout);};
+      row.querySelector('.tile-visible').onclick=()=>{t.visible=!t.visible; state.layout.preset='custom'; renderTileEditor(); applyTileConfig(state.layout);};
+      row.querySelector('.tile-remove').onclick=()=>{t.visible=false; state.layout.preset='custom'; renderTileEditor(); applyTileConfig(state.layout);};
       list.append(row);
     });
   }
@@ -82,16 +88,15 @@
     let dragId=null;
     grid.addEventListener('dragstart',e=>{ if(!state.editing) return; const card=e.target.closest('[data-tile-id]'); if(!card) return; dragId=card.dataset.tileId; card.classList.add('builder-dragging'); });
     grid.addEventListener('dragend',e=>{ const card=e.target.closest('[data-tile-id]'); card?.classList.remove('builder-dragging'); dragId=null; });
-    grid.addEventListener('dragover',e=>{ if(!state.editing||!dragId) return; e.preventDefault(); const card=e.target.closest('[data-tile-id]'); if(card&&card.dataset.tileId!==dragId){ card.classList.add('builder-drop-target'); } });
+    grid.addEventListener('dragover',e=>{ if(!state.editing||!dragId) return; e.preventDefault(); const card=e.target.closest('[data-tile-id]'); if(card&&card.dataset.tileId!==dragId) card.classList.add('builder-drop-target'); });
     grid.addEventListener('dragleave',e=>e.target.closest('[data-tile-id]')?.classList.remove('builder-drop-target'));
-    grid.addEventListener('drop',async e=>{ if(!state.editing||!dragId) return; e.preventDefault(); const target=e.target.closest('[data-tile-id]'); if(!target||target.dataset.tileId===dragId) return; const source=document.querySelector(`[data-tile-id="${CSS.escape(dragId)}"]`); target.classList.remove('builder-drop-target'); target.parentElement.insertBefore(source,target); state.layout.tiles=layoutFromDom().tiles; await saveLayout(true); });
-    grid.addEventListener('click',e=>{ if(!state.editing) return; const card=e.target.closest('[data-tile-id]'); if(!card) return; const tile=state.layout.tiles.find(t=>t.id===card.dataset.tileId); if(!tile) return; tile.label=tile.label||card.dataset.tileId; $('#builderTileList').querySelectorAll('.builder-tile-row').forEach(x=>x.classList.remove('active')); });
+    grid.addEventListener('drop',async e=>{ if(!state.editing||!dragId) return; e.preventDefault(); const target=e.target.closest('[data-tile-id]'); if(!target||target.dataset.tileId===dragId) return; const source=document.querySelector(`[data-tile-id="${CSS.escape(dragId)}"]`); target.classList.remove('builder-drop-target'); target.parentElement.insertBefore(source,target); state.layout.preset='custom'; await saveLayout(true); renderTileEditor(); });
   }
   async function applyPreset(key) { const p=DEFAULTS[key]||DEFAULTS.midnight; state.layout=ensureLayout({preset:key,name:p.name,density:p.density,accent:p.accent,bg:p.bg,panel:p.panel,tiles:p.tiles}); applyTheme(state.layout); applyTileConfig(state.layout); updateControls(); await saveLayout(true); }
   async function toggle(on) { makeBuilderControls(); state.editing=on; document.body.classList.toggle('builder-editing',on); $('#builderPanel').classList.toggle('open',on); if(on){ initDrag(); updateControls(); } else { await saveLayout(true); } }
   async function load() {
     try { state.layout=ensureLayout(await api('/api/ui/layout')); } catch { state.layout=ensureLayout(null); }
-    applyTheme(state.layout); applyTileConfig(state.layout); makeBuilderControls();
+    applyTheme(state.layout); makeBuilderControls(); applyTileConfig(state.layout);
     const btn=document.createElement('button'); btn.id='layoutBuilderOpen'; btn.className='icon-btn'; btn.title='UI-Baukasten'; btn.textContent='🎨'; btn.onclick=()=>toggle(true); document.querySelector('header .row')?.prepend(btn);
     initDrag();
   }
