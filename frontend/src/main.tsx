@@ -1,1 +1,0 @@
-// Legacy source kept for reference. The native installer serves frontend/index.html directly.
