@@ -142,10 +142,12 @@ class Ts3MusicBot {
     while (true) {
       try {
         if (fs.existsSync(CONTROL_FILE)) {
-          const cmd = JSON.parse(fs.readFileSync(CONTROL_FILE, 'utf8')) as Ts3Command;
-          if (cmd?.id && cmd.id !== this.lastControlId) {
+          const raw = JSON.parse(fs.readFileSync(CONTROL_FILE, 'utf8')) as Ts3Command | Ts3Command[];
+          fs.unlinkSync(CONTROL_FILE);
+          const commands = Array.isArray(raw) ? raw : [raw];
+          for (const cmd of commands) {
+            if (!cmd?.id || cmd.id === this.lastControlId) continue;
             this.lastControlId = cmd.id;
-            fs.unlinkSync(CONTROL_FILE);
             await this.handleControl(cmd);
           }
         }
@@ -160,7 +162,7 @@ class Ts3MusicBot {
       case 'queue':
         if (!cmd.input) return;
         this.queue.push({ input: cmd.input, label: cmd.label || await resolveLabel(cmd.input) });
-        if (cmd.action === 'play') this.current?.ffmpeg?.kill('SIGTERM');
+        if (cmd.action === 'play') { this.stopping = false; this.current?.ffmpeg?.kill('SIGTERM'); }
         if (!this.playing) await this.playNext();
         break;
       case 'skip': this.current?.ffmpeg?.kill('SIGTERM'); break;
@@ -172,15 +174,11 @@ class Ts3MusicBot {
     this.writeStatus();
   }
 
-  private async reply(targetMode: number, targetId: number, text: string) {
-    await this.client.execCommand(`sendtextmessage targetmode=${targetMode} target=${targetId} msg=${escapeQuery(text)}`);
-  }
+  private async reply(targetMode: number, targetId: number, text: string) { await this.client.execCommand(`sendtextmessage targetmode=${targetMode} target=${targetId} msg=${escapeQuery(text)}`); }
 
   private async handleMessage(message: string, targetId: number) {
-    const trimmed = message.trim();
-    if (!trimmed.startsWith('!')) return;
-    const [command, ...rest] = trimmed.slice(1).split(/\s+/);
-    const arg = rest.join(' ').trim();
+    const trimmed = message.trim(); if (!trimmed.startsWith('!')) return;
+    const [command, ...rest] = trimmed.slice(1).split(/\s+/); const arg = rest.join(' ').trim();
     try {
       switch (command.toLowerCase()) {
         case 'play': if (!arg) return this.reply(2, targetId, 'Nutzung: !play <Titel, Suche oder URL>'); await this.enqueue(arg, targetId); break;
@@ -196,51 +194,26 @@ class Ts3MusicBot {
   }
 
   private async enqueue(input: string, targetId: number) {
-    const label = await resolveLabel(input);
-    this.queue.push({ input, label });
-    await this.reply(2, targetId, `Zur Queue hinzugefügt: ${label}`);
-    if (!this.playing) await this.playNext();
-    this.writeStatus();
+    const label = await resolveLabel(input); this.queue.push({ input, label }); await this.reply(2, targetId, `Zur Queue hinzugefügt: ${label}`); if (!this.playing) await this.playNext(); this.writeStatus();
   }
 
   private async playNext() {
     if (this.stopping || this.playing) return;
     const item = this.queue.shift();
     if (!item) { this.writeStatus(); return; }
-    this.stopping = false;
-    this.playing = true;
-    this.current = { ...item };
-    this.writeStatus();
+    this.stopping = false; this.playing = true; this.current = { ...item }; this.writeStatus();
     try {
       const input = await resolveInput(item.input);
       const ffmpeg = spawn(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-i', input, '-vn', '-af', `volume=${this.volume / 100}`, '-c:a', 'libopus', '-application', 'audio', '-frame_duration', '20', '-b:a', '128k', '-f', 'ogg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'inherit'] });
       this.current.ffmpeg = ffmpeg;
       const parser = opusPacketsFromOgg();
-      for await (const chunk of ffmpeg.stdout) {
-        if (this.stopping) break;
-        for (const opus of parser.push(chunk as Buffer)) {
-          if (this.stopping) break;
-          this.client.sendVoice(opus, 5);
-          await sleep(20);
-        }
-      }
+      for await (const chunk of ffmpeg.stdout) { if (this.stopping) break; for (const opus of parser.push(chunk as Buffer)) { if (this.stopping) break; this.client.sendVoice(opus, 5); await sleep(20); } }
       await new Promise<void>(resolve => ffmpeg.once('close', () => resolve()));
     } catch (error) { console.error('TS3 playback failed:', item.label, error); }
-    finally {
-      this.current?.ffmpeg?.kill('SIGTERM');
-      this.current = undefined;
-      this.playing = false;
-      this.writeStatus();
-      if (!this.stopping) await this.playNext();
-    }
+    finally { this.current?.ffmpeg?.kill('SIGTERM'); this.current = undefined; this.playing = false; this.writeStatus(); if (!this.stopping) await this.playNext(); }
   }
 }
 
 const bot = new Ts3MusicBot();
 bot.start().catch(error => { console.error(error); process.exit(1); });
-
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, async () => {
-    try { await (bot as any).client?.disconnect?.(); } finally { process.exit(0); }
-  });
-}
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { try { await (bot as any).client?.disconnect?.(); } finally { process.exit(0); } });
