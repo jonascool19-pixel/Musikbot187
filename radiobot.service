@@ -1,56 +1,28 @@
 [Unit]
-Description=MusikBot187 - low resource Discord radio service
+Description=RadioBot music service
 After=network-online.target
 Wants=network-online.target
-StartLimitIntervalSec=60
-StartLimitBurst=5
 
 [Service]
 Type=simple
 User=radiobot
 Group=radiobot
-SupplementaryGroups=radiobot-ops
-WorkingDirectory=/opt/radiobot
-EnvironmentFile=/etc/radiobot/radiobot.env
+WorkingDirectory=/opt/radiobot/backend
 Environment=NODE_ENV=production
-Environment=APP_ROOT=/opt/radiobot
 Environment=DATA_DIR=/var/lib/radiobot
-Environment=NODE_OPTIONS=--max-old-space-size=256 --max-semi-space-size=2
-Environment=UV_THREADPOOL_SIZE=1
+Environment=FRONTEND_DIR=/opt/radiobot/frontend
+Environment=PORT=3000
 ExecStart=/usr/bin/node /opt/radiobot/backend/dist/index.js
 Restart=always
-RestartSec=3
-KillMode=mixed
-TimeoutStopSec=10
+RestartSec=2
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectKernelLogs=true
-ProtectControlGroups=true
-ProtectClock=true
-LockPersonality=true
-RestrictSUIDSGID=true
-RestrictNamespaces=true
-RestrictRealtime=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
-SystemCallArchitectures=native
-CapabilityBoundingSet=
-AmbientCapabilities=
-ReadOnlyPaths=/opt/radiobot
 ReadWritePaths=/var/lib/radiobot
-MemoryHigh=640M
 MemoryMax=720M
-MemorySwapMax=0
 CPUQuota=90%
-CPUQuotaPeriodSec=100ms
-TasksMax=64
-LimitNOFILE=4096
-Nice=5
-UMask=0027
-OOMPolicy=stop
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
