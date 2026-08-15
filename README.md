@@ -111,3 +111,7 @@ Das Update benötigt keine Neuinstallation und erhält `/var/lib/radiobot` sowie
 ## Sicherheit
 
 Setze ein eigenes `WEB_PASSWORD`. Das Dashboard schützt die API dann per HTTP Basic Authentication. Für einen öffentlich erreichbaren Server wird HTTPS über einen Reverse Proxy empfohlen.
+
+## Hinweis
+
+Der Statuskanal sollte die Discord-Rechte **Nachrichten senden**, **Nachrichten lesen** und **Nachrichten verwalten** besitzen, damit RadioBot seine eine Statusnachricht zuverlässig aktualisieren kann.
