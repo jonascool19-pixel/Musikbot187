@@ -16,8 +16,6 @@ def replace_once(path, old, new, label):
         raise SystemExit(f'missing UI builder marker: {label}')
     path.write_text(s, encoding='utf-8')
 
-# Ensure backend UI layout model/API exists even if another hardening patch was
-# skipped or applied in a different order. Everything here is idempotent.
 backend_source = BACKEND.read_text(encoding='utf-8')
 if 'type UiLayout =' not in backend_source:
     marker = "type SpotifyState = { accessToken?: string; refreshToken?: string; expiresAt?: number; displayName?: string };"
@@ -25,13 +23,11 @@ if 'type UiLayout =' not in backend_source:
     if marker not in backend_source:
         raise SystemExit('missing UI state marker')
     backend_source = backend_source.replace(marker, insert, 1)
-
 if "const UI_LAYOUT_FILE = path.join(DATA_DIR, 'ui-layout.json');" not in backend_source:
     marker = "const UPDATE_LOG = path.join(DATA_DIR, 'update.status');"
     if marker not in backend_source:
         raise SystemExit('missing UI layout file marker')
     backend_source = backend_source.replace(marker, marker + "\nconst UI_LAYOUT_FILE = path.join(DATA_DIR, 'ui-layout.json');", 1)
-
 if 'const DEFAULT_UI_TILES:' not in backend_source:
     marker = "const spotify = loadJson<SpotifyState>(SPOTIFY_FILE, {});"
     insert = marker + "\nconst DEFAULT_UI_TILES: UiTile[] = ['ts3','hero','discord','search','radio','media','playlists','spotify','youtube','update','queue'].map(id => ({ id, visible: true, span: 1, rowSpan: 1, icon: id === 'ts3' ? '🗣️' : '◼', label: id === 'ts3' ? 'TeamSpeak 3' : id }));\nconst uiLayout: UiLayout = loadJson<UiLayout>(UI_LAYOUT_FILE, { preset: 'midnight', name: 'Mein Dashboard', density: 'comfortable', accent: '#7dd3fc', bg: '#070b14', panel: '#111929', tiles: DEFAULT_UI_TILES, fields: [] });\nif (!Array.isArray(uiLayout.tiles)) uiLayout.tiles = DEFAULT_UI_TILES;\nif (!Array.isArray(uiLayout.fields)) uiLayout.fields = [];"
@@ -39,9 +35,7 @@ if 'const DEFAULT_UI_TILES:' not in backend_source:
         raise SystemExit('missing UI state insertion marker')
     backend_source = backend_source.replace(marker, insert, 1)
 else:
-    # Upgrade an existing default list to include TS3 without touching newer definitions.
     backend_source = re.sub(r"const DEFAULT_UI_TILES: UiTile\[\] = \[(?!'ts3')", "const DEFAULT_UI_TILES: UiTile[] = ['ts3',", backend_source, count=1)
-
 if "'/api/ui/layout'" not in backend_source:
     health = "app.get('/api/health', async () => ({ ok: true, discord: client.isReady(), version: '2.0.0', youtube: fs.existsSync(YTDLP), spotify: Boolean(spotify.refreshToken) }));"
     if health not in backend_source:
@@ -50,7 +44,6 @@ if "'/api/ui/layout'" not in backend_source:
     backend_source = backend_source.replace(health, routes, 1)
 BACKEND.write_text(backend_source, encoding='utf-8')
 
-# Assets are idempotent. If the HTML already contains the tags, do nothing.
 html = INDEX.read_text(encoding='utf-8')
 if 'href="/ui-builder.css"' not in html:
     if '<link rel="stylesheet" href="/style.css">' not in html:
@@ -64,9 +57,6 @@ if 'src="/ui-builder.js"' not in html:
         html = html.replace('<script src="/app.js"></script>', '<script src="/app.js"></script><script src="/ui-builder.js"></script>', 1)
     else:
         raise SystemExit('app/setup script marker missing for builder js')
-INDEX.write_text(html, encoding='utf-8')
-
-# Register the dashboard tiles in HTML. Existing markers are left untouched.
 replacements = {
     '<section class="hero">': '<section class="hero" data-tile-id="hero">',
     '<article><h2>Discord</h2>': '<article data-tile-id="discord"><h2 data-tile-title>🎙️ Discord</h2>',
@@ -80,11 +70,9 @@ replacements = {
     '<section><h2>Queue</h2>': '<section class="wide-card" data-tile-id="queue"><h2 data-tile-title>📜 Queue</h2>',
     '<h1 id="nowTitle">': '<h1 data-tile-title id="nowTitle">🎵 Noch nichts aktiv</h1>',
 }
-html = INDEX.read_text(encoding='utf-8')
 for old, new in replacements.items():
     if old in html:
         html = html.replace(old, new, 1)
-# TS3 tile is created by the builder if the backend exposes it; do not invent a fake content tile here.
 INDEX.write_text(html, encoding='utf-8')
 
 ui_source = UI_JS.read_text(encoding='utf-8')
@@ -98,11 +86,18 @@ def add_ts3(match):
 ui_source = re.sub(r"(?:midnight|compact|studio): \{.*?\},", add_ts3, ui_source, count=3, flags=re.S)
 if "const order=(l.preset==='custom'&&source.length)?source.map(x=>x.id||x):((DEFAULTS[l.preset]?.tiles)||DEFAULTS.midnight.tiles);" not in ui_source:
     ui_source = re.sub(r"const order=DEFAULTS\[l\.preset\]\?\.tiles\|\|DEFAULTS\.midnight\.tiles;", "const order=(l.preset==='custom'&&source.length)?source.map(x=>x.id||x):((DEFAULTS[l.preset]?.tiles)||DEFAULTS.midnight.tiles);", ui_source, count=1)
+
+# Ensure movable fields are discovered even when a previous patch already created an empty zone.
+field_fn_old = "function fieldCandidates(tile){const zone=tile.querySelector(':scope > .builder-field-zone');if(zone)return[];return[...tile.children].filter(el=>!el.matches('h1,h2,h3,.eyebrow')&&(el.matches('label,.row,.card,.list,.hint,p,.controls')||el.id==='queue'));}"
+field_fn_new = "function fieldCandidates(tile){const zone=tile.querySelector(':scope > .builder-field-zone');const scope=zone?[...tile.children].filter(el=>el!==zone):[...tile.children];return scope.filter(el=>!el.matches('h1,h2,h3,.eyebrow,.builder-tile-handle,.builder-field-zone')&&(el.matches('label,.row,.card,.list,.hint,p,.controls')||el.id==='queue'||el.querySelector?.('input,select,button'))); }"
+if field_fn_old in ui_source:
+    ui_source = ui_source.replace(field_fn_old, field_fn_new, 1)
+elif field_fn_new not in ui_source:
+    ui_source = re.sub(r"function fieldCandidates\(tile\)\{.*?\}", field_fn_new, ui_source, count=1, flags=re.S)
 if "const tileMap=new Map(state.layout.tiles.map(t=>[t.id,t]));" not in ui_source:
     old = "return{...state.layout,tiles:state.layout.tiles.map(t=>({...t})),fields:fieldData};"
     if old not in ui_source:
         raise SystemExit('tile persistence marker missing')
     ui_source = ui_source.replace(old, "const tileMap=new Map(state.layout.tiles.map(t=>[t.id,t]));const tileData=tiles().map((el,i)=>{const old=tileMap.get(el.dataset.tileId);return old?{...old,visible:!el.hidden,order:i}:null;}).filter(Boolean).sort((a,b)=>a.order-b.order);return{...state.layout,tiles:tileData,fields:fieldData};", 1)
 UI_JS.write_text(ui_source, encoding='utf-8')
-
-print('TS3 registered as persistent UI tile; UI assets/API ensured idempotently')
+print('TS3 registered, UI assets/API ensured, and movable-field discovery made idempotent')
