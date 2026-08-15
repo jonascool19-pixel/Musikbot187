@@ -34,6 +34,7 @@ jobs:
           sudo python3 /opt/radiobot/patches/final-hardening.py
           sudo python3 /opt/radiobot/patches/security-final.py
           sudo python3 /opt/radiobot/patches/final-setup-routes.py
+          sudo python3 /opt/radiobot/patches/final-radio-routes.py
           sudo python3 /opt/radiobot/patches/web-auth.py
           sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' /opt/radiobot/frontend/index.html
           sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' /opt/radiobot/frontend/index.html
