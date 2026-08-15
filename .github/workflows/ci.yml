@@ -16,15 +16,23 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/package.json
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm install
-      - name: Apply installer compatibility patch
+      - name: Prepare patched build tree
         run: |
-          sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' backend/src/index.ts
-          sed -i "s/type SourceKind = 'file' | 'radio' | 'youtube';/type SourceKind = 'file' | 'radio' | 'youtube' | 'spotify';/" backend/src/index.ts
+          sudo rm -rf /opt/radiobot
+          sudo mkdir -p /opt/radiobot/backend /opt/radiobot/frontend /opt/radiobot/patches
+          sudo cp -a backend/. /opt/radiobot/backend/
+          sudo cp -a frontend/. /opt/radiobot/frontend/
+          sudo cp -a patches/. /opt/radiobot/patches/
+          sudo sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' /opt/radiobot/backend/src/index.ts
+          sudo python3 /opt/radiobot/patches/enable-radio-features.py
+          sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
+          sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' /opt/radiobot/frontend/index.html
+          sudo chown -R runner:docker /opt/radiobot
+      - name: Install patched backend dependencies
+        working-directory: /opt/radiobot/backend
+        run: npm install
       - name: TypeScript build
-        working-directory: backend
+        working-directory: /opt/radiobot/backend
         run: npm run build
       - name: Validate installer and service
         run: |
@@ -32,16 +40,16 @@ jobs:
           grep -q 'CPUQuota=90%' radiobot.service
           grep -q 'MemoryMax=720M' radiobot.service
           grep -q 'MemoryHigh=640M' radiobot.service
-          grep -q 'origin: false' install.sh
-          grep -q "type SourceKind = 'file' | 'radio' | 'youtube' | 'spotify';" install.sh
-          grep -q '/usr/local/sbin/radiobot-update' install.sh
-          grep -q 'MusikBot187' install.sh
+          grep -q 'python3 "$APP_DIR/patches/enable-radio-features.py"' install.sh
+          grep -q 'radio-enhancements.js' install.sh
           grep -q 'statusChannelId' backend/src/index.ts
-      - name: Smoke test web API
-        working-directory: backend
+          test -f frontend/radio-enhancements.js
+          test -f patches/enable-radio-features.py
+      - name: Smoke test patched web API
+        working-directory: /opt/radiobot/backend
         env:
           PORT: 3100
-          APP_ROOT: ${{ github.workspace }}
+          APP_ROOT: /opt/radiobot
           DATA_DIR: ${{ runner.temp }}/musikbot187-data
         run: |
           node dist/index.js > "$RUNNER_TEMP/musikbot187.log" 2>&1 &
@@ -50,6 +58,8 @@ jobs:
           for i in {1..20}; do
             if curl -fsS http://127.0.0.1:3100/api/health; then
               echo
+              curl -fsS 'http://127.0.0.1:3100/api/radio/search?q=Beck%20FM' >/dev/null
+              echo 'radio search OK'
               exit 0
             fi
             sleep 1
