@@ -59,7 +59,6 @@ if ! grep -q 'setup-wizard.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<s
 if ! grep -q 'system-controls.js' "$APP_DIR/frontend/index.html"; then sed -i 's#</body>#<script src="/system-controls.js"></script></body>#' "$APP_DIR/frontend/index.html"; fi
 if ! id -u radiobot >/dev/null 2>&1; then useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin radiobot; fi
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"; chmod 700 "$DATA_DIR"
-# Root-only copy of the privileged controller. The bot user must never be able to modify code executed as root.
 install -m 0755 -o root -g root "$APP_DIR/scripts/radiobot-privileged.py" "$ROOT_BIN_DIR/radiobot-privileged.py"
 install -m 0644 -o root -g root "$APP_DIR/radiobot-privileged.service" /etc/systemd/system/radiobot-privileged.service
 chmod 0755 "$ROOT_BIN_DIR"; chown root:root "$ROOT_BIN_DIR"
@@ -152,11 +151,20 @@ fi
 EOF
 chown root:root /usr/local/sbin/radiobot-update /usr/local/sbin/radiobot-configure
 chmod 0755 /usr/local/sbin/radiobot-update
-cat > /etc/sudoers.d/radiobot-update <<'EOF'
-radiobot ALL=(root) NOPASSWD: /usr/local/sbin/radiobot-update, /usr/local/sbin/radiobot-configure
+rm -f /etc/sudoers.d/radiobot-update
+
+cat > /usr/local/bin/radiobot <<'EOF'
+#!/usr/bin/env bash
+set -e
+case "${1:-}" in
+  start|stop|restart|status|enable|disable) exec systemctl "$1" radiobot ;;
+  logs) exec journalctl -u radiobot -f ;;
+  update) exec python3 -c 'import socket; s=socket.create_connection("/run/radiobot-privileged.sock",2); s.sendall(b"bot-update\n"); print(s.recv(128).decode().strip())' ;;
+  config) echo 'Konfiguration bitte über das Webinterface öffnen.'; exit 0 ;;
+  *) echo "Verwendung: radiobot {start|stop|restart|status|logs|update|config|enable|disable}"; exit 1 ;;
+esac
 EOF
-chmod 0440 /etc/sudoers.d/radiobot-update
-visudo -cf /etc/sudoers.d/radiobot-update >/dev/null
+chmod 755 /usr/local/bin/radiobot
 
 echo '[7/10] systemd-Dienste einrichten...'
 install -m 0644 "$APP_DIR/radiobot.service" /etc/systemd/system/radiobot.service
@@ -169,18 +177,10 @@ systemctl daemon-reload
 systemctl enable --now radiobot-privileged.service
 systemctl enable radiobot.service
 systemctl enable --now musikbot187-metrics.timer
-cat > /usr/local/bin/radiobot <<'EOF'
-#!/usr/bin/env bash
-set -e
-case "${1:-}" in
-  start|stop|restart|status|enable|disable) exec systemctl "$1" radiobot ;;
-  logs) exec journalctl -u radiobot -f ;;
-  update) exec sudo -n /usr/local/sbin/radiobot-update ;;
-  config) exec ${EDITOR:-nano} /etc/radiobot/radiobot.env ;;
-  *) echo "Verwendung: radiobot {start|stop|restart|status|logs|update|config|enable|disable}"; exit 1 ;;
-esac
+cat > /usr/local/libexec/radiobot/README <<'EOF'
+This directory contains root-owned lifecycle helpers. Do not make it writable by the radiobot service user.
 EOF
-chmod 755 /usr/local/bin/radiobot
+chmod 0444 /usr/local/libexec/radiobot/README
 
 echo '[8/10] Dienst starten...'
 systemctl restart radiobot.service
