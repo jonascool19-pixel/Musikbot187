@@ -11,7 +11,7 @@ grep -q '^ID=ubuntu$' /etc/os-release || { echo 'Unterstützt wird Ubuntu.' >&2;
 echo -e '\033[1;36m[1/8] System aktualisieren…\033[0m'
 apt-get update
 apt-get upgrade -y
-apt-get install -y ca-certificates curl unzip ffmpeg build-essential python3 git openssl
+apt-get install -y ca-certificates curl unzip ffmpeg build-essential python3 git openssl sudo
 
 echo -e '\033[1;36m[2/8] Node.js 24 sicherstellen…\033[0m'
 if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.versions.node.split(".")[0])>=24?0:1)'; then curl -fsSL https://deb.nodesource.com/setup_24.x | bash -; apt-get install -y nodejs; fi
@@ -58,7 +58,7 @@ chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"
 chmod 0750 "$DATA_DIR"
 if [[ -f "$DATA_DIR/config.json" ]]; then chown radiobot:radiobot "$DATA_DIR/config.json"; chmod 0600 "$DATA_DIR/config.json"; fi
 
-# The web service may only invoke these exact system operations as root.
+# The web service may invoke only these exact system operations as root, without a password.
 install -d -m 0755 /etc/sudoers.d
 cat > /etc/sudoers.d/radiobot-web-system <<'EOF'
 radiobot ALL=(root) NOPASSWD: /usr/bin/systemctl restart radiobot, /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
@@ -80,6 +80,10 @@ systemctl daemon-reload
 systemctl enable radiobot.service
 systemctl restart radiobot.service
 sleep 2
+if ! systemctl is-active --quiet radiobot.service; then systemctl --no-pager --full status radiobot.service || true; journalctl -u radiobot.service -n 100 --no-pager || true; exit 1; fi
+# Verify the passwordless elevation path using the real radiobot account and a harmless bot restart.
+runuser -u radiobot -- /usr/bin/sudo -n /usr/bin/systemctl restart radiobot
+sleep 1
 if ! systemctl is-active --quiet radiobot.service; then systemctl --no-pager --full status radiobot.service || true; journalctl -u radiobot.service -n 100 --no-pager || true; exit 1; fi
 
 echo -e '\033[1;32m[7/8] Installation abgeschlossen.\033[0m'
