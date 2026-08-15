@@ -134,7 +134,7 @@ radiobot update
 
 ## Sicherheit
 
-Das Dashboard nutzt HTTP Basic Authentication. Die Konfiguration liegt mit restriktiven Dateirechten unter `/etc/radiobot`. Der laufende Dienst läuft als unprivilegierter Benutzer `radiobot` mit `NoNewPrivileges`, `ProtectSystem`, `ProtectHome`, ohne Swap und mit begrenzter CPU-/RAM-Nutzung. Der Installer erzwingt Same-Origin-CORS.
+Das Dashboard nutzt eine **sessionbasierte Web-Authentifizierung per HttpOnly-Cookie**. Für CLI-/CI-Aufrufe wird zusätzlich HTTP Basic Authentication als kompatible Alternative akzeptiert. Die Konfiguration liegt mit restriktiven Dateirechten unter `/etc/radiobot`. Der laufende Dienst läuft als unprivilegierter Benutzer `radiobot` mit `NoNewPrivileges`, `ProtectSystem`, `ProtectHome`, ohne Swap und mit begrenzter CPU-/RAM-Nutzung. Der Installer erzwingt Same-Origin-CORS.
 
 Der einmalige Ersteinrichtungs-Code wird nur als URL-Fragment verwendet und daher nicht an den Webserver gesendet. Nach erfolgreicher Einrichtung wird er aus der Konfiguration entfernt.
 
