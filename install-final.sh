@@ -5,7 +5,7 @@ set -euo pipefail
 # Includes Deno PATH handling, curl diagnostics, Node 24/AF_NETLINK compatibility,
 # privileged setup fixes, deterministic dev-dependency installation, interactive
 # web-account setup, optional TeamSpeak 3 setup, and a colored final status summary.
-PINNED_COMMIT="919e543bbc28eeb8a594cd683a788f47de073516"
+PINNED_COMMIT="41e3d900912d3db1e8a18cfd51457d76d3f3a3f8"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
