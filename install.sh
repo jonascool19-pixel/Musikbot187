@@ -92,8 +92,8 @@ if [[ ! -f "$CONF_DIR/radiobot.env" ]]; then
   cat > "$CONF_DIR/radiobot.env" <<EOF
 DISCORD_TOKEN=
 PORT=3000
-WEB_USER=admin
-WEB_PASSWORD=$(openssl rand -hex 16)
+WEB_USER=
+WEB_PASSWORD=
 DISCORD_CONTROL_ROLE=
 SPOTIFY_CLIENT_ID=
 SPOTIFY_CLIENT_SECRET=
@@ -122,6 +122,9 @@ CONF=Path('/etc/radiobot/radiobot.env')
 allowed={'DISCORD_TOKEN','WEB_USER','WEB_PASSWORD','PORT','DISCORD_CONTROL_ROLE','SPOTIFY_CLIENT_ID','SPOTIFY_CLIENT_SECRET','SPOTIFY_REDIRECT_URI','YOUTUBE_API_KEY','YTDLP_PATH','SETUP_TOKEN'}
 raw=json.load(__import__('sys').stdin)
 if not isinstance(raw,dict): raise SystemExit('invalid configuration')
+field_map={'discordToken':'DISCORD_TOKEN','webUser':'WEB_USER','webPassword':'WEB_PASSWORD','port':'PORT','discordControlRole':'DISCORD_CONTROL_ROLE','spotifyClientId':'SPOTIFY_CLIENT_ID','spotifyClientSecret':'SPOTIFY_CLIENT_SECRET','spotifyRedirectUri':'SPOTIFY_REDIRECT_URI','youtubeApiKey':'YOUTUBE_API_KEY','ytdlpPath':'YTDLP_PATH','setupToken':'SETUP_TOKEN'}
+for ui_key, env_key in field_map.items():
+    if ui_key in raw and env_key not in raw: raw[env_key]=raw[ui_key]
 current={}
 if CONF.exists():
     for line in CONF.read_text().splitlines():
@@ -133,18 +136,17 @@ for key in allowed:
         if '\n' in value or '\r' in value: raise SystemExit(f'invalid value for {key}')
         if key in {'WEB_PASSWORD','SPOTIFY_CLIENT_SECRET','YOUTUBE_API_KEY','DISCORD_TOKEN'} and value == '' and current.get(key): continue
         current[key]=value
-
-# During first-run bootstrap the web account is intentionally created before
-# a Discord token exists. After that first write, normal config writes still
-# require a Discord token.
-bootstrap_user_only = (
-    not current.get('DISCORD_TOKEN')
-    and len(current.get('WEB_USER','')) > 0
-    and len(current.get('WEB_PASSWORD','')) >= 12
-)
-if not current.get('DISCORD_TOKEN') and not bootstrap_user_only:
-    raise SystemExit('DISCORD_TOKEN is required')
-if len(current.get('WEB_PASSWORD','')) < 12: raise SystemExit('WEB_PASSWORD must contain at least 12 characters')
+bootstrap=bool(raw.get('bootstrapUserOnly'))
+if bootstrap:
+    if current.get('WEB_PASSWORD'): raise SystemExit('WEB_USER already configured')
+    if raw.get('setupToken') != current.get('SETUP_TOKEN'): raise SystemExit('invalid setup token')
+    username=str(raw.get('webUser') or '').strip(); password=str(raw.get('webPassword') or '')
+    if not username or len(username)>64: raise SystemExit('invalid WEB_USER')
+    if len(password)<12: raise SystemExit('WEB_PASSWORD must contain at least 12 characters')
+    current['WEB_USER']=username; current['WEB_PASSWORD']=password
+else:
+    if not current.get('DISCORD_TOKEN'): raise SystemExit('DISCORD_TOKEN is required')
+if len(current.get('WEB_PASSWORD','')) > 0 and len(current.get('WEB_PASSWORD','')) < 12: raise SystemExit('WEB_PASSWORD must contain at least 12 characters')
 port=int(current.get('PORT','3000'))
 if not 1 <= port <= 65535: raise SystemExit('invalid PORT')
 current['PORT']=str(port)
@@ -232,7 +234,7 @@ echo "Musik:         /var/lib/radiobot/music"
 echo "Status:        radiobot status"
 echo "Logs:          radiobot logs"
 echo
-echo 'Discord-Token, Spotify, YouTube, Web-Passwort und weitere Einstellungen werden nach der Installation im Webinterface eingerichtet.'
+echo 'Der Web-Benutzer wird beim ersten Aufruf des Ersteinrichtungsdialogs angelegt. Danach werden Discord, Spotify, YouTube und die restliche Bot-Konfiguration freigeschaltet.'
 echo 'Laufzeit-Ressource: 500 MB bis 1 GB RAM empfohlen; 768 MB ist der Zielwert.'
 echo 'Radio: Im Dashboard im Bereich Radio nach Sendern suchen und in die Radio-Playlist speichern.'
 echo 'Leistung: Im Dashboard auf Leistung klicken; Netzwerk zeigt Upload/Download und Gesamtvolumen.'
