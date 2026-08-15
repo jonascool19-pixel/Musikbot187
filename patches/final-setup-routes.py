@@ -31,12 +31,11 @@ if not first_user_route_re.search(s):
     app_match = re.search(r"^const app = Fastify\([^\n]*\);\n", s, re.M)
     if not app_match:
         raise SystemExit('first-user route insertion failed: Fastify app declaration not found')
-    insert_at = app_match.end()
-    s = s[:insert_at] + first_user_route + "\n" + s[insert_at:]
+    s = s[:app_match.end()] + first_user_route + "\n" + s[app_match.end():]
 
-# Keep the setup status/user endpoints open during bootstrap; block the normal
-# bot configuration endpoint until the first web user exists.
-new_hook = "app.addHook('preHandler', async (req, reply) => { const openSetup = req.url === '/api/setup/status' || req.url === '/api/setup/user'; if (req.url === '/api/setup' && !WEB_PASSWORD) return reply.code(403).send('Bitte zuerst einen Web-Benutzer anlegen.'); if (req.url.startsWith('/api/') && !openSetup && !req.url.startsWith('/api/spotify/callback') && !auth(req, reply)) return reply; });"
+# During bootstrap only the status and first-user endpoints are public. The normal
+# bot setup is unavailable until the web account exists, and all other APIs are closed.
+new_hook = "app.addHook('preHandler', async (req, reply) => { const openSetup = req.url === '/api/setup/status' || req.url === '/api/setup/user'; if (req.url.startsWith('/api/') && !WEB_PASSWORD && !openSetup) return reply.code(403).send('Bitte zuerst einen Web-Benutzer anlegen.'); if (req.url === '/api/setup' && !WEB_PASSWORD) return reply.code(403).send('Bitte zuerst einen Web-Benutzer anlegen.'); if (req.url.startsWith('/api/') && !openSetup && !req.url.startsWith('/api/spotify/callback') && !auth(req, reply)) return reply; });"
 hook_match = re.search(r"app\.addHook\('preHandler'.*?\n", s)
 if hook_match:
     s = s[:hook_match.start()] + new_hook + "\n" + s[hook_match.end():]
@@ -61,4 +60,4 @@ if "Bitte zuerst einen Web-Benutzer anlegen." not in s:
     raise SystemExit('missing final setup marker: first-user gate')
 
 backend.write_text(s, encoding='utf-8')
-print('first-user route and setup gate applied without duplicating setup routes')
+print('first-user route + bootstrap API lock applied without duplicating setup routes')
