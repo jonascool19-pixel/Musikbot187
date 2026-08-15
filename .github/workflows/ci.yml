@@ -26,7 +26,6 @@ jobs:
           sudo cp -a frontend/. /opt/radiobot/frontend/
           sudo cp -a patches/. /opt/radiobot/patches/
           sudo cp -a scripts/. /opt/radiobot/scripts/
-          sudo sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' /opt/radiobot/backend/src/index.ts
           sudo python3 /opt/radiobot/patches/enable-radio-features.py
           sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
           sudo python3 /opt/radiobot/patches/setup-wizard.py
@@ -53,6 +52,8 @@ jobs:
           grep -q 'MemoryHigh=640M' radiobot.service
           grep -q 'ProtectSystem=strict' radiobot.service
           grep -q 'CapabilityBoundingSet=' radiobot.service
+          grep -q 'User=radiobot' musikbot187-metrics.service
+          grep -q 'ReadWritePaths=/var/lib/radiobot' musikbot187-metrics.service
           grep -q 'final-hardening.py' install.sh
           grep -q 'configure-helper-hardening.py' install.sh
           grep -q 'setup-wizard.py' install.sh
@@ -66,7 +67,6 @@ jobs:
           grep -q "OUT = Path('/var/lib/radiobot/metrics.json')" scripts/system-metrics.py
           grep -q "fetch('/api/metrics'" frontend/metrics-panel.js
           grep -q 'state.manualStop' /opt/radiobot/backend/src/index.ts
-          grep -q 'ProtectSystem=strict' radiobot.service
           test -f frontend/setup-wizard.js
           test -f patches/final-hardening.py
           test -f patches/configure-helper-hardening.py
@@ -97,7 +97,6 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/metrics)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' -u admin:test-password-12345 http://127.0.0.1:3100/api/settings)" = 403
           curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/metrics >/dev/null
-          test "$(curl -s -o /dev/null -w '%{http_code}' -u admin:test-password-12345 -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:3100/api/playlists)" = 400 -o /dev/null || true
           echo 'setup status + radio search + protected metrics + origin guard OK'
           if ! kill -0 "$pid" 2>/dev/null; then cat "$RUNNER_TEMP/musikbot187.log"; exit 1; fi
       - name: Hardcore web performance test
