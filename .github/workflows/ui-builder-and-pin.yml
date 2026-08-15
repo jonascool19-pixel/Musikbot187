@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: c753f6c1fe29512a23edaf9192a443c2adbb2dc9
+          EXPECTED_PIN: b8db3e2527158ad51618e40ae1b427a7c289bd16
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -40,6 +40,13 @@ jobs:
           grep -q "final-setup-routes.py" install.sh
           grep -q "final-radio-routes.py" install.sh
           grep -q "security-final.py" install.sh
+      - name: Verify fresh-install setup state
+        run: |
+          grep -q '^WEB_USER=$' install.sh
+          grep -q '^WEB_PASSWORD=$' install.sh
+          grep -q '^SETUP_TOKEN=' install.sh
+          ! grep -q '^WEB_USER=admin$' install.sh
+          ! grep -q '^WEB_PASSWORD=\$(openssl rand -hex' install.sh
       - name: Prepare patched tree
         run: |
           sudo rm -rf /opt/radiobot
