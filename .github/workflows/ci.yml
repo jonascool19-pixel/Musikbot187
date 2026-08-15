@@ -26,8 +26,10 @@ jobs:
         run: |
           bash -n install.sh
           grep -q 'CPUQuota=90%' radiobot.service
-          grep -q 'MemoryMax=480M' radiobot.service
+          grep -q 'MemoryMax=720M' radiobot.service
+          grep -q 'MemoryHigh=640M' radiobot.service
           grep -q '/usr/local/sbin/radiobot-update' install.sh
+          grep -q 'statusChannelId' backend/src/index.ts
       - name: Smoke test web API
         working-directory: backend
         env:
