@@ -65,6 +65,8 @@ jobs:
           grep -q 'ProtectSystem=strict' radiobot.service
           grep -q 'MemoryMax=720M' radiobot.service
           grep -q 'CPUQuota=90%' radiobot.service
+          grep -q "app.get('/api/setup/status'" /opt/radiobot/backend/src/index.ts
+          grep -q "api/setup/status" /opt/radiobot/backend/dist/index.js
           test -s frontend/ui-builder.js
           test -s frontend/ui-builder.css
       - name: FFmpeg audio smoke test
@@ -104,7 +106,19 @@ jobs:
             if curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/health >/dev/null; then break; fi
             sleep 1
           done
-          curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/setup/status >/dev/null
+          sleep 0.5
+          echo '--- NODE STARTUP LOG ---'
+          cat "$RUNNER_TEMP/musikbot187.log" || true
+          echo '--- ROUTE CHECKS ---'
+          grep -n "api/setup/status\|setup_route_registered" dist/index.js || true
+          code=$(curl -s -o /tmp/setup-response.txt -w '%{http_code}' -u admin:test-password-12345 http://127.0.0.1:3100/api/setup/status)
+          echo "setup_status_http=$code"
+          if [ "$code" != "200" ]; then
+            echo '--- APPLICATION LOG ON FAILURE ---'
+            cat "$RUNNER_TEMP/musikbot187.log" || true
+            exit 1
+          fi
+          curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/health >/dev/null
           curl -fsS -u admin:test-password-12345 'http://127.0.0.1:3100/api/radio/search?q=Beck%20FM' >/dev/null
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/metrics)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' -u admin:test-password-12345 http://127.0.0.1:3100/api/settings)" = 403
@@ -116,7 +130,6 @@ jobs:
           curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/reboot >/dev/null
           curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/shutdown >/dev/null
           echo 'setup status + radio search + protected metrics + origin guard + system controls OK'
-          if ! kill -0 "$pid" 2>/dev/null; then cat "$RUNNER_TEMP/musikbot187.log"; exit 1; fi
       - name: Hardcore web performance test
         working-directory: /opt/radiobot/backend
         env:
@@ -133,7 +146,6 @@ jobs:
             if curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/health >/dev/null; then break; fi
             sleep 1
           done
-          test -d "/proc/$pid"
           : > "$RUNNER_TEMP/musikbot187-perf-samples.log"
           (
             while kill -0 "$pid" 2>/dev/null; do
