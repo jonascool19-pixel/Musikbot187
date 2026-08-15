@@ -59,6 +59,20 @@ jobs:
           grep -q 'security-final.py' install.sh
           grep -q 'configure-helper-hardening.py' install.sh
           grep -q 'setup-wizard.py' install.sh
+          grep -q 'system-ops-cooldown.py' patches/security-final.py
+          grep -q 'systemOpen' /opt/radiobot/frontend/index.html
+          grep -q 'system-controls.js' /opt/radiobot/frontend/index.html
+          grep -q 'DISCORD_COOLDOWN_MS' /opt/radiobot/backend/src/index.ts
+          grep -q 'MAX_SEARCH_IN_FLIGHT' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/system/reboot' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/system/shutdown' /opt/radiobot/backend/src/index.ts
+          grep -q 'botEnabled' /opt/radiobot/backend/src/index.ts
+          test -f scripts/radiobot-privileged.py
+          test -f frontend/system-controls.js
+          test -f /etc/systemd/system/radiobot-privileged.service
+          grep -q 'ExecStart=/usr/bin/python3 /opt/radiobot/scripts/radiobot-privileged.py' /etc/systemd/system/radiobot-privileged.service
+          grep -q '/run/radiobot-privileged.sock' scripts/radiobot-privileged.py
+          grep -q 'bot-update' scripts/radiobot-privileged.py
           grep -q '/api/setup/status' /opt/radiobot/backend/src/index.ts
           grep -q '/api/settings' /opt/radiobot/backend/src/index.ts
           grep -q '/api/metrics' /opt/radiobot/backend/src/index.ts
@@ -74,6 +88,7 @@ jobs:
           test -f frontend/setup-wizard.js
           test -f patches/final-hardening.py
           test -f patches/security-final.py
+          test -f patches/system-ops-cooldown.py
           test -f patches/configure-helper-hardening.py
       - name: FFmpeg audio smoke test
         run: |
@@ -90,9 +105,24 @@ jobs:
         run: |
           sudo mkdir -p /var/lib/radiobot
           sudo python3 /opt/radiobot/scripts/system-metrics.py
+          sudo rm -f /run/radiobot-privileged.sock
+          python3 - <<'PY' &
+          import os, socket
+          path='/run/radiobot-privileged.sock'
+          try: os.unlink(path)
+          except FileNotFoundError: pass
+          s=socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.bind(path); os.chmod(path, 0o666); s.listen(8)
+          while True:
+              c,_=s.accept()
+              with c:
+                  cmd=c.recv(128).strip()
+                  if cmd in {b'bot-restart', b'bot-update', b'server-reboot', b'server-shutdown'}: c.sendall(b'OK\n')
+                  else: c.sendall(b'ERR invalid-command\n')
+          PY
+          socket_pid=$!
           node dist/index.js > "$RUNNER_TEMP/musikbot187.log" 2>&1 &
           pid=$!
-          trap 'kill $pid 2>/dev/null || true' EXIT
+          trap 'kill $pid 2>/dev/null || true; kill $socket_pid 2>/dev/null || true' EXIT
           for i in {1..20}; do
             if curl -fsS http://127.0.0.1:3100/api/health; then break; fi
             sleep 1
@@ -102,7 +132,13 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/metrics)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' -u admin:test-password-12345 http://127.0.0.1:3100/api/settings)" = 403
           curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/metrics >/dev/null
-          echo 'setup status + radio search + protected metrics + origin guard OK'
+          curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/bot/disable >/dev/null
+          curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/bot/enable >/dev/null
+          curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/restart >/dev/null
+          curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/update >/dev/null
+          curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/reboot >/dev/null
+          curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/shutdown >/dev/null
+          echo 'setup status + radio search + protected metrics + origin guard + system controls OK'
           if ! kill -0 "$pid" 2>/dev/null; then cat "$RUNNER_TEMP/musikbot187.log"; exit 1; fi
       - name: Hardcore web performance test
         working-directory: /opt/radiobot/backend
