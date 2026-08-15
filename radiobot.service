@@ -1,0 +1,25 @@
+[Unit]
+Description=RadioBot - Discord Radio and Music Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=radiobot
+Group=radiobot
+WorkingDirectory=/opt/radiobot
+EnvironmentFile=/etc/radiobot/radiobot.env
+Environment=NODE_ENV=production
+Environment=APP_ROOT=/opt/radiobot
+Environment=DATA_DIR=/var/lib/radiobot
+ExecStart=/usr/bin/node /opt/radiobot/backend/dist/index.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/radiobot
+
+[Install]
+WantedBy=multi-user.target
