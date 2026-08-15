@@ -53,6 +53,8 @@ jobs:
           sudo python3 /opt/radiobot/patches/final-radio-routes.py
           sudo python3 /opt/radiobot/patches/configure-helper-hardening.py
           sudo python3 /opt/radiobot/patches/web-auth.py
+          if ! getent group radiobot >/dev/null 2>&1; then sudo groupadd --system radiobot; fi
+          if ! id -u radiobot >/dev/null 2>&1; then sudo useradd --system --no-create-home --gid radiobot --shell /usr/sbin/nologin radiobot; else sudo usermod --gid radiobot radiobot; fi
           getent group radiobot >/dev/null
           test "$(id -gn radiobot)" = radiobot
 
