@@ -1,5 +1,5 @@
 [Unit]
-Description=RadioBot - low resource Discord radio service
+Description=MusikBot187 - low resource Discord radio service
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=60
