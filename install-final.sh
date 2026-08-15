@@ -16,6 +16,8 @@ fi
 curl -fsSL "https://raw.githubusercontent.com/${REPO}/${PINNED_COMMIT}/install.sh" -o "$TMP_DIR/install.sh"
 sed -i "s/^RELEASE_REF=v2\.1\.0$/RELEASE_REF=${PINNED_COMMIT}/" "$TMP_DIR/install.sh"
 sed -i 's#https://codeload.github.com/jonascool19-pixel/radiobot/tar.gz/refs/heads/\$RELEASE_REF#https://codeload.github.com/jonascool19-pixel/radiobot/tar.gz/\$RELEASE_REF#' "$TMP_DIR/install.sh"
+# Convert the payload archive URL from the old mutable branch form to the pinned commit form.
+sed -i 's#refs/heads/\$RELEASE_REF#\$RELEASE_REF#' "$TMP_DIR/install.sh"
 
 grep -q "^RELEASE_REF=${PINNED_COMMIT}$" "$TMP_DIR/install.sh"
 if grep -q 'refs/heads/\$RELEASE_REF' "$TMP_DIR/install.sh"; then
