@@ -19,8 +19,8 @@ jobs:
       - name: Syntax checks
         run: |
           bash -n install.sh update.sh
-          python3 -m py_compile patches/*.py scripts/*.py
-          node --check frontend/ui-builder.js
+          python3 -m py_compile patches/*.py scripts/*.py tests/*.js
+          for f in frontend/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         run: |
           grep -q '^RELEASE_REF=v2.1.0$' install.sh
@@ -46,12 +46,26 @@ jobs:
         run: |
           npm install
           npm run build
-      - name: Verify UI assets are in release tree
+      - name: Verify patched UI wiring
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          for p in ['frontend/ui-builder.js','frontend/ui-builder.css','patches/ui-builder.py']:
-              if not Path(p).is_file() or not Path(p).stat().st_size:
-                  raise SystemExit(f'missing release asset: {p}')
-          print('UI builder release assets OK')
-          PY
+          grep -q 'ui-builder.css' /opt/radiobot/frontend/index.html
+          grep -q 'ui-builder.js' /opt/radiobot/frontend/index.html
+          grep -q 'data-tile-id="hero"' /opt/radiobot/frontend/index.html
+          grep -q 'data-tile-id="queue"' /opt/radiobot/frontend/index.html
+          grep -q 'UI_LAYOUT_FILE' /opt/radiobot/backend/src/index.ts
+          grep -q 'UiField' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/ui/layout' /opt/radiobot/backend/src/index.ts
+          grep -q 'builder-field-zone' /opt/radiobot/frontend/ui-builder.js
+          grep -q 'fieldDrag' /opt/radiobot/frontend/ui-builder.js
+      - name: Install Chromium for browser test
+        working-directory: /opt/radiobot
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-audit --no-fund --save-dev playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Browser test movable tiles and fields
+        working-directory: /opt/radiobot
+        env:
+          UI_TEST_ROOT: /opt/radiobot/frontend
+          UI_TEST_PORT: 4173
+        run: node tests/ui-builder-browser.js
