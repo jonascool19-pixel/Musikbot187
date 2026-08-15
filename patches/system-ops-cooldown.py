@@ -11,8 +11,37 @@ if "import net from 'node:net';" not in s:
 
 s = s.replace("const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';", "const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';\nconst PRIVILEGED_SOCKET = '/run/radiobot-privileged.sock';\nconst DISCORD_COOLDOWN_MS = 1200;\nconst DISCORD_SEARCH_COOLDOWN_MS = 4500;\nconst DISCORD_GUILD_WINDOW_MS = 10_000;\nconst DISCORD_GUILD_MAX_COMMANDS = 20;\nconst discordCooldowns = new Map<string, number>();\nconst discordGuildBuckets = new Map<string, { start: number; count: number }>();\nlet searchInFlight = 0;\nconst MAX_SEARCH_IN_FLIGHT = 2;", 1)
 s = s.replace("function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return true; return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }", "function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE) return Boolean(member?.permissions?.has('Administrator')); return Boolean(member?.permissions?.has('Administrator') || member?.roles?.cache?.has(DISCORD_CONTROL_ROLE)); }", 1)
+
+# Keep the patch compatible with the radio-enhancement GuildState shape while adding the lifecycle latch.
+if "manualStop?: boolean" not in s:
+    type_marker = "  playing?: string; playingType?: SourceKind; currentPlaylist?: string; volume: number; paused: boolean; queue: QueueItem[];"
+    if type_marker in s:
+        s = s.replace(type_marker, type_marker + " manualStop?: boolean;", 1)
+    else:
+        # Some radio patch versions append state fields on the same type line.
+        line_start = "type GuildState = {"
+        idx = s.find(line_start)
+        if idx >= 0:
+            end = s.find("};", idx)
+            if end >= 0:
+                s = s[:end] + "\n  manualStop?: boolean;" + s[end:]
+
 s = s.replace("type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[] };", "type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[]; botEnabled?: boolean };", 1)
 s = s.replace("db.playlists ??= [];", "db.playlists ??= [];\ndb.botEnabled ??= true;", 1)
+
+# Initialize the lifecycle latch for old DB state objects.
+if "s.manualStop ??= false; return s;" not in s:
+    if "s.shuffle ??= false; return s;" in s:
+        s = s.replace("s.shuffle ??= false; return s;", "s.shuffle ??= false; s.manualStop ??= false; return s;", 1)
+    elif "function guildState(guildId: string)" in s:
+        marker = "function guildState(guildId: string)"
+        start = s.find(marker)
+        end = s.find("\n}", start)
+        if start >= 0 and end >= 0 and "manualStop" not in s[start:end]:
+            block = s[start:end]
+            if "return db.guilds[guildId];" in block:
+                block = block.replace("return db.guilds[guildId];", "db.guilds[guildId].manualStop ??= false; return db.guilds[guildId];", 1)
+                s = s[:start] + block + s[end:]
 
 queue_old = "if (replace) { await stopGuild(guildId); state.activePlaylistId = playlist.id; state.queue = items; }"
 queue_new = "if (replace) { await stopGuild(guildId); state.manualStop = false; state.activePlaylistId = playlist.id; state.queue = items; }"
@@ -28,7 +57,8 @@ if "const playLocks = new Map" in s:
         wrapper = """async function playNext(guildId: string) {
   const running = playLocks.get(guildId);
   if (running) return running;
-  const run = playNextUnlocked(guildId).finally(() => { if (playLocks.get(guildId) === run) playLocks.delete(guildId); });
+  let run!: Promise<void>;
+  run = playNextUnlocked(guildId).finally(() => { if (playLocks.get(guildId) === run) playLocks.delete(guildId); });
   playLocks.set(guildId, run);
   return run;
 }
