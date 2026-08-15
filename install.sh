@@ -6,8 +6,9 @@ APP_DIR=/opt/radiobot
 DATA_DIR=/var/lib/radiobot
 CONF_DIR=/etc/radiobot
 ROOT_BIN_DIR=/usr/local/libexec/radiobot
+RELEASE_TAG=v2.1.0
+REPO_TGZ=https://codeload.github.com/jonascool19-pixel/radiobot/tar.gz/refs/tags/$RELEASE_TAG
 TMP_DIR=$(mktemp -d)
-REPO_TGZ=https://codeload.github.com/jonascool19-pixel/radiobot/tar.gz/refs/heads/main
 cleanup(){ rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
@@ -36,7 +37,7 @@ deno --version | head -n1
 echo '[4/10] Anwendung herunterladen...'
 curl -fsSL "$REPO_TGZ" -o "$TMP_DIR/radiobot.tgz"
 tar -xzf "$TMP_DIR/radiobot.tgz" -C "$TMP_DIR"
-SRC_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name 'radiobot-main-*' | head -n1)
+SRC_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name 'radiobot-v2.1.0*' | head -n1)
 [[ -n "$SRC_DIR" ]] || { echo 'Download fehlgeschlagen.'; exit 1; }
 mkdir -p "$APP_DIR" "$DATA_DIR/music" "$CONF_DIR" "$ROOT_BIN_DIR"
 rm -rf "$APP_DIR/backend" "$APP_DIR/frontend" "$APP_DIR/patches" "$APP_DIR/scripts"
@@ -51,6 +52,7 @@ cp "$SRC_DIR/radiobot-privileged.service" "$APP_DIR/"
 python3 "$APP_DIR/patches/enable-radio-features.py"
 python3 "$APP_DIR/patches/fix-radio-feature-patch.py"
 python3 "$APP_DIR/patches/setup-wizard.py"
+python3 "$APP_DIR/patches/ui-builder.py"
 python3 "$APP_DIR/patches/final-hardening.py"
 python3 "$APP_DIR/patches/security-final.py"
 if ! grep -q 'radio-enhancements.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' "$APP_DIR/frontend/index.html"; fi
@@ -140,12 +142,20 @@ set -euo pipefail
 exec 9>/run/lock/radiobot-update.lock
 flock -n 9 || { echo 'Update läuft bereits.' >&2; exit 1; }
 LOG=/var/lib/radiobot/update.status
-printf 'started %s\n' "$(date -Is)" > "$LOG"
-if curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install.sh | bash >> "$LOG" 2>&1; then
-  printf 'finished %s success\n' "$(date -Is)" >> "$LOG"
+RELEASE_TAG=v2.1.0
+REPO_TGZ="https://codeload.github.com/jonascool19-pixel/radiobot/tar.gz/refs/tags/${RELEASE_TAG}"
+printf 'started %s release=%s\n' "$(date -Is)" "$RELEASE_TAG" > "$LOG"
+TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+curl -fsSL "$REPO_TGZ" -o "$TMP/radiobot.tgz"
+tar -xzf "$TMP/radiobot.tgz" -C "$TMP"
+SRC=$(find "$TMP" -maxdepth 1 -type d -name 'radiobot-v2.1.0*' | head -n1)
+[[ -n "$SRC" ]] || { echo 'Pinned release archive invalid.' >&2; exit 1; }
+if ! grep -q '^RELEASE_TAG=v2.1.0$' "$SRC/install.sh"; then echo 'Pinned release mismatch.' >&2; exit 1; fi
+if bash "$SRC/install.sh" >> "$LOG" 2>&1; then
+  printf 'finished %s success release=%s\n' "$(date -Is)" "$RELEASE_TAG" >> "$LOG"
 else
   code=$?
-  printf 'finished %s failed:%s\n' "$(date -Is)" "$code" >> "$LOG"
+  printf 'finished %s failed:%s release=%s\n' "$(date -Is)" "$code" "$RELEASE_TAG" >> "$LOG"
   exit "$code"
 fi
 EOF
