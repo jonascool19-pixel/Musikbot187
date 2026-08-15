@@ -1,6 +1,7 @@
 (() => {
   const q = new URLSearchParams(location.search);
-  const setupCode = q.get('setup') || '';
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const setupCode = q.get('setup') || hash.get('setup') || '';
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const api = async (url, options = {}) => { const r = await fetch(url, { headers: {'Content-Type':'application/json', ...(options.headers || {})}, ...options }); if (!r.ok) throw new Error(await r.text()); return r.status === 204 ? null : r.json(); };
   const style = document.createElement('style');
