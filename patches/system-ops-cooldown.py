@@ -14,6 +14,14 @@ s = s.replace("function controlAllowed(member: any) { if (!DISCORD_CONTROL_ROLE)
 s = s.replace("type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[] };", "type Db = { radios: Radio[]; guilds: Record<string, GuildState>; playlists: Playlist[]; botEnabled?: boolean };", 1)
 s = s.replace("db.playlists ??= [];", "db.playlists ??= [];\ndb.botEnabled ??= true;", 1)
 
+# The radio feature patch changes queuePlaylist before this patch runs. Normalize both shapes.
+queue_old = "if (replace) { await stopGuild(guildId); state.activePlaylistId = playlist.id; state.queue = items; }"
+queue_new = "if (replace) { await stopGuild(guildId); state.manualStop = false; state.activePlaylistId = playlist.id; state.queue = items; }"
+if queue_old in s:
+    s = s.replace(queue_old, queue_new, 1)
+else:
+    s = s.replace("if (replace) { await stopGuild(guildId); state.queue = items; }", "if (replace) { await stopGuild(guildId); state.manualStop = false; state.queue = items; }", 1)
+
 old = """async function unifiedSearch(query: string) {
   const needle = query.toLowerCase();
   const local: SearchItem[] = fs.readdirSync(MUSIC_DIR).filter(f => /\\.(mp3|wav|ogg|flac|m4a)$/i.test(f) && f.toLowerCase().includes(needle)).slice(0, 12).map(f => ({ kind: 'file', value: f, label: f, meta: 'Lokal' }));
@@ -86,7 +94,6 @@ app.post('/api/system/shutdown', async (_req, reply) => { await privilegedAction
 if "/api/system/reboot" not in s:
     s = s.replace("app.get('/api/health'", ops + "\napp.get('/api/health'", 1)
 
-# Existing update route uses sudo, which cannot elevate under NoNewPrivileges. Route it through the same root controller.
 old_update = "app.post('/api/update', async (req, reply) => { if (!fs.existsSync('/usr/local/sbin/radiobot-update')) return reply.code(503).send('Update-Helfer ist nicht installiert.'); fs.writeFileSync(UPDATE_LOG, `started ${new Date().toISOString()}\\n`, { mode: 0o600 }); const child = spawn('sudo', ['-n', '/usr/local/sbin/radiobot-update'], { detached: true, stdio: 'ignore' }); child.unref(); return { ok: true, message: 'Update gestartet. Der Dienst wird danach automatisch neu gestartet.' }; });"
 new_update = "app.post('/api/update', async (_req, reply) => { if (!fs.existsSync('/usr/local/sbin/radiobot-update')) return reply.code(503).send('Update-Helfer ist nicht installiert.'); fs.writeFileSync(UPDATE_LOG, `started ${new Date().toISOString()}\\n`, { mode: 0o600 }); await privilegedAction('bot-update'); return { ok: true, message: 'Update gestartet. Der Dienst wird danach automatisch neu gestartet.' }; });"
 if old_update in s:
