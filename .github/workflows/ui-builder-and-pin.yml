@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: da5d39965f39e4e8835fdba97248447d03a1318f
+          EXPECTED_PIN: 3b026e1501a4ae31694b33a27b04b63555049e34
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -49,6 +49,7 @@ jobs:
           sudo python3 /opt/radiobot/patches/final-hardening.py
           sudo python3 /opt/radiobot/patches/security-final.py
           sudo python3 /opt/radiobot/patches/final-setup-routes.py
+          sudo python3 /opt/radiobot/patches/web-auth.py
       - name: Build backend
         working-directory: /opt/radiobot/backend
         run: |
@@ -58,6 +59,7 @@ jobs:
         run: |
           grep -q 'ui-builder.css' /opt/radiobot/frontend/index.html
           grep -q 'ui-builder.js' /opt/radiobot/frontend/index.html
+          grep -q 'web-auth.js' /opt/radiobot/frontend/index.html
           grep -q 'data-tile-id="hero"' /opt/radiobot/frontend/index.html
           grep -q 'data-tile-id="queue"' /opt/radiobot/frontend/index.html
           grep -q 'UI_LAYOUT_FILE' /opt/radiobot/backend/src/index.ts
@@ -66,6 +68,9 @@ jobs:
           grep -q 'builder-field-zone' /opt/radiobot/frontend/ui-builder.js
           grep -q 'pointerdown' /opt/radiobot/frontend/ui-builder.js
           grep -q 'pointerup' /opt/radiobot/frontend/ui-builder.js
+          grep -q "'/api/auth/login'" /opt/radiobot/backend/src/index.ts
+          grep -q "'/api/auth/logout'" /opt/radiobot/backend/src/index.ts
+          grep -q 'musikbot187_session' /opt/radiobot/backend/src/index.ts
       - name: Verify clock UI wiring
         run: |
           grep -q 'clock.js' /opt/radiobot/frontend/index.html
