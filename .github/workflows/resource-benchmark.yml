@@ -85,7 +85,8 @@ jobs:
           PID_FILE: ${{ runner.temp }}/radiobot.pid
           OUT: ${{ runner.temp }}/resource-benchmark.csv
         run: |
-          PID="$(cat "$PID_FILE")" ./scripts/resource-benchmark.sh 45
+          chmod +x /opt/radiobot/scripts/resource-benchmark.sh
+          PID="$(cat "$PID_FILE")" /opt/radiobot/scripts/resource-benchmark.sh 45
       - name: Stop benchmark process
         if: always()
         run: |
