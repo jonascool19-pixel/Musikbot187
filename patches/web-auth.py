@@ -46,7 +46,6 @@ function webAuth(req: any, reply: any) {
     if (session && session.expires > Date.now()) return true;
     if (session) webSessions.delete(token);
   }
-  // Backwards-compatible CLI/CI authentication without triggering browser Basic-Auth popups.
   const h = String(req.headers.authorization ?? '');
   if (h.startsWith('Basic ')) {
     const d = Buffer.from(h.slice(6), 'base64').toString('utf8');
@@ -66,13 +65,24 @@ else:
     if old in s and 'ORIGIN_FORBIDDEN' not in s:
         s = s.replace(old, new, 1)
 
-# Replace the existing auth hook with the cookie-based auth hook.
-new_hook = "app.addHook('preHandler', async (req, reply) => { const open = req.url.startsWith('/api/auth/') || req.url.startsWith('/api/setup') || req.url.startsWith('/api/spotify/callback'); if (req.url.startsWith('/api/') && !open && !webAuth(req, reply)) return reply; });"
-if "app.addHook('preHandler'" in s and 'const open = req.url.startsWith' not in s:
+# Final auth hook: preserve first-user bootstrap restrictions.
+new_hook = "app.addHook('preHandler', async (req, reply) => { const authOpen = req.url.startsWith('/api/auth/'); const setupStatusOpen = req.url === '/api/setup/status'; const setupUserOpen = req.url === '/api/setup/user'; const spotifyCallbackOpen = req.url.startsWith('/api/spotify/callback'); if (req.url === '/api/setup' && !WEB_PASSWORD) return reply.code(403).send('Bitte zuerst einen Web-Benutzer anlegen.'); const open = authOpen || setupStatusOpen || setupUserOpen || spotifyCallbackOpen; if (req.url.startsWith('/api/') && !open && !webAuth(req, reply)) return reply; });"
+if "const authOpen = req.url.startsWith('/api/auth/')" not in s:
     start = s.find("app.addHook('preHandler'")
-    end = s.find("\n\n", start)
-    if start >= 0 and end > start:
+    if start >= 0:
+        end = s.find("\n\n", start)
+        if end < 0:
+            end = len(s)
         s = s[:start] + new_hook + s[end:]
+    else:
+        anchor = "const app = Fastify({ logger: true"
+        app_pos = s.find(anchor)
+        if app_pos < 0:
+            raise SystemExit('auth hook insertion anchor missing')
+        line_end = s.find('\n', app_pos)
+        if line_end < 0:
+            raise SystemExit('auth app declaration line missing')
+        s = s[:line_end + 1] + new_hook + "\n" + s[line_end + 1:]
 
 if "app.post('/api/auth/login'" not in s:
     anchor = "app.get('/api/health'"
@@ -103,8 +113,8 @@ app.post<{ Body: { username?: string; password?: string } }>('/api/auth/login', 
   reply.header('Set-Cookie', `musikbot187_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(WEB_SESSION_TTL_MS / 1000)}`);
   return { ok: true, user: username };
 });
-app.post('/api/auth/logout', async (_req, reply) => {
-  const token = parseCookieHeader(String(_req.headers.cookie ?? '')).musikbot187_session;
+app.post('/api/auth/logout', async (req, reply) => {
+  const token = parseCookieHeader(String(req.headers.cookie ?? '')).musikbot187_session;
   if (token) webSessions.delete(token);
   reply.header('Set-Cookie', 'musikbot187_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
   return { ok: true };
@@ -132,4 +142,4 @@ html = index.read_text(encoding='utf-8')
 if 'web-auth.js' not in html:
     html = html.replace('</body>', '<script src="/web-auth.js"></script></body>', 1) if '</body>' in html else html + '<script src="/web-auth.js"></script>\n'
     index.write_text(html, encoding='utf-8')
-print('web auth patch applied with origin protection')
+print('web auth patch applied with origin protection + first-user gate')
