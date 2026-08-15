@@ -21,16 +21,7 @@ export class DiscordInstance {
     this.client.on('ready', () => {
       this.connected = true;
       this.lastError = '';
-      this.inviteUrl = this.client.generateInvite({
-        scopes: ['bot', 'applications.commands'] as any,
-        permissions: new PermissionsBitField([
-          PermissionsBitField.Flags.ViewChannel,
-          PermissionsBitField.Flags.SendMessages,
-          PermissionsBitField.Flags.Connect,
-          PermissionsBitField.Flags.Speak,
-          PermissionsBitField.Flags.UseApplicationCommands
-        ])
-      });
+      this.inviteUrl = this.buildInviteUrl();
       console.log(`Discord ${cfg.name} online`);
     });
     this.client.on('error', error => { this.connected = false; this.lastError = error instanceof Error ? error.message : String(error); });
@@ -39,8 +30,32 @@ export class DiscordInstance {
     this.player.on(AudioPlayerStatus.Idle, () => { void this.next(); });
   }
 
+  private botIdFromToken(): string {
+    try {
+      const first = String(this.cfg.token || '').split('.')[0];
+      if (!first) return '';
+      return Buffer.from(first, 'base64url').toString('utf8').trim();
+    } catch {
+      return '';
+    }
+  }
+
+  private buildInviteUrl(): string {
+    const clientId = this.client.user?.id || this.botIdFromToken();
+    if (!clientId) return '';
+    const permissions = new PermissionsBitField([
+      PermissionsBitField.Flags.ViewChannel,
+      PermissionsBitField.Flags.SendMessages,
+      PermissionsBitField.Flags.Connect,
+      PermissionsBitField.Flags.Speak,
+      PermissionsBitField.Flags.UseApplicationCommands
+    ]).bitfield.toString();
+    return `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&scope=bot%20applications.commands&permissions=${permissions}`;
+  }
+
   async start() {
     if (!this.cfg.token) { this.connected = false; this.lastError = 'Bot-Token fehlt.'; return; }
+    this.inviteUrl = this.buildInviteUrl();
     try { this.lastError = ''; await this.client.login(this.cfg.token); }
     catch (error) { this.connected = false; this.lastError = error instanceof Error ? error.message : String(error); throw error; }
   }
@@ -90,7 +105,7 @@ export class DiscordInstance {
       queue: this.queue.map(x => x.title),
       volume: this.volume,
       error: this.lastError || null,
-      inviteUrl: this.inviteUrl || null,
+      inviteUrl: this.inviteUrl || this.buildInviteUrl() || null,
       botUser: this.client.user?.tag ?? null
     };
   }
