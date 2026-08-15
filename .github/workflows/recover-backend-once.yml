@@ -9,13 +9,16 @@ permissions:
 
 jobs:
   recover:
-    if: contains(github.event.head_commit.message, 'fix: make playable search items type-safe')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Check recovery marker
+        id: marker
+        run: test -f .github/backend-recovery-needed
       - name: Restore backend from known-good parent and apply fixes
+        if: steps.marker.outcome == 'success'
         run: |
           git checkout 0aaf359a98742b3d50095084be82a6dd9332d880 -- backend/src/index.ts
           python3 - <<'PY'
@@ -27,8 +30,9 @@ jobs:
           s = s.replace("item = [...found.local, ...found.radios, ...found.youtube].find(x => x.kind !== 'spotify');", "item = [...found.local, ...found.radios, ...found.youtube].find((x): x is SearchItem & { kind: SourceKind } => x.kind !== 'spotify');")
           p.write_text(s, encoding='utf-8')
           PY
+          rm -f .github/backend-recovery-needed
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add backend/src/index.ts
+          git add backend/src/index.ts .github/backend-recovery-needed
           git commit -m 'fix: recover backend and enforce playable source types'
           git push
