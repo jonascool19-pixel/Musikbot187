@@ -19,6 +19,10 @@ jobs:
       - name: Install backend dependencies
         working-directory: backend
         run: npm install
+      - name: Apply installer compatibility patch
+        run: |
+          sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' backend/src/index.ts
+          sed -i "s/type SourceKind = 'file' | 'radio' | 'youtube';/type SourceKind = 'file' | 'radio' | 'youtube' | 'spotify';/" backend/src/index.ts
       - name: TypeScript build
         working-directory: backend
         run: npm run build
@@ -29,6 +33,7 @@ jobs:
           grep -q 'MemoryMax=720M' radiobot.service
           grep -q 'MemoryHigh=640M' radiobot.service
           grep -q 'origin: false' install.sh
+          grep -q "type SourceKind = 'file' | 'radio' | 'youtube' | 'spotify';" install.sh
           grep -q '/usr/local/sbin/radiobot-update' install.sh
           grep -q 'MusikBot187' install.sh
           grep -q 'statusChannelId' backend/src/index.ts
