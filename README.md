@@ -4,17 +4,10 @@ Native Discord Radio/Music Bot für Ubuntu 24.04 – ohne Docker.
 
 ## Ein-Befehl-Installation
 
-Auf einer frischen Ubuntu-Installation zuerst die einzige Voraussetzung für den Download installieren:
+Auf einer frischen Ubuntu-Installation genügt dieser eine Befehl:
 
 ```bash
-sudo apt update
-sudo apt install -y curl
-```
-
-Danach den Installer starten:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-final.sh | sudo bash
+sudo apt update && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-final.sh | sudo bash
 ```
 
 Der `install-final.sh`-Installer lädt einen fest gepinnten, vollständig getesteten Code-Stand. Er installiert Node.js 24, FFmpeg, yt-dlp, Deno, MusikBot187, das responsive Web-Dashboard und einen systemd-Dienst. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
