@@ -35,7 +35,7 @@ app_text = app_js.read_text(encoding='utf-8')
 if old_youtube in app_text:
     app_js.write_text(app_text.replace(old_youtube, "if (x.kind === 'youtube') return api(`/api/state/${guildId}/youtube`, { method:'POST', body:JSON.stringify({ value:x.value, label:x.label, append }) });", 1), encoding='utf-8')
 
-# Optional standalone TeamSpeak 3 instance. Interactive installation reads from /dev/tty.
+# Optional standalone TeamSpeak 3 instance. Existing configuration is preserved during non-interactive updates.
 ts3_env = Path('/etc/radiobot/ts3.env')
 ts3_service = Path('/etc/systemd/system/radiobot-ts3.service')
 ts3_dropin = Path('/etc/systemd/system/radiobot.service.d/20-ts3.conf')
@@ -53,15 +53,40 @@ def read_tty(prompt: str, secret: bool = False, default: str = '') -> str:
     except Exception:
         return default
 
-ts3_enabled = read_tty('\nTeamSpeak 3 zusätzlich aktivieren? (y/N): ').strip().lower() == 'y'
+def load_existing_env():
+    values = {}
+    try:
+        for line in ts3_env.read_text(encoding='utf-8').splitlines():
+            if '=' in line:
+                key, value = line.split('=', 1); values[key] = value
+    except Exception:
+        pass
+    return values
+
+existing_ts3 = ts3_env.exists()
+has_tty = os.access('/dev/tty', os.R_OK | os.W_OK)
+ts3_enabled = existing_ts3
+if has_tty:
+    answer = read_tty('\nTeamSpeak 3 zusätzlich aktivieren? (Y/n): ' if existing_ts3 else '\nTeamSpeak 3 zusätzlich aktivieren? (y/N): ').strip().lower()
+    if answer:
+        ts3_enabled = answer == 'y'
+
 if ts3_enabled:
-    while True:
-        ts3_host = read_tty('TS3-Server (Hostname/IP): ').strip()
-        if ts3_host: break
-    ts3_nickname = read_tty('TS3-Bot-Name [MusikBot187 TS3]: ').strip() or 'MusikBot187 TS3'
-    ts3_channel = read_tty('TS3-Kanal [Lobby]: ').strip() or 'Lobby'
-    ts3_server_password = read_tty('TS3-Server-Passwort (leer wenn keines): ', secret=True)
-    ts3_channel_password = read_tty('TS3-Kanal-Passwort (leer wenn keines): ', secret=True)
+    values = load_existing_env()
+    ts3_host = values.get('TEAMSPEAK_HOST', '')
+    if not ts3_host:
+        while True:
+            ts3_host = read_tty('TS3-Server (Hostname/IP): ').strip()
+            if ts3_host: break
+        ts3_nickname = read_tty('TS3-Bot-Name [MusikBot187 TS3]: ').strip() or 'MusikBot187 TS3'
+        ts3_channel = read_tty('TS3-Kanal [Lobby]: ').strip() or 'Lobby'
+        ts3_server_password = read_tty('TS3-Server-Passwort (leer wenn keines): ', secret=True)
+        ts3_channel_password = read_tty('TS3-Kanal-Passwort (leer wenn keines): ', secret=True)
+    else:
+        ts3_nickname = values.get('TEAMSPEAK_NICKNAME', 'MusikBot187 TS3')
+        ts3_channel = values.get('TEAMSPEAK_CHANNEL', 'Lobby')
+        ts3_server_password = values.get('TEAMSPEAK_SERVER_PASSWORD', '')
+        ts3_channel_password = values.get('TEAMSPEAK_CHANNEL_PASSWORD', '')
     ts3_env.parent.mkdir(parents=True, exist_ok=True)
     ts3_env.write_text(
         f'TEAMSPEAK_HOST={ts3_host}\n'
