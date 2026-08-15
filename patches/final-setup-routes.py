@@ -33,6 +33,43 @@ if "app.get('/api/setup/status'" not in s:
         raise SystemExit('health anchor not found')
     s = s.replace(anchor, route_block + "\n" + anchor, 1)
 
+# Final system-control routes: each route is checked independently so one existing route cannot mask missing ones.
+system_routes = r'''app.post('/api/system/bot/disable', async () => {
+  if (!db.botEnabled) return { ok: true, enabled: false };
+  db.botEnabled = false;
+  for (const guild of client.guilds.cache.values()) { try { await stopGuild(guild.id); } catch {} }
+  saveJson(DB_FILE, db);
+  return { ok: true, enabled: false };
+});
+app.post('/api/system/bot/enable', async () => { db.botEnabled = true; saveJson(DB_FILE, db); return { ok: true, enabled: true }; });
+app.post('/api/system/restart', async (_req, reply) => { await privilegedAction('bot-restart'); return reply.code(202).send({ ok: true, action: 'bot-restart' }); });
+app.post('/api/system/reboot', async (_req, reply) => { await privilegedAction('server-reboot'); return reply.code(202).send({ ok: true, action: 'server-reboot' }); });
+app.post('/api/system/shutdown', async (_req, reply) => { await privilegedAction('server-shutdown'); return reply.code(202).send({ ok: true, action: 'server-shutdown' }); });
+'''
+for route in [
+    "'/api/system/bot/disable'",
+    "'/api/system/bot/enable'",
+    "'/api/system/restart'",
+    "'/api/system/reboot'",
+    "'/api/system/shutdown'",
+]:
+    if route not in s:
+        anchor = "app.get('/api/health'"
+        if anchor not in s:
+            raise SystemExit('health anchor not found for system route patch')
+        s = s.replace(anchor, system_routes + "\n" + anchor, 1)
+        break
+# Verify all five routes exist after the patch.
+for route in [
+    "'/api/system/bot/disable'",
+    "'/api/system/bot/enable'",
+    "'/api/system/restart'",
+    "'/api/system/reboot'",
+    "'/api/system/shutdown'",
+]:
+    if route not in s:
+        raise SystemExit(f'missing system route: {route}')
+
 listen_marker = "await app.listen({ port: PORT, host: '0.0.0.0' });"
 if "setup_route_registered=" not in s and listen_marker in s:
     s = s.replace(listen_marker, "console.log(`setup_route_registered=${app.hasRoute({ method: 'GET', url: '/api/setup/status' })}`);\n" + listen_marker, 1)
@@ -41,4 +78,4 @@ if "app.get('/api/setup/status'" not in s:
     raise SystemExit('final setup route insertion failed')
 
 p.write_text(s, encoding='utf-8')
-print('final setup route patch applied')
+print('final setup + system route patch applied')
