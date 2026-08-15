@@ -14,7 +14,7 @@ Der Installer installiert Node.js 24 LTS, FFmpeg, den Bot, das responsive Web-Da
 
 **Laufzeit-Ziel für einen kleinen Proxmox-LXC/CT:** 1 vCPU und 500 MB RAM.
 
-Der systemd-Dienst begrenzt den Bot auf maximal 480 MB RAM und 100 % einer CPU. Für einen einzelnen Discord-Voice-Stream plus Webinterface ist dieser Betriebspunkt vorgesehen.
+Der systemd-Dienst begrenzt den Bot auf maximal 480 MB RAM und **90 % einer CPU**. Dadurch bleiben etwa 10 % eines einzelnen CPU-Kerns als Reserve für das CT-System und kurze Lastspitzen. Der Dienst läuft mit einer leichten Prioritätsabsenkung (`Nice=5`), damit Systemdienste und Netzwerk/Audio nicht unnötig verdrängt werden.
 
 **Während der Installation:** Der Installer benötigt mehr Spielraum. Für `apt`, `npm install` und den TypeScript-Build sollten bis zu **1 GB RAM** eingeplant werden. Nach erfolgreicher Installation fällt der Dienst auf die oben genannten Laufzeitlimits zurück.
 
