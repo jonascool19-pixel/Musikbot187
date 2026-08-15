@@ -121,15 +121,17 @@ s = s.replace(
 )
 UI_JS.write_text(s, encoding='utf-8')
 
-# The browser test must move an item to a position that actually changes the order.
-t = TEST_JS.read_text(encoding='utf-8')
-t = t.replace("await syntheticPointerDrag(page,'[data-tile-id=\"discord\"] .builder-tile-handle','[data-tile-id=\"search\"]');", "await syntheticPointerDrag(page,'[data-tile-id=\"search\"] .builder-tile-handle','[data-tile-id=\"discord\"]');", 1)
-t = t.replace("if(afterDiscord>=afterSearch)throw new Error(`tile drag produced wrong order: discord index ${afterDiscord}, search index ${afterSearch}`);", "if(afterSearch>=afterDiscord)throw new Error(`tile drag produced wrong order: search index ${afterSearch}, discord index ${afterDiscord}`);", 1)
-TEST_JS.write_text(t, encoding='utf-8')
+# The browser test lives in the repository root in CI, not in /opt/radiobot.
+# Patch it when the test tree has been copied; otherwise do not fail the production patch.
+if TEST_JS.exists():
+    t = TEST_JS.read_text(encoding='utf-8')
+    t = t.replace("await syntheticPointerDrag(page,'[data-tile-id=\"discord\"] .builder-tile-handle','[data-tile-id=\"search\"]');", "await syntheticPointerDrag(page,'[data-tile-id=\"search\"] .builder-tile-handle','[data-tile-id=\"discord\"]');", 1)
+    t = t.replace("if(afterDiscord>=afterSearch)throw new Error(`tile drag produced wrong order: discord index ${afterDiscord}, search index ${afterSearch}`);", "if(afterSearch>=afterDiscord)throw new Error(`tile drag produced wrong order: search index ${afterSearch}, discord index ${afterDiscord}`);", 1)
+    TEST_JS.write_text(t, encoding='utf-8')
 
 # Smoke-test the update API with a harmless test-only helper. Production installation provides the real helper.
 helper = Path('/usr/local/sbin/radiobot-update')
 helper.parent.mkdir(parents=True, exist_ok=True)
 helper.write_text('#!/bin/sh\nexit 0\n', encoding='utf-8')
 helper.chmod(0o755)
-print('deterministic pointer drag patch, corrected browser assertion, and CI update stub applied')
+print('deterministic pointer drag patch, optional browser assertion correction, and CI update stub applied')
