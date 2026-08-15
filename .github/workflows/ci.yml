@@ -101,11 +101,15 @@ jobs:
           WEB_PASSWORD: test-password-12345
           WEB_USER: admin
         run: |
+          set -Eeuo pipefail
           echo "CI_WEB_USER=$WEB_USER"
           echo "CI_WEB_PASSWORD_LENGTH=${#WEB_PASSWORD}"
           sudo mkdir -p /var/lib/radiobot
-          sudo python3 /opt/radiobot/scripts/system-metrics.py
-          sudo chmod 0644 /var/lib/radiobot/metrics.json
+          sudo chown -R "$(id -un):$(id -gn)" /var/lib/radiobot
+          rm -f /var/lib/radiobot/metrics.json /var/lib/radiobot/metrics.tmp
+          python3 /opt/radiobot/scripts/system-metrics.py
+          test -s /var/lib/radiobot/metrics.json
+          chmod 0644 /var/lib/radiobot/metrics.json
           sudo rm -f /run/radiobot-privileged.sock
           sudo python3 - <<'PY' &
           import os, socket
@@ -124,11 +128,21 @@ jobs:
           node dist/index.js > "$RUNNER_TEMP/musikbot187.log" 2>&1 &
           pid=$!
           trap 'kill $pid 2>/dev/null || true; kill $socket_pid 2>/dev/null || true' EXIT
+          healthy=0
           for i in {1..20}; do
-            if curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/health >/dev/null; then break; fi
+            if curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/health >/dev/null; then healthy=1; break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              echo 'Backend exited during smoke-test startup' >&2
+              cat "$RUNNER_TEMP/musikbot187.log" >&2 || true
+              exit 1
+            fi
             sleep 1
           done
-          sleep 0.5
+          if [[ "$healthy" -ne 1 ]]; then
+            echo 'Backend health check timed out' >&2
+            cat "$RUNNER_TEMP/musikbot187.log" >&2 || true
+            exit 1
+          fi
           login_code=$(curl -s -c /tmp/musikbot187.cookies -o /tmp/login-response.txt -w '%{http_code}' -H 'Content-Type: application/json' -d '{"username":"admin","password":"test-password-12345"}' http://127.0.0.1:3100/api/auth/login)
           echo "login_http=$login_code"
           test "$login_code" = 200
@@ -173,13 +187,17 @@ jobs:
           WEB_PASSWORD: test-password-12345
           WEB_USER: admin
         run: |
+          set -Eeuo pipefail
           taskset -c 0 node dist/index.js > "$RUNNER_TEMP/musikbot187-perf.log" 2>&1 &
           pid=$!
           trap 'kill $pid 2>/dev/null || true' EXIT
+          healthy=0
           for i in {1..20}; do
-            if curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/health >/dev/null; then break; fi
+            if curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/health >/dev/null; then healthy=1; break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then cat "$RUNNER_TEMP/musikbot187-perf.log"; exit 1; fi
             sleep 1
           done
+          if [[ "$healthy" -ne 1 ]]; then cat "$RUNNER_TEMP/musikbot187-perf.log"; exit 1; fi
           : > "$RUNNER_TEMP/musikbot187-perf-samples.log"
           (
             while kill -0 "$pid" 2>/dev/null; do
