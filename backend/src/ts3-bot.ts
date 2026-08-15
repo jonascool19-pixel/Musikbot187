@@ -25,7 +25,7 @@ function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, m
 
 async function resolveInput(input: string) {
   if (/^https?:\/\//i.test(input)) return input;
-  const result = await new Promise<string>((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     const child = spawn(YTDLP, ['--no-playlist', '--no-warnings', '--get-url', '-f', 'bestaudio/best', `ytsearch1:${input}`]);
     let out = ''; let err = '';
     child.stdout.on('data', data => { out += data.toString(); });
@@ -33,13 +33,12 @@ async function resolveInput(input: string) {
     child.on('error', reject);
     child.on('close', code => code === 0 && out.trim() ? resolve(out.trim().split(/\r?\n/)[0]) : reject(new Error(err.trim() || `yt-dlp exit ${code}`)));
   });
-  return result;
 }
 
 async function resolveLabel(input: string) {
   if (/^https?:\/\//i.test(input)) {
     try {
-      const result = await new Promise<string>((resolve, reject) => {
+      return await new Promise<string>((resolve, reject) => {
         const child = spawn(YTDLP, ['--no-playlist', '--no-warnings', '--get-title', input]);
         let out = ''; let err = '';
         child.stdout.on('data', data => { out += data.toString(); });
@@ -47,7 +46,6 @@ async function resolveLabel(input: string) {
         child.on('error', reject);
         child.on('close', code => code === 0 && out.trim() ? resolve(out.trim()) : reject(new Error(err.trim() || `yt-dlp exit ${code}`)));
       });
-      return result;
     } catch { return input; }
   }
   return input;
@@ -107,7 +105,7 @@ class Ts3MusicBot {
     this.client.on('textMessage', msg => { this.handleMessage(msg.message, msg.targetId).catch(error => console.error('TS3 command:', error)); });
     await this.client.connect();
     await this.client.waitConnected(AbortSignal.timeout(15000));
-    await this.reply(2, this.client.clientId, 'Online. Befehle: !play <Suche/URL>, !queue, !skip, !pause, !resume, !stop, !radio <URL>');
+    console.log('TS3-Bot online. Befehle: !play <Suche/URL>, !queue, !skip, !pause, !resume, !stop, !radio <URL>');
     await this.playNext();
   }
 
