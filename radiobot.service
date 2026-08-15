@@ -2,6 +2,8 @@
 Description=RadioBot - low resource Discord radio service
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -12,7 +14,7 @@ EnvironmentFile=/etc/radiobot/radiobot.env
 Environment=NODE_ENV=production
 Environment=APP_ROOT=/opt/radiobot
 Environment=DATA_DIR=/var/lib/radiobot
-Environment=NODE_OPTIONS=--max-old-space-size=192 --max-semi-space-size=1
+Environment=NODE_OPTIONS=--max-old-space-size=256 --max-semi-space-size=2
 Environment=UV_THREADPOOL_SIZE=1
 ExecStart=/usr/bin/node /opt/radiobot/backend/dist/index.js
 Restart=always
@@ -24,8 +26,8 @@ PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
 ReadWritePaths=/var/lib/radiobot
-MemoryHigh=420M
-MemoryMax=480M
+MemoryHigh=640M
+MemoryMax=720M
 MemorySwapMax=0
 CPUQuota=90%
 CPUQuotaPeriodSec=100ms
