@@ -28,6 +28,7 @@ jobs:
           sudo cp -a scripts/. /opt/radiobot/scripts/
           sudo python3 /opt/radiobot/patches/final-hardening.py
           sudo python3 /opt/radiobot/patches/instance-routing.py
+          sudo python3 /opt/radiobot/patches/final-ui-reliability.py
       - name: Build backend including TS3
         working-directory: /opt/radiobot/backend
         run: |
@@ -35,8 +36,8 @@ jobs:
           npm run build
       - name: Offline TS3 resource benchmark
         run: |
-          chmod +x /opt/radiobot/scripts/ts3-resource-benchmark.sh
-          DURATION=10 OUT="$RUNNER_TEMP/ts3-resource-benchmark.csv" /opt/radiobot/scripts/ts3-resource-benchmark.sh
+          sudo chmod +x /opt/radiobot/scripts/ts3-resource-benchmark.sh
+          sudo env DURATION=10 OUT="$RUNNER_TEMP/ts3-resource-benchmark.csv" /opt/radiobot/scripts/ts3-resource-benchmark.sh
       - name: Upload TS3 benchmark
         uses: actions/upload-artifact@v4
         with:
