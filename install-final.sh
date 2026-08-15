@@ -4,7 +4,7 @@ set -euo pipefail
 # Final pinned installer for MusikBot187.
 # The initial web account is created in the first-run web wizard before
 # Discord/Spotify/YouTube configuration becomes available.
-PINNED_COMMIT="c753f6c1fe29512a23edaf9192a443c2adbb2dc9"
+PINNED_COMMIT="b8db3e2527158ad51618e40ae1b427a7c289bd16"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -26,12 +26,10 @@ from pathlib import Path
 path = Path(__import__('sys').argv[1])
 text = path.read_text()
 text = text.replace('https://deno.land/install.sh | sh\n', 'https://deno.land/install.sh | sh -s -- -y\n')
-text = text.replace('WEB_USER=admin\n', 'WEB_USER=${INSTALL_WEB_USER:-}\n', 1)
-text = text.replace('WEB_PASSWORD=$(openssl rand -hex 16)\n', 'WEB_PASSWORD=${INSTALL_WEB_PASSWORD:-}\n', 1)
 path.write_text(text)
 PY
 
-INSTALL_WEB_USER="${WEB_USER}" INSTALL_WEB_PASSWORD="${WEB_PASSWORD}" bash "$TMP_DIR/install.sh"
+bash "$TMP_DIR/install.sh"
 if [[ -x /usr/bin/python3 && -f /opt/radiobot/patches/instance-routing.py ]]; then python3 /opt/radiobot/patches/instance-routing.py; fi
 if [[ -x /usr/bin/python3 && -f /opt/radiobot/patches/web-auth.py ]]; then
   python3 /opt/radiobot/patches/web-auth.py
