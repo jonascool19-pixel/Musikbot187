@@ -14,12 +14,14 @@ export class Ts3Instance {
   volume = 80;
 
   constructor(cfg: any) { this.cfg = cfg; }
+  isEnabled() { return this.cfg.identity !== '__RADIOBOT_DISABLED__'; }
 
   async start() {
+    if (!this.isEnabled()) { this.connected = false; return; }
     if (!this.cfg.host) return;
     try {
       const mod: any = await import('@honeybbq/teamspeak-client');
-      const identity: any = this.cfg.identity ? identityFromString(this.cfg.identity) : generateIdentity(8);
+      const identity: any = this.cfg.identity && this.cfg.identity !== '__RADIOBOT_DISABLED__' ? identityFromString(this.cfg.identity) : generateIdentity(8);
       this.client = new Client(identity, this.cfg.host, this.cfg.nickname || 'RadioBot TS3', { serverPassword: this.cfg.serverPassword || undefined, defaultChannel: this.cfg.channel || undefined, defaultChannelPassword: this.cfg.channelPassword || undefined });
       this.client.on('connected', () => { this.connected = true; console.log(`TS3 ${this.cfg.name} online`); });
       this.client.on('disconnected', () => { this.connected = false; });
@@ -53,33 +55,31 @@ export class Ts3Instance {
       const ff = spawn(FFMPEG, ['-hide_banner','-loglevel','error','-reconnect','1','-reconnect_streamed','1','-reconnect_delay_max','5','-i',url,'-vn','-af',`volume=${Math.max(0,Math.min(100,this.volume))/100}`,'-c:a','libopus','-application','audio','-frame_duration','20','-b:a','128k','-f','ogg','pipe:1']);
       this.proc = ff;
       const parser = opusPacketsFromOgg();
-      for await (const chunk of ff.stdout) {
-        for (const packet of parser.push(chunk as Buffer)) this.client.sendVoice(packet, 5);
-      }
+      for await (const chunk of ff.stdout) for (const packet of parser.push(chunk as Buffer)) this.client.sendVoice(packet, 5);
       await new Promise<void>(resolve => ff.once('close', () => resolve()));
     } catch (error) { console.error(`TS3 playback ${this.cfg.name}`, error); }
     finally { this.proc = undefined; this.current = undefined; if (this.queue.length) void this.next(); }
   }
 
-  state() { return { id: this.cfg.id, name: this.cfg.name, type: 'ts3', connected: this.connected, playing: this.current?.title ?? null, queue: this.queue.map(x => x.title), volume: this.volume }; }
+  state() { return { id:this.cfg.id, name:this.cfg.name, type:'ts3', enabled:this.isEnabled(), connected:this.connected, playing:this.current?.title ?? null, queue:this.queue.map(x=>x.title), volume:this.volume }; }
 
   private async onMessage(message: any) {
     const content = String(message?.message ?? '').trim();
     if (!content.startsWith('!')) return;
-    const [cmd, ...rest] = content.slice(1).split(/\s+/);
+    const [cmd,...rest] = content.slice(1).split(/\s+/);
     const arg = rest.join(' ');
-    const reply = async (text: string) => this.client.execCommand(`sendtextmessage targetmode=2 target=${Number(message.targetID)} msg=${esc(text)}`);
+    const reply = async(text:string)=>this.client.execCommand(`sendtextmessage targetmode=2 target=${Number(message.targetID)} msg=${esc(text)}`);
     try {
-      switch (cmd?.toLowerCase()) {
+      switch(cmd?.toLowerCase()) {
         case 'play': await this.add(arg); await reply('▶️ Zur Queue hinzugefügt.'); break;
         case 'radio': await this.add(arg); await reply('📻 Radio zur Queue hinzugefügt.'); break;
-        case 'queue': await reply(this.queue.length ? this.queue.map((x, i) => `${i + 1}. ${x.title}`).join('\n') : 'Queue ist leer.'); break;
+        case 'queue': await reply(this.queue.length?this.queue.map((x,i)=>`${i+1}. ${x.title}`).join('\n'):'Queue ist leer.'); break;
         case 'skip': this.proc?.kill('SIGTERM'); await reply('⏭️ Übersprungen.'); break;
-        case 'stop': this.queue = []; this.proc?.kill('SIGTERM'); await reply('⏹️ Gestoppt.'); break;
-        case 'pause': if (this.proc) this.proc.kill('SIGSTOP'); await reply('⏸️ Pausiert.'); break;
-        case 'resume': if (this.proc) this.proc.kill('SIGCONT'); await reply('▶️ Fortgesetzt.'); break;
-        case 'volume': this.volume = Math.max(0, Math.min(100, Number(rest[0] ?? 80))); await reply(`🔊 ${this.volume}%`); break;
+        case 'stop': this.queue=[]; this.proc?.kill('SIGTERM'); await reply('⏹️ Gestoppt.'); break;
+        case 'pause': if(this.proc)this.proc.kill('SIGSTOP'); await reply('⏸️ Pausiert.'); break;
+        case 'resume': if(this.proc)this.proc.kill('SIGCONT'); await reply('▶️ Fortgesetzt.'); break;
+        case 'volume': this.volume=Math.max(0,Math.min(100,Number(rest[0]??80))); await reply(`🔊 ${this.volume}%`); break;
       }
-    } catch (error) { await reply(`Fehler: ${error instanceof Error ? error.message : String(error)}`).catch(() => undefined); }
+    } catch(error){ await reply(`Fehler: ${error instanceof Error?error.message:String(error)}`).catch(()=>undefined); }
   }
 }
