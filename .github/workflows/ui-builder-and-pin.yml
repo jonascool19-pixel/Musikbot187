@@ -130,7 +130,8 @@ jobs:
           grep -q '/api/setup/user' /opt/radiobot/frontend/setup-wizard.js
           grep -q 'bootstrapUserOnly' /opt/radiobot/patches/configure-helper-hardening.py
           grep -q "bootstrap = bool(raw.get('bootstrapUserOnly'))" /opt/radiobot/patches/configure-helper-hardening.py
-          grep -q "not current.get('WEB_PASSWORD')" /opt/radiobot/patches/configure-helper-hardening.py
+          grep -q "if current.get('WEB_PASSWORD')" /opt/radiobot/patches/configure-helper-hardening.py
+          grep -q "raw.get('setupToken') != current.get('SETUP_TOKEN')" /opt/radiobot/patches/configure-helper-hardening.py
       - name: Install Chromium for browser test
         run: |
           npm init -y >/dev/null 2>&1
