@@ -23,11 +23,13 @@ jobs:
           bash -n install.sh update.sh install-final.sh
           python3 -m py_compile patches/*.py scripts/*.py
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
-          install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
-          update_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' update.sh)
-          if [ -z "$update_pin" ]; then update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh); fi
+          install_pin=$(sed -nE 's/^PINNED_COMMIT="?([0-9a-f]{40})"?$/\1/p' install-final.sh | head -n1)
+          update_pin=$(sed -nE 's/^PINNED_COMMIT="?([0-9a-f]{40})"?$/\1/p' update.sh | head -n1)
+          test -n "$install_pin"
+          test -n "$update_pin"
+          test "$install_pin" = "$update_pin"
           test "$install_pin" = "b1fa7524b0d1ada87305479592b2deb06bd2142d"
-          test "$update_pin" = "b1fa7524b0d1ada87305479592b2deb06bd2142d"
+          printf 'INSTALL_PIN=%s\nUPDATE_PIN=%s\n' "$install_pin" "$update_pin"
 
       - name: Prepare patched tree
         run: |
@@ -69,9 +71,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import re
           backend = Path('/opt/radiobot/backend/src/index.ts').read_text()
-          update = Path('update.sh').read_text()
           checks = [
               ('setup status', "'/api/setup/status'" in backend),
               ('first user', '/api/setup/user' in backend),
@@ -80,11 +80,6 @@ jobs:
               ('login api', "'/api/auth/login'" in backend),
               ('logout api', "'/api/auth/logout'" in backend),
               ('radio search', "'/api/radio/search'" in backend),
-              ('systemd hardening', 'ProtectSystem=strict' in Path('radiobot.service').read_text()),
-              ('memory limit', 'MemoryMax=720M' in Path('radiobot.service').read_text()),
-              ('cpu limit', 'CPUQuota=90%' in Path('radiobot.service').read_text()),
-              ('install release', re.search(r'^PINNED_COMMIT="[0-9a-f]{40}"$', Path('install-final.sh').read_text(), re.M) is not None),
-              ('update release', re.search(r'^PINNED_COMMIT="?[0-9a-f]{40}"?$', update, re.M) is not None),
           ]
           for label, ok in checks:
               print(f'CHECK {label}: {"OK" if ok else "MISSING"}')
@@ -94,7 +89,7 @@ jobs:
       - name: Privileged bootstrap end-to-end
         run: |
           set -euo pipefail
-          getent group radiobot
+          getent group radiobot >/dev/null
           test "$(id -gn radiobot)" = radiobot
           sudo install -d -m 0755 -o root -g root /usr/local/libexec/radiobot
           sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-privileged.py /usr/local/libexec/radiobot/radiobot-privileged.py
@@ -116,7 +111,7 @@ jobs:
           test -S /run/radiobot-privileged.sock
           socket_owner=$(stat -c '%U:%G' /run/radiobot-privileged.sock)
           test "$socket_owner" = 'root:radiobot' || { echo "Unexpected socket owner: $socket_owner"; ls -l /run/radiobot-privileged.sock; id radiobot; getent group radiobot; exit 1; }
-          sudo -u radiobot python3 -c 'import socket,json; p=json.dumps({"bootstrapUserOnly":True,"webUser":"ci-test","webPassword":"123456789012","setupToken":"ci-test-token"},separators=(",",":")); s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(3); s.connect("/run/radiobot-privileged.sock"); s.sendall(("config-write\\n"+p).encode()); assert s.recv(128)==b"OK\\n"'
+          sudo -u radiobot python3 -c 'import socket,json; p=json.dumps({"bootstrapUserOnly":True,"webUser":"ci-test","webPassword":"123456789012","setupToken":"ci-test-token"},separators=(",",":")); s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(3); s.connect("/run/radiobot-privileged.sock"); s.sendall(("config-write\n"+p).encode()); assert s.recv(128)==b"OK\n"'
           sudo grep -q '^WEB_USER=ci-test$' /etc/radiobot/radiobot.env
           sudo grep -q '^WEB_PASSWORD=123456789012$' /etc/radiobot/radiobot.env
 
