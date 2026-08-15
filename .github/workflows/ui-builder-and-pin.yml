@@ -94,7 +94,7 @@ jobs:
           grep -q "'/api/auth/login'" /opt/radiobot/backend/src/index.ts
           grep -q "'/api/auth/logout'" /opt/radiobot/backend/src/index.ts
           grep -q 'musikbot187_session' /opt/radiobot/backend/src/index.ts
-          grep -q 'Origin not allowed' /opt/radiobot/backend/src/index.ts
+          grep -q 'ORIGIN_FORBIDDEN' /opt/radiobot/backend/src/index.ts
       - name: Verify clock UI wiring
         run: |
           grep -q 'clock.js' /opt/radiobot/frontend/index.html
