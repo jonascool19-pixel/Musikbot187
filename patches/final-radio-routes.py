@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import subprocess
 
 p = Path('/opt/radiobot/backend/src/index.ts')
 s = p.read_text(encoding='utf-8')
@@ -42,4 +43,7 @@ if "'/api/radio/search'" not in s:
     raise SystemExit('final radio route insertion failed')
 
 p.write_text(s, encoding='utf-8')
+ui = Path('/opt/radiobot/patches/final-ui-reliability.py')
+if ui.exists():
+    subprocess.run(['python3', str(ui)], check=True)
 print('final radio route patch applied')
