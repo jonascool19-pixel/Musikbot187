@@ -69,13 +69,13 @@ async function syntheticPointerDrag(page,sourceSelector,targetSelector){
     const beforeOrder=await page.locator('.grid > [data-tile-id]').evaluateAll(els=>els.map(e=>e.dataset.tileId));
     const beforeDiscord=beforeOrder.indexOf('discord');
     const beforeSearch=beforeOrder.indexOf('search');
-    await syntheticPointerDrag(page,'[data-tile-id="discord"] .builder-tile-handle','[data-tile-id="search"]');
+    await syntheticPointerDrag(page,'[data-tile-id="search"] .builder-tile-handle','[data-tile-id="discord"]');
     const afterOrder=await page.locator('.grid > [data-tile-id]').evaluateAll(els=>els.map(e=>e.dataset.tileId));
     const afterDiscord=afterOrder.indexOf('discord');
     const afterSearch=afterOrder.indexOf('search');
     if(beforeDiscord<0||beforeSearch<0||afterDiscord<0||afterSearch<0)throw new Error('discord/search tiles missing from order');
-    if(afterDiscord===beforeDiscord&&afterSearch===beforeSearch)throw new Error(`tile drag did not change order: discord ${beforeDiscord}->${afterDiscord}, search ${beforeSearch}->${afterSearch}`);
-    if(afterDiscord>=afterSearch)throw new Error(`tile drag produced wrong order: discord index ${afterDiscord}, search index ${afterSearch}`);
+    if(afterDiscord===beforeDiscord&&afterSearch===beforeSearch)throw new Error(`tile drag did not change order: search ${beforeSearch}->${afterSearch}, discord ${beforeDiscord}->${afterDiscord}`);
+    if(afterSearch>=afterDiscord)throw new Error(`tile drag produced wrong order: search index ${afterSearch}, discord index ${afterDiscord}`);
 
     const guildHandle=page.locator('[data-tile-id="discord"] .builder-field').filter({hasText:'Server'}).first().locator(':scope > .builder-field-handle');
     if(await guildHandle.count()!==1)throw new Error('Server field handle not found');
