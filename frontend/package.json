@@ -1,0 +1,1 @@
+{"name":"radiobot-frontend","version":"0.1.0","private":true,"type":"module","scripts":{"build":"vite build","dev":"vite"},"dependencies":{"@vitejs/plugin-react":"^6.0.4","vite":"^7.1.2","react":"^19.1.1","react-dom":"^19.1.1","lucide-react":"^0.468.0"},"devDependencies":{"typescript":"^5.9.2"}}
