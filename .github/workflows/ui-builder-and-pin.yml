@@ -149,11 +149,13 @@ jobs:
           sudo groupadd --system radiobot-ops 2>/dev/null || true
           sudo useradd --system --no-create-home --shell /usr/sbin/nologin radiobot 2>/dev/null || true
           sudo usermod -a -G radiobot-ops radiobot
-          sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-privileged.py /usr/local/libexec/radiobot-privileged.py
+          sudo install -d -m 0755 -o root -g root /usr/local/libexec/radiobot
+          sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-privileged.py /usr/local/libexec/radiobot/radiobot-privileged.py
           sudo install -m 0644 /opt/radiobot/radiobot-privileged.service /etc/systemd/system/radiobot-privileged.service
           sudo systemctl daemon-reload
           sudo systemctl enable --now radiobot-privileged.service
           sudo systemctl restart radiobot-privileged.service
+          test -x /usr/local/libexec/radiobot/radiobot-privileged.py
           test -S /run/radiobot-privileged.sock
           test "$(stat -c '%U:%G' /run/radiobot-privileged.sock)" = 'root:radiobot-ops'
           sudo -u radiobot /usr/bin/python3 - <<'PY'
