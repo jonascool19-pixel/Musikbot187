@@ -48,5 +48,8 @@ if "app.get('/api/setup/status'" not in s:
         raise SystemExit('route anchor not found')
     s = s.replace(anchor, insert + "\n" + anchor, 1)
 
+if "app.get('/api/setup/status'" not in s:
+    raise SystemExit('setup route was not inserted into generated backend')
+
 p.write_text(s, encoding='utf-8')
-print('setup wizard patch applied')
+print('setup wizard patch applied and verified')
