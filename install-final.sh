@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # Final pinned installer for MusikBot187.
-# The application payload is pinned to the installer commit below, which includes
-# the runtime Deno PATH fix and all previous release hardening.
-PINNED_COMMIT="696628e70e1c1e1dbe9a36935f0f7ad28d127432"
+# Includes the Deno runtime PATH fix, curl diagnostics, Node 24/AF_NETLINK
+# compatibility fix, and all previously validated release hardening.
+PINNED_COMMIT="64dfa446a583ff70b7bf4960c70bf49f6f630e04"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
