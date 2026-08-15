@@ -29,15 +29,17 @@ function routeApi(req,res){
 const server=http.createServer((req,res)=>req.url.startsWith('/api/')?routeApi(req,res):null);
 const staticServer=childProcess.spawn('python3',['-m','http.server',String(port),'--directory',root],{stdio:'ignore'});
 
-async function pointerDrag(page,sourceLocator,targetSelector,sourceOffset={x:.5,y:.5},targetOffset={x:.5,y:.5}){
+async function pointerDrag(page,sourceLocator,targetSelector,sourceOffset={x:.5,y:.5},targetOffset={x:.1,y:.5}){
   const source=sourceLocator;const target=page.locator(targetSelector);
+  await target.scrollIntoViewIfNeeded();
   const sb=await source.boundingBox();const tb=await target.boundingBox();
   if(!sb||!tb)throw new Error(`drag boxes missing -> ${targetSelector}`);
-  await page.mouse.move(sb.x+sb.width*sourceOffset.x,sb.y+sb.height*sourceOffset.y);
-  await page.mouse.down();
-  await page.mouse.move(tb.x+tb.width*targetOffset.x,tb.y+tb.height*targetOffset.y,{steps:8});
-  await page.mouse.up();
-  await page.waitForTimeout(180);
+  const vp=page.viewportSize();
+  const sx=sb.x+sb.width*sourceOffset.x; const sy=sb.y+sb.height*sourceOffset.y;
+  const tx=Math.max(4,Math.min(tb.x+tb.width*targetOffset.x,(vp?.width||1280)-6)); const ty=tb.y+tb.height*targetOffset.y;
+  await page.mouse.move(sx,sy); await page.mouse.down();
+  await page.mouse.move(tx,ty,{steps:12}); await page.mouse.up();
+  await page.waitForTimeout(250);
 }
 
 (async()=>{
@@ -45,7 +47,7 @@ async function pointerDrag(page,sourceLocator,targetSelector,sourceOffset={x:.5,
   const apiServer=server.listen(4174,'127.0.0.1');
   try{
     await new Promise(r=>setTimeout(r,300));
-    const page=await browser.newPage();
+    const page=await browser.newPage({viewport:{width:1440,height:1000}});
     page.on('pageerror',err=>console.error('PAGEERROR',err.stack||err.message));
     page.on('console',msg=>{if(msg.type()==='error')console.error('PAGECONSOLE',msg.text());});
     await page.route('**/api/**',async route=>{
@@ -64,12 +66,13 @@ async function pointerDrag(page,sourceLocator,targetSelector,sourceOffset={x:.5,
     if(await page.locator('.builder-field-handle').count()<fieldCount)throw new Error('expected one field drag handle per field');
 
     const firstBefore=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
-    await pointerDrag(page,page.locator('[data-tile-id="discord"] .builder-tile-handle'),'[data-tile-id="search"]');
+    await pointerDrag(page,page.locator('[data-tile-id="discord"] .builder-tile-handle'),'[data-tile-id="search"]',undefined,{x:.1,y:.5});
     const firstAfter=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
     if(firstBefore===firstAfter)throw new Error(`tile drag did not change order: ${firstBefore} -> ${firstAfter}`);
 
     const guildHandle=page.locator('[data-tile-id="discord"] .builder-field').filter({hasText:'Server'}).first().locator(':scope > .builder-field-handle');
-    await pointerDrag(page,guildHandle,'[data-tile-id="radio"] > .builder-field-zone');
+    await guildHandle.scrollIntoViewIfNeeded();
+    await pointerDrag(page,guildHandle,'[data-tile-id="radio"] > .builder-field-zone',undefined,{x:.05,y:.35});
     if(await page.locator('[data-tile-id="radio"] #guild').count()!==1)throw new Error('field drag did not move #guild to radio');
 
     await page.locator('#builderSave').click();
