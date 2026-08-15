@@ -1,0 +1,35 @@
+name: TS3 Resource Benchmark
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ts3-resource:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package.json
+      - name: Install system audio dependency
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Build backend including TS3
+        working-directory: backend
+        run: |
+          npm install --include=dev --no-audit --no-fund
+          npm run build
+      - name: Offline TS3 resource benchmark
+        run: |
+          chmod +x scripts/ts3-resource-benchmark.sh
+          DURATION=10 OUT="$RUNNER_TEMP/ts3-resource-benchmark.csv" ./scripts/ts3-resource-benchmark.sh
+      - name: Upload TS3 benchmark
+        uses: actions/upload-artifact@v4
+        with:
+          name: ts3-resource-benchmark
+          path: ${{ runner.temp }}/ts3-resource-benchmark.csv
+          if-no-files-found: error
