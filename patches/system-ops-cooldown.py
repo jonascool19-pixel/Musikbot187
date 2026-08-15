@@ -79,6 +79,19 @@ async function privilegedAction(action: 'bot-restart' | 'bot-update' | 'server-r
   });
 }
 
+async function privilegedConfigWrite(payload: string) {
+  if (!payload || Buffer.byteLength(payload, 'utf8') > 16 * 1024) throw new Error('Konfiguration zu groß.');
+  return new Promise<void>((resolve, reject) => {
+    const socket = net.createConnection(PRIVILEGED_SOCKET);
+    let done = false;
+    const finish = (error?: Error) => { if (done) return; done = true; socket.destroy(); error ? reject(error) : resolve(); };
+    socket.setTimeout(5000, () => finish(new Error('Konfigurationsdienst antwortet nicht.')));
+    socket.on('error', error => finish(error));
+    socket.on('connect', () => socket.end(`config-write\n${payload}`));
+    socket.on('data', chunk => { const response = String(chunk).trim(); if (response === 'OK') finish(); else finish(new Error('Konfiguration wurde abgelehnt.')); });
+  });
+}
+
 function consumeDiscordCooldown(interaction: any) {
   const guildId = String(interaction.guildId ?? 'dm');
   const userId = String(interaction.user?.id ?? 'unknown');
