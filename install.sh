@@ -46,7 +46,6 @@ cp -a "$SRC_DIR/scripts" "$APP_DIR/"
 cp "$SRC_DIR/radiobot.service" "$APP_DIR/"
 cp "$SRC_DIR/musikbot187-metrics.service" "$APP_DIR/"
 cp "$SRC_DIR/musikbot187-metrics.timer" "$APP_DIR/"
-# Defense-in-depth: same-origin CORS plus radio/setup/playlist patches before compiling.
 sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' "$APP_DIR/backend/src/index.ts"
 python3 "$APP_DIR/patches/enable-radio-features.py"
 python3 "$APP_DIR/patches/fix-radio-feature-patch.py"
@@ -85,11 +84,11 @@ npm prune --omit=dev --no-audit --no-fund
 echo '[6/10] Root-Konfigurations- und Updatehelfer einrichten...'
 cat > /usr/local/sbin/radiobot-configure <<'PYEOF'
 #!/usr/bin/env python3
-import json, os, shlex, subprocess, tempfile
+import json, os, shlex, subprocess, tempfile, sys
 from pathlib import Path
 CONF=Path('/etc/radiobot/radiobot.env')
 allowed={'DISCORD_TOKEN','WEB_USER','WEB_PASSWORD','PORT','DISCORD_CONTROL_ROLE','SPOTIFY_CLIENT_ID','SPOTIFY_CLIENT_SECRET','SPOTIFY_REDIRECT_URI','YOUTUBE_API_KEY','YTDLP_PATH','SETUP_TOKEN'}
-raw=json.load(__import__('sys').stdin)
+raw=json.load(sys.stdin)
 if not isinstance(raw,dict): raise SystemExit('invalid configuration')
 current={}
 if CONF.exists():
@@ -181,7 +180,7 @@ IP=$(hostname -I | awk '{print $1}')
 SETUP=$(grep '^SETUP_TOKEN=' "$CONF_DIR/radiobot.env" | cut -d= -f2- || true)
 echo
 echo "Dashboard: http://$IP:3000"
-if [[ -n "$SETUP" ]]; then echo "Ersteinrichtung: http://$IP:3000/?setup=$SETUP"; fi
+if [[ -n "$SETUP" ]]; then echo "Ersteinrichtung: http://$IP:3000/#setup=$SETUP"; fi
 echo "Konfiguration: /etc/radiobot/radiobot.env"
 echo "Musik:         /var/lib/radiobot/music"
 echo "Status:        radiobot status"
