@@ -33,6 +33,8 @@ jobs:
           sudo python3 /opt/radiobot/patches/ui-builder-pointer.py
           sudo python3 /opt/radiobot/patches/final-hardening.py
           sudo python3 /opt/radiobot/patches/security-final.py
+          sudo python3 /opt/radiobot/patches/final-setup-routes.py
+          sudo python3 /opt/radiobot/patches/web-auth.py
           sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' /opt/radiobot/frontend/index.html
           sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' /opt/radiobot/frontend/index.html
           sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/setup-wizard.js"></script>#' /opt/radiobot/frontend/index.html
@@ -54,9 +56,12 @@ jobs:
           grep -q '^RELEASE_REF=v2.1.0$' update.sh
           grep -q 'ui-builder.js' /opt/radiobot/frontend/index.html
           grep -q 'ui-builder.css' /opt/radiobot/frontend/index.html
+          grep -q 'web-auth.js' /opt/radiobot/frontend/index.html
           grep -q '/api/ui/layout' /opt/radiobot/backend/src/index.ts
           grep -q 'UiField' /opt/radiobot/backend/src/index.ts
           grep -q 'pointerdown' /opt/radiobot/frontend/ui-builder.js
+          grep -q "'/api/auth/login'" /opt/radiobot/backend/src/index.ts
+          grep -q "'/api/auth/logout'" /opt/radiobot/backend/src/index.ts
           grep -q '/api/system/reboot' /opt/radiobot/backend/src/index.ts
           grep -q '/api/system/shutdown' /opt/radiobot/backend/src/index.ts
           grep -q 'DISCORD_COOLDOWN_MS' /opt/radiobot/backend/src/index.ts
@@ -71,11 +76,12 @@ jobs:
           grep -q "api/radio/search" /opt/radiobot/backend/dist/index.js
           test -s frontend/ui-builder.js
           test -s frontend/ui-builder.css
+          test -s frontend/web-auth.js
       - name: FFmpeg audio smoke test
         run: |
           ffmpeg -version | head -n 1
           ffmpeg -hide_banner -loglevel error -f lavfi -i sine=frequency=1000:duration=2 -f s16le -ar 48000 -ac 2 -y /dev/null
-      - name: Smoke test patched web API
+      - name: Smoke test patched web API and session auth
         working-directory: /opt/radiobot/backend
         env:
           PORT: 3100
@@ -112,6 +118,16 @@ jobs:
             sleep 1
           done
           sleep 0.5
+          login_code=$(curl -s -c /tmp/musikbot187.cookies -o /tmp/login-response.txt -w '%{http_code}' -H 'Content-Type: application/json' -d '{"username":"admin","password":"test-password-12345"}' http://127.0.0.1:3100/api/auth/login)
+          echo "login_http=$login_code"
+          test "$login_code" = 200
+          session_code=$(curl -s -b /tmp/musikbot187.cookies -o /tmp/session-response.txt -w '%{http_code}' http://127.0.0.1:3100/api/auth/session)
+          echo "session_http=$session_code"
+          test "$session_code" = 200
+          grep -q 'authenticated' /tmp/session-response.txt
+          logout_code=$(curl -s -b /tmp/musikbot187.cookies -o /tmp/logout-response.txt -w '%{http_code}' -X POST http://127.0.0.1:3100/api/auth/logout)
+          echo "logout_http=$logout_code"
+          test "$logout_code" = 200
           code=$(curl -s -o /tmp/setup-response.txt -w '%{http_code}' -u admin:test-password-12345 http://127.0.0.1:3100/api/setup/status)
           echo "setup_status_http=$code"
           test "$code" = 200 || { cat "$RUNNER_TEMP/musikbot187.log"; exit 1; }
@@ -131,7 +147,7 @@ jobs:
           curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/update >/dev/null
           curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/reboot >/dev/null
           curl -fsS -u admin:test-password-12345 -X POST http://127.0.0.1:3100/api/system/shutdown >/dev/null
-          echo 'setup + radio + protected metrics + origin guard + system controls OK'
+          echo 'setup + radio + login/logout session + protected metrics + origin guard + system controls OK'
       - name: Hardcore web performance test
         working-directory: /opt/radiobot/backend
         env:
