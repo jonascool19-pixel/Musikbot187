@@ -13,6 +13,7 @@
   document.body.appendChild(modal);
   const $ = id => document.getElementById(id);
   let previous = null;
+  let pollTimer = null;
   const fmtBytes = n => { if (!Number.isFinite(n)) return '—'; const u=['B/s','KB/s','MB/s','GB/s']; let i=0; while(n>=1000&&i<u.length-1){n/=1000;i++;} return `${n.toFixed(i?1:0)} ${u[i]}`; };
   const fmtGB = n => `${(n/1e9).toFixed(2)} GB`;
   function update(d){
@@ -26,9 +27,10 @@
     $('mDownTotal').textContent=`Gesamt: ${fmtGB(d.networkRx)}`; $('mUpTotal').textContent=`Gesamt: ${fmtGB(d.networkTx)}`; previous=d;
   }
   async function poll(){try{const r=await fetch('/api/metrics',{cache:'no-store'});if(r.ok)update(await r.json());}catch{}}
-  document.querySelector('#metricsOpen')?.addEventListener('click',()=>{modal.classList.add('open');poll();});
-  $('metricsClose').addEventListener('click',()=>modal.classList.remove('open'));
-  modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open');});
+  function startPolling(){ if(pollTimer) return; previous=null; poll(); pollTimer=setInterval(poll,2000); }
+  function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+  document.querySelector('#metricsOpen')?.addEventListener('click',()=>{modal.classList.add('open');startPolling();});
+  $('metricsClose').addEventListener('click',()=>{modal.classList.remove('open');stopPolling();});
+  modal.addEventListener('click',e=>{if(e.target===modal){modal.classList.remove('open');stopPolling();}});
   modal.querySelectorAll('.metrics-tab').forEach(btn=>btn.addEventListener('click',()=>{modal.querySelectorAll('.metrics-tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');const net=btn.dataset.tab==='network';$('metricsSystem').hidden=net;$('metricsNetwork').hidden=!net;}));
-  setInterval(poll,2000); poll();
 })();
