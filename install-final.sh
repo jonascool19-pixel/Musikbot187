@@ -5,7 +5,7 @@ set -euo pipefail
 # Includes Deno PATH handling, curl diagnostics, Node 24/AF_NETLINK compatibility,
 # privileged setup fixes, deterministic dev-dependency installation, interactive
 # web-account setup, optional TeamSpeak 3 setup, and a colored final status summary.
-PINNED_COMMIT="b84faed7e8a94f9369e9458a7607e603d0260764"
+PINNED_COMMIT="d250e3b274355cca7895fb7cb2f372b83648c9bf"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -68,4 +68,4 @@ printf '%sDashboard:%s http://%s:3000\n' "$CYAN" "$RESET" "$IP"
 if [[ -n "$SETUP" ]]; then printf '%sErsteinrichtung:%s http://%s:3000/#setup=%s\n' "$YELLOW" "$RESET" "$IP" "$SETUP"; fi
 if systemctl is-active --quiet radiobot.service; then printf '%sStatus:%s %släuft%s\n' "$CYAN" "$RESET" "$GREEN" "$RESET"; else printf '%sStatus:%s %snicht aktiv – bitte "radiobot status" prüfen%s\n' "$CYAN" "$RESET" "$YELLOW" "$RESET"; fi
 if systemctl is-active --quiet radiobot-ts3.service; then printf '%sTS3-Instanz:%s %släuft%s\n' "$CYAN" "$RESET" "$GREEN" "$RESET"; elif [[ -f /etc/radiobot/ts3.env ]]; then printf '%sTS3-Instanz:%s %snicht aktiv – bitte "systemctl status radiobot-ts3" prüfen%s\n' "$CYAN" "$RESET" "$YELLOW" "$RESET"; else printf '%sTS3-Instanz:%s deaktiviert\n' "$CYAN" "$RESET"; fi
-printf '%s========================================%s\n\n' "$GREEN" "$RESET"
+printf '%s========================================%s\n\n' "$GREEN" "$RESET" 
