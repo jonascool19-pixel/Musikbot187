@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: 16240e8fe94cd1fca9007fb087800363300ac6ef
+          EXPECTED_PIN: 92231e9ec7f253379bb8e88d9318a940e1c60d21
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -60,6 +60,8 @@ jobs:
           sudo cp -a frontend/. /opt/radiobot/frontend/
           sudo cp -a patches/. /opt/radiobot/patches/
           sudo cp -a scripts/. /opt/radiobot/scripts/
+          sudo cp radiobot-privileged.service /opt/radiobot/radiobot-privileged.service
+          sudo cp radiobot.service /opt/radiobot/radiobot.service
           sudo python3 /opt/radiobot/patches/enable-radio-features.py
           sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
           sudo python3 /opt/radiobot/patches/setup-wizard.py
