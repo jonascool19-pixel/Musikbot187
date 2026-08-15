@@ -2,71 +2,16 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } from 'discord.js';
-import { AudioPlayer, AudioPlayerStatus, NoSubscriberBehavior, VoiceConnection, VoiceConnectionStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } from '@discordjs/voice';
+import { AudioPlayer, AudioPlayerStatus, NoSubscriberBehavior, VoiceConnection, VoiceConnectionStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, StreamType } from '@discordjs/voice';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-
-const PORT = Number(process.env.PORT ?? 3000);
-const DATA_DIR = path.resolve(process.env.DATA_DIR ?? './data');
-const MUSIC_DIR = path.join(DATA_DIR, 'music');
-fs.mkdirSync(MUSIC_DIR, { recursive: true });
-const DB_FILE = path.join(DATA_DIR, 'radiobot.json');
-
-type Radio = { id: string; name: string; url: string; enabled: boolean };
-type GuildState = { guildId: string; voiceChannelId: string; radioId?: string; playing?: string; volume: number; paused: boolean; queue: string[] };
-type Db = { radios: Radio[]; guilds: Record<string, GuildState> };
-function loadDb(): Db { try { return JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch { return { radios: [], guilds: {} }; } }
-function saveDb() { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); }
-function id() { return Math.random().toString(36).slice(2, 10); }
-const db = loadDb();
-const connections = new Map<string, VoiceConnection>();
-const players = new Map<string, AudioPlayer>();
-const currentProcesses = new Map<string, ReturnType<typeof spawn>>();
-function getState(guildId: string): GuildState { db.guilds[guildId] ??= { guildId, voiceChannelId: '', volume: 80, paused: false, queue: [] }; return db.guilds[guildId]; }
-function makePlayer(guildId: string) {
-  let p = players.get(guildId);
-  if (!p) {
-    p = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
-    p.on(AudioPlayerStatus.Idle, () => { currentProcesses.get(guildId)?.kill('SIGTERM'); currentProcesses.delete(guildId); playNext(guildId).catch(console.error); });
-    p.on('error', e => console.error('audio error', guildId, e));
-    players.set(guildId, p);
-  }
-  return p;
-}
-async function ensureConnection(guildId: string) {
-  const state = getState(guildId); if (!state.voiceChannelId) throw new Error('Kein Voice-Channel konfiguriert.');
-  const guild = await client.guilds.fetch(guildId); const channel = await guild.channels.fetch(state.voiceChannelId);
-  if (!channel || channel.type !== 2) throw new Error('Voice-Channel nicht gefunden.');
-  const existing = connections.get(guildId); if (existing && existing.state.status !== VoiceConnectionStatus.Destroyed) return existing;
-  const conn = joinVoiceChannel({ channelId: channel.id, guildId: guild.id, adapterCreator: guild.voiceAdapterCreator });
-  conn.on('error', e => console.error('voice error', guildId, e)); connections.set(guildId, conn); conn.subscribe(makePlayer(guildId)); return conn;
-}
-async function playNext(guildId: string) {
-  const state = getState(guildId); const item = state.queue.shift(); if (!item) { state.playing = undefined; saveDb(); return; }
-  state.playing = item; state.paused = false; saveDb(); const conn = await ensureConnection(guildId); const player = makePlayer(guildId);
-  const args = ['-hide_banner','-loglevel','error','-reconnect','1','-reconnect_streamed','1','-reconnect_delay_max','5','-i',item,'-vn','-f','s16le','-ar','48000','-ac','2','pipe:1'];
-  const ff = spawn('ffmpeg', args, { stdio: ['ignore','pipe','inherit'] }); currentProcesses.set(guildId, ff);
-  const resource = createAudioResource(ff.stdout, { inputType: 1, inlineVolume: true }); resource.volume?.setVolume(Math.max(0, Math.min(2, state.volume / 100));
-  conn.subscribe(player); player.play(resource);
-}
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
-const commands = [new SlashCommandBuilder().setName('radio').setDescription('Radio starten').addStringOption(o => o.setName('name').setDescription('Sendername').setRequired(true)), new SlashCommandBuilder().setName('stop').setDescription('Wiedergabe stoppen')].map(c => c.toJSON());
-client.once('ready', async () => { console.log(`Discord online als ${client.user?.tag}`); if (process.env.DISCORD_TOKEN) try { await new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN).put(Routes.applicationCommands(client.user!.id), { body: commands }); } catch (e) { console.error(e); } });
-client.on('interactionCreate', async i => { if (!i.isChatInputCommand() || !i.guildId) return; const state = getState(i.guildId); if (i.commandName === 'stop') { players.get(i.guildId)?.stop(true); state.queue = []; state.playing = undefined; saveDb(); await i.reply('Wiedergabe gestoppt.'); } if (i.commandName === 'radio') { const n = i.options.getString('name', true); const r = db.radios.find(x => x.name.toLowerCase() === n.toLowerCase()); if (!r) return void i.reply('Sender nicht gefunden.'); state.queue = [r.url]; state.radioId = r.id; saveDb(); await playNext(i.guildId); await i.reply(`▶️ ${r.name}`); } });
-const app = Fastify({ logger: true });
-await app.register(cors, { origin: true }); await app.register(fastifyStatic, { root: path.join(process.cwd(), 'frontend', 'dist'), prefix: '/' });
-app.get('/api/health', async () => ({ ok: true, discord: client.isReady() }));
-app.get('/api/radios', async () => db.radios);
-app.post<{ Body: { name: string; url: string } }>('/api/radios', async req => { const r = { id: id(), name: req.body.name, url: req.body.url, enabled: true }; db.radios.push(r); saveDb(); return r; });
-app.delete<{ Params: { id: string } }>('/api/radios/:id', async req => { db.radios = db.radios.filter(r => r.id !== req.params.id); saveDb(); return { ok: true }; });
-app.get('/api/guilds', async () => client.guilds.cache.map(g => ({ id: g.id, name: g.name })));
-app.get<{ Params: { id: string } }>('/api/guilds/:id', async req => getState(req.params.id));
-app.post<{ Params: { id: string }; Body: { voiceChannelId: string } }>('/api/guilds/:id/voice', async req => { const s = getState(req.params.id); s.voiceChannelId = req.body.voiceChannelId; saveDb(); return s; });
-app.post<{ Params: { id: string }; Body: { radioId: string } }>('/api/guilds/:id/play', async req => { const s = getState(req.params.id); const r = db.radios.find(x => x.id === req.body.radioId); if (!r) throw new Error('Radio nicht gefunden'); s.queue = [r.url]; s.radioId = r.id; saveDb(); await playNext(req.params.id); return s; });
-app.post<{ Params: { id: string } }>('/api/guilds/:id/stop', async req => { const s = getState(req.params.id); players.get(req.params.id)?.stop(true); currentProcesses.get(req.params.id)?.kill('SIGTERM'); currentProcesses.delete(req.params.id); s.queue = []; s.playing = undefined; saveDb(); return s; });
-app.post<{ Params: { id: string }; Body: { volume: number } }>('/api/guilds/:id/volume', async req => { const s = getState(req.params.id); s.volume = Math.max(0, Math.min(100, Number(req.body.volume))); saveDb(); return s; });
-app.get('/api/media', async () => fs.readdirSync(MUSIC_DIR).filter(f => /\.(mp3|wav|ogg|flac|m4a)$/i.test(f)));
-app.get('/*', async (_r, reply) => reply.sendFile('index.html'));
-await app.listen({ port: PORT, host: '0.0.0.0' });
-if (process.env.DISCORD_TOKEN) client.login(process.env.DISCORD_TOKEN).catch(console.error); else console.warn('DISCORD_TOKEN fehlt. Webinterface startet trotzdem.');
+const PORT=Number(process.env.PORT??3000),DATA_DIR=path.resolve(process.env.DATA_DIR??'./data'),MUSIC_DIR=path.join(DATA_DIR,'music'),DB_FILE=path.join(DATA_DIR,'radiobot.json');fs.mkdirSync(MUSIC_DIR,{recursive:true});
+type Radio={id:string;name:string;url:string;enabled:boolean};type GuildState={guildId:string;voiceChannelId:string;radioId?:string;playing?:string;volume:number;paused:boolean;queue:string[]};type Db={radios:Radio[];guilds:Record<string,GuildState>};function loadDb():Db{try{return JSON.parse(fs.readFileSync(DB_FILE,'utf8'))}catch{return{radios:[],guilds:{}}}}function saveDb(){fs.writeFileSync(DB_FILE,JSON.stringify(db,null,2))}function id(){return Math.random().toString(36).slice(2,10)}const db=loadDb();
+const connections=new Map<string,VoiceConnection>(),players=new Map<string,AudioPlayer>(),currentProcesses=new Map<string,ReturnType<typeof spawn>>();function getState(guildId:string):GuildState{db.guilds[guildId]??={guildId,voiceChannelId:'',volume:80,paused:false,queue:[]};return db.guilds[guildId]}
+function makePlayer(guildId:string){let p=players.get(guildId);if(!p){p=createAudioPlayer({behaviors:{noSubscriber:NoSubscriberBehavior.Stop}});p.on(AudioPlayerStatus.Idle,()=>{currentProcesses.get(guildId)?.kill('SIGTERM');currentProcesses.delete(guildId);playNext(guildId).catch(console.error)});p.on('error',e=>console.error('audio error',guildId,e));players.set(guildId,p)}return p}
+async function ensureConnection(guildId:string){const state=getState(guildId);if(!state.voiceChannelId)throw new Error('Kein Voice-Channel konfiguriert.');const guild=await client.guilds.fetch(guildId),channel=await guild.channels.fetch(state.voiceChannelId);if(!channel||channel.type!==2)throw new Error('Voice-Channel nicht gefunden.');const existing=connections.get(guildId);if(existing&&existing.state.status!==VoiceConnectionStatus.Destroyed)return existing;const conn=joinVoiceChannel({channelId:channel.id,guildId:guild.id,adapterCreator:guild.voiceAdapterCreator});conn.on('error',e=>console.error('voice error',guildId,e));connections.set(guildId,conn);conn.subscribe(makePlayer(guildId));return conn}
+async function playNext(guildId:string){const state=getState(guildId),item=state.queue.shift();if(!item){state.playing=undefined;saveDb();return}state.playing=item;state.paused=false;saveDb();const conn=await ensureConnection(guildId),player=makePlayer(guildId),args=['-hide_banner','-loglevel','error','-reconnect','1','-reconnect_streamed','1','-reconnect_delay_max','5','-i',item,'-vn','-f','s16le','-ar','48000','-ac','2','pipe:1'],ff=spawn('ffmpeg',args,{stdio:['ignore','pipe','inherit']});currentProcesses.set(guildId,ff);const resource=createAudioResource(ff.stdout,{inputType:StreamType.Raw,inlineVolume:true});resource.volume?.setVolume(Math.max(0,Math.min(2,state.volume/100)));conn.subscribe(player);player.play(resource)}
+const client=new Client({intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildVoiceStates]}),commands=[new SlashCommandBuilder().setName('radio').setDescription('Radio starten').addStringOption(o=>o.setName('name').setDescription('Sendername').setRequired(true)),new SlashCommandBuilder().setName('stop').setDescription('Wiedergabe stoppen')].map(c=>c.toJSON());
+client.once('ready',async()=>{console.log(`Discord online als ${client.user?.tag}`);if(process.env.DISCORD_TOKEN)try{await new REST({version:'10'}).setToken(process.env.DISCORD_TOKEN).put(Routes.applicationCommands(client.user!.id),{body:commands})}catch(e){console.error(e)}});client.on('interactionCreate',async i=>{if(!i.isChatInputCommand()||!i.guildId)return;const state=getState(i.guildId);if(i.commandName==='stop'){players.get(i.guildId)?.stop(true);state.queue=[];state.playing=undefined;saveDb();await i.reply('Wiedergabe gestoppt.')}if(i.commandName==='radio'){const n=i.options.getString('name',true),r=db.radios.find(x=>x.name.toLowerCase()===n.toLowerCase());if(!r)return void i.reply('Sender nicht gefunden.');state.queue=[r.url];state.radioId=r.id;saveDb();await playNext(i.guildId);await i.reply(`▶️ ${r.name}`)}});
+const app=Fastify({logger:true});await app.register(cors,{origin:true});await app.register(fastifyStatic,{root:path.join(process.cwd(),'frontend','dist'),prefix:'/'});app.get('/api/health',async()=>({ok:true,discord:client.isReady()}));app.get('/api/radios',async()=>db.radios);app.post<{Body:{name:string;url:string}}>('/api/radios',async req=>{const r={id:id(),name:req.body.name,url:req.body.url,enabled:true};db.radios.push(r);saveDb();return r});app.delete<{Params:{id:string}}>('/api/radios/:id',async req=>{db.radios=db.radios.filter(r=>r.id!==req.params.id);saveDb();return{ok:true}});app.get('/api/guilds',async()=>client.guilds.cache.map(g=>({id:g.id,name:g.name})));app.get<{Params:{id:string}}>('/api/guilds/:id',async req=>getState(req.params.id));app.post<{Params:{id:string};Body:{voiceChannelId:string}}>('/api/guilds/:id/voice',async req=>{const s=getState(req.params.id);s.voiceChannelId=req.body.voiceChannelId;saveDb();return s});app.post<{Params:{id:string};Body:{radioId:string}}>('/api/guilds/:id/play',async req=>{const s=getState(req.params.id),r=db.radios.find(x=>x.id===req.body.radioId);if(!r)throw new Error('Radio nicht gefunden');s.queue=[r.url];s.radioId=r.id;saveDb();await playNext(req.params.id);return s});app.post<{Params:{id:string}}>('/api/guilds/:id/stop',async req=>{const s=getState(req.params.id);players.get(req.params.id)?.stop(true);currentProcesses.get(req.params.id)?.kill('SIGTERM');currentProcesses.delete(req.params.id);s.queue=[];s.playing=undefined;saveDb();return s});app.post<{Params:{id:string};Body:{volume:number}}>('/api/guilds/:id/volume',async req=>{const s=getState(req.params.id);s.volume=Math.max(0,Math.min(100,Number(req.body.volume)));saveDb();return s});app.get('/api/media',async()=>fs.readdirSync(MUSIC_DIR).filter(f=>/\.(mp3|wav|ogg|flac|m4a)$/i.test(f)));app.get('/*',async(_r,reply)=>reply.sendFile('index.html'));await app.listen({port:PORT,host:'0.0.0.0'});if(process.env.DISCORD_TOKEN)client.login(process.env.DISCORD_TOKEN).catch(console.error);else console.warn('DISCORD_TOKEN fehlt. Webinterface startet trotzdem.');
