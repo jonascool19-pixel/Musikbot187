@@ -101,11 +101,11 @@ jobs:
           pid=$!
           trap 'kill $pid 2>/dev/null || true; kill $socket_pid 2>/dev/null || true' EXIT
           for i in {1..20}; do
-            if curl -fsS http://127.0.0.1:3100/api/health; then break; fi
+            if curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/health >/dev/null; then break; fi
             sleep 1
           done
-          curl -fsS http://127.0.0.1:3100/api/setup/status >/dev/null
-          curl -fsS 'http://127.0.0.1:3100/api/radio/search?q=Beck%20FM' >/dev/null
+          curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/setup/status >/dev/null
+          curl -fsS -u admin:test-password-12345 'http://127.0.0.1:3100/api/radio/search?q=Beck%20FM' >/dev/null
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/metrics)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' -u admin:test-password-12345 http://127.0.0.1:3100/api/settings)" = 403
           curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/metrics >/dev/null
@@ -130,7 +130,7 @@ jobs:
           pid=$!
           trap 'kill $pid 2>/dev/null || true' EXIT
           for i in {1..20}; do
-            if curl -fsS http://127.0.0.1:3100/api/health >/dev/null; then break; fi
+            if curl -fsS -u admin:test-password-12345 http://127.0.0.1:3100/api/health >/dev/null; then break; fi
             sleep 1
           done
           test -d "/proc/$pid"
@@ -143,10 +143,12 @@ jobs:
           ) &
           monitor=$!
           python3 - <<'PY'
-          import concurrent.futures, urllib.request, time
+          import base64, concurrent.futures, urllib.request, time
           URL='http://127.0.0.1:3100/api/health'; TOTAL=2000; WORKERS=25
+          AUTH='Basic '+base64.b64encode(b'admin:test-password-12345').decode()
           def hit(_):
-              with urllib.request.urlopen(URL,timeout=5) as r:
+              req=urllib.request.Request(URL,headers={'Authorization':AUTH})
+              with urllib.request.urlopen(req,timeout=5) as r:
                   body=r.read()
                   if r.status!=200 or b'"ok":true' not in body: raise RuntimeError(r.status)
           start=time.perf_counter(); errors=0
