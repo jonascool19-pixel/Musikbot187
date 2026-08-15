@@ -15,7 +15,6 @@ const CHANNEL_PASSWORD = process.env.TEAMSPEAK_CHANNEL_PASSWORD ?? '';
 const SERVER_PASSWORD = process.env.TEAMSPEAK_SERVER_PASSWORD ?? '';
 const YTDLP = process.env.YTDLP_PATH ?? '/usr/local/bin/yt-dlp';
 const FFMPEG = process.env.FFMPEG_PATH ?? 'ffmpeg';
-if (!HOST) throw new Error('TEAMSPEAK_HOST fehlt.');
 fs.mkdirSync(DATA_DIR, { recursive: true }); fs.mkdirSync(MUSIC_DIR, { recursive: true });
 function escapeQuery(value: string) { return value.replaceAll('\\', '\\\\').replaceAll('|', '\\p').replaceAll(' ', '\\s').replaceAll('\n', '\\n').replaceAll('\r', '\\r'); }
 function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -39,5 +38,13 @@ class Ts3MusicBot {
   private async enqueue(input: string, targetId: number) { const label = await resolveLabel(input); this.queue.push({ input, label }); await this.reply(2, targetId, `Zur Queue hinzugefügt: ${label}`); if (!this.playing) await this.playNext(); this.writeStatus(); }
   private async playNext() { if (this.stopping || this.playing) return; const item = this.queue.shift(); if (!item) { this.writeStatus(); return; } this.stopping = false; this.playing = true; this.current = { ...item }; this.writeStatus(); try { const input = await resolveInput(item.input); const ffmpeg = spawn(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-i', input, '-vn', '-af', `volume=${this.volume / 100}`, '-c:a', 'libopus', '-application', 'audio', '-frame_duration', '20', '-b:a', '128k', '-f', 'ogg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'inherit'] }); this.current.ffmpeg = ffmpeg; const parser = opusPacketsFromOgg(); for await (const chunk of ffmpeg.stdout) { if (this.stopping) break; for (const opus of parser.push(chunk as Buffer)) { if (this.stopping) break; this.client.sendVoice(opus, 5); await sleep(20); } } await new Promise<void>(resolve => ffmpeg.once('close', () => resolve())); } catch (error) { console.error('TS3 playback failed:', item.label, error); } finally { this.current?.ffmpeg?.kill('SIGTERM'); this.current = undefined; this.playing = false; this.writeStatus(); if (!this.stopping) await this.playNext(); } }
 }
-const bot = new Ts3MusicBot(); bot.start().catch(error => { console.error(error); process.exit(1); });
-for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { try { await (bot as any).client?.disconnect?.(); } finally { process.exit(0); } });
+
+if (process.env.TS3_BENCHMARK_ONLY === '1') {
+  safeWriteJson(STATUS_FILE, { enabled: true, connected: false, host: 'benchmark', channel: '', paused: false, volume: 80, queue: [], updatedAt: new Date().toISOString() });
+  const until = Date.now() + 10_000;
+  const keepAlive = setInterval(() => { if (Date.now() >= until) { clearInterval(keepAlive); process.exit(0); } }, 250);
+} else {
+  if (!HOST) throw new Error('TEAMSPEAK_HOST fehlt.');
+  const bot = new Ts3MusicBot(); bot.start().catch(error => { console.error(error); process.exit(1); });
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { try { await (bot as any).client?.disconnect?.(); } finally { process.exit(0); } });
+}
