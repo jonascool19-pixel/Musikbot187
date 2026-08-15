@@ -9,6 +9,7 @@ StartLimitBurst=5
 Type=simple
 User=radiobot
 Group=radiobot
+SupplementaryGroups=radiobot-ops
 WorkingDirectory=/opt/radiobot
 EnvironmentFile=/etc/radiobot/radiobot.env
 Environment=NODE_ENV=production
