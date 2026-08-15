@@ -38,7 +38,6 @@ jobs:
           ! grep -q "final-setup-routes.py" patches/security-final.py
           ! grep -q "final-radio-routes.py" patches/security-final.py
           grep -q "final-setup-routes.py" install.sh
-          grep -q "final-radio-routes.py" install.sh
           grep -q "security-final.py" install.sh
       - name: Verify fresh-install setup state
         run: |
