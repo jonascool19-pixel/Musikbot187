@@ -33,32 +33,20 @@ export class DiscordInstance {
       });
       console.log(`Discord ${cfg.name} online`);
     });
+    this.client.on('error', error => { this.connected = false; this.lastError = error instanceof Error ? error.message : String(error); });
+    this.client.on('shardError', error => { this.connected = false; this.lastError = error instanceof Error ? error.message : String(error); });
     this.client.on('messageCreate', m => this.onMessage(m).catch(e => console.error('Discord command', e)));
     this.player.on(AudioPlayerStatus.Idle, () => { void this.next(); });
   }
 
   async start() {
-    if (!this.cfg.token) {
-      this.connected = false;
-      this.lastError = 'Bot-Token fehlt.';
-      return;
-    }
-    try {
-      await this.client.login(this.cfg.token);
-    } catch (error) {
-      this.connected = false;
-      this.lastError = error instanceof Error ? error.message : String(error);
-      throw error;
-    }
+    if (!this.cfg.token) { this.connected = false; this.lastError = 'Bot-Token fehlt.'; return; }
+    try { this.lastError = ''; await this.client.login(this.cfg.token); }
+    catch (error) { this.connected = false; this.lastError = error instanceof Error ? error.message : String(error); throw error; }
   }
 
-  async stop() {
-    this.ffmpeg?.kill('SIGTERM');
-    this.connection?.destroy();
-    this.connected = false;
-    this.inviteUrl = '';
-    await this.client.destroy();
-  }
+  async stop() { this.ffmpeg?.kill('SIGTERM'); this.connection?.destroy(); this.connected = false; this.inviteUrl = ''; await this.client.destroy(); }
+  async restart() { await this.stop(); await this.start(); }
 
   private async ensureVoice() {
     const guild = this.client.guilds.cache.get(this.cfg.guildId);
@@ -73,16 +61,14 @@ export class DiscordInstance {
     if (!input?.trim()) throw new Error('Keine Quelle angegeben.');
     const title = await mediaTitle(input);
     const item = { input, title };
-    if (playNow) { this.ffmpeg?.kill('SIGTERM'); this.queue.unshift(item); this.player.stop(); }
-    else this.queue.push(item);
+    if (playNow) { this.ffmpeg?.kill('SIGTERM'); this.queue.unshift(item); this.player.stop(); } else this.queue.push(item);
     if (!this.current) await this.next();
     return item;
   }
 
   async next() {
     if (this.current) return;
-    const item = this.queue.shift();
-    if (!item) return;
+    const item = this.queue.shift(); if (!item) return;
     this.current = item;
     try {
       await this.ensureVoice();
