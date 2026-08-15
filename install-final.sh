@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Pins to the last commit that contains the complete installer payload.
-PINNED_COMMIT="a28fdae6aaa89e662e39dde641f2e25bba41f692"
+# Pins to the complete installer payload containing the stable privileged socket path.
+PINNED_COMMIT="15ae208124328dcff68f44e8e06468a7327f8f82"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
