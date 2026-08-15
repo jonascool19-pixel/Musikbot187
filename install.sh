@@ -5,6 +5,7 @@ if [[ $EUID -ne 0 ]]; then echo 'Bitte als root ausführen.'; exit 1; fi
 APP_DIR=/opt/radiobot
 DATA_DIR=/var/lib/radiobot
 CONF_DIR=/etc/radiobot
+ROOT_BIN_DIR=/usr/local/libexec/radiobot
 TMP_DIR=$(mktemp -d)
 REPO_TGZ=https://codeload.github.com/jonascool19-pixel/radiobot/tar.gz/refs/heads/main
 cleanup(){ rm -rf "$TMP_DIR"; }
@@ -37,7 +38,7 @@ curl -fsSL "$REPO_TGZ" -o "$TMP_DIR/radiobot.tgz"
 tar -xzf "$TMP_DIR/radiobot.tgz" -C "$TMP_DIR"
 SRC_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name 'radiobot-main-*' | head -n1)
 [[ -n "$SRC_DIR" ]] || { echo 'Download fehlgeschlagen.'; exit 1; }
-mkdir -p "$APP_DIR" "$DATA_DIR/music" "$CONF_DIR"
+mkdir -p "$APP_DIR" "$DATA_DIR/music" "$CONF_DIR" "$ROOT_BIN_DIR"
 rm -rf "$APP_DIR/backend" "$APP_DIR/frontend" "$APP_DIR/patches" "$APP_DIR/scripts"
 cp -a "$SRC_DIR/backend" "$APP_DIR/"
 cp -a "$SRC_DIR/frontend" "$APP_DIR/"
@@ -46,6 +47,7 @@ cp -a "$SRC_DIR/scripts" "$APP_DIR/"
 cp "$SRC_DIR/radiobot.service" "$APP_DIR/"
 cp "$SRC_DIR/musikbot187-metrics.service" "$APP_DIR/"
 cp "$SRC_DIR/musikbot187-metrics.timer" "$APP_DIR/"
+cp "$SRC_DIR/radiobot-privileged.service" "$APP_DIR/"
 python3 "$APP_DIR/patches/enable-radio-features.py"
 python3 "$APP_DIR/patches/fix-radio-feature-patch.py"
 python3 "$APP_DIR/patches/setup-wizard.py"
@@ -57,6 +59,12 @@ if ! grep -q 'setup-wizard.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<s
 if ! grep -q 'system-controls.js' "$APP_DIR/frontend/index.html"; then sed -i 's#</body>#<script src="/system-controls.js"></script></body>#' "$APP_DIR/frontend/index.html"; fi
 if ! id -u radiobot >/dev/null 2>&1; then useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin radiobot; fi
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"; chmod 700 "$DATA_DIR"
+# Root-only copy of the privileged controller. The bot user must never be able to modify code executed as root.
+install -m 0755 -o root -g root "$APP_DIR/scripts/radiobot-privileged.py" "$ROOT_BIN_DIR/radiobot-privileged.py"
+install -m 0644 -o root -g root "$APP_DIR/radiobot-privileged.service" /etc/systemd/system/radiobot-privileged.service
+chmod 0755 "$ROOT_BIN_DIR"; chown root:root "$ROOT_BIN_DIR"
+rm -f "$APP_DIR/scripts/radiobot-privileged.py"
+
 if [[ ! -f "$CONF_DIR/radiobot.env" ]]; then
   SETUP_TOKEN=$(openssl rand -hex 24)
   cat > "$CONF_DIR/radiobot.env" <<EOF
@@ -155,7 +163,7 @@ install -m 0644 "$APP_DIR/radiobot.service" /etc/systemd/system/radiobot.service
 install -m 0644 "$APP_DIR/musikbot187-metrics.service" /etc/systemd/system/musikbot187-metrics.service
 install -m 0644 "$APP_DIR/musikbot187-metrics.timer" /etc/systemd/system/musikbot187-metrics.timer
 install -m 0644 "$APP_DIR/radiobot-privileged.service" /etc/systemd/system/radiobot-privileged.service
-chmod 0755 "$APP_DIR/scripts/system-metrics.py" "$APP_DIR/scripts/radiobot-privileged.py"
+chmod 0755 "$APP_DIR/scripts/system-metrics.py"
 python3 "$APP_DIR/scripts/system-metrics.py"
 systemctl daemon-reload
 systemctl enable --now radiobot-privileged.service
