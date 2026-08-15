@@ -42,9 +42,20 @@ compat = ROOT / 'patches/ensure-privileged-config.py'
 if compat.exists():
     subprocess.run(['python3', str(compat)], check=True)
 
-# Security patching must not start systemd services or create a second socket
-# group. The installer owns user creation and the privileged socket uses the
-# existing radiobot primary group.
+# Establish one deterministic Unix identity before install/CI lifecycle steps.
+# The privileged controller and radiobot.service both use the primary
+# "radiobot" group for the socket and service permissions.
+if subprocess.run(['getent', 'group', 'radiobot'], capture_output=True).returncode != 0:
+    subprocess.run(['groupadd', '--system', 'radiobot'], check=True)
+
+if subprocess.run(['id', '-u', 'radiobot'], capture_output=True).returncode != 0:
+    subprocess.run([
+        'useradd', '--system', '--no-create-home',
+        '--gid', 'radiobot', '--shell', '/usr/sbin/nologin', 'radiobot'
+    ], check=True)
+else:
+    subprocess.run(['usermod', '--gid', 'radiobot', 'radiobot'], check=True)
+
 service = ROOT / 'radiobot.service'
 if service.exists():
     ss = service.read_text(encoding='utf-8')
