@@ -46,6 +46,7 @@ jobs:
           sudo python3 /opt/radiobot/patches/setup-wizard.py
           sudo python3 /opt/radiobot/patches/ui-builder.py
           sudo python3 /opt/radiobot/patches/ui-builder-pointer.py
+          sudo python3 /opt/radiobot/patches/final-ui-handles.py
           sudo python3 /opt/radiobot/patches/final-hardening.py
           sudo python3 /opt/radiobot/patches/instance-routing.py
           sudo python3 /opt/radiobot/patches/security-final.py
@@ -89,6 +90,7 @@ jobs:
           grep -q 'UiField' /opt/radiobot/backend/src/index.ts
           grep -q '/api/ui/layout' /opt/radiobot/backend/src/index.ts
           grep -q 'builder-field-zone' /opt/radiobot/frontend/ui-builder.js
+          grep -q 'builder-tile-handle' /opt/radiobot/frontend/ui-builder.js
           grep -q 'pointerdown' /opt/radiobot/frontend/ui-builder.js
           grep -q 'pointerup' /opt/radiobot/frontend/ui-builder.js
           grep -q "'/api/auth/login'" /opt/radiobot/backend/src/index.ts
