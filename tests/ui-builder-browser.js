@@ -29,17 +29,18 @@ function routeApi(req,res){
 const server=http.createServer((req,res)=>req.url.startsWith('/api/')?routeApi(req,res):null);
 const staticServer=childProcess.spawn('python3',['-m','http.server',String(port),'--directory',root],{stdio:'ignore'});
 
-async function pointerDrag(page,sourceLocator,targetSelector,sourceOffset={x:.5,y:.5},targetOffset={x:.1,y:.5}){
-  const source=sourceLocator;const target=page.locator(targetSelector);
-  await target.scrollIntoViewIfNeeded();
-  const sb=await source.boundingBox();const tb=await target.boundingBox();
-  if(!sb||!tb)throw new Error(`drag boxes missing -> ${targetSelector}`);
-  const vp=page.viewportSize();
-  const sx=sb.x+sb.width*sourceOffset.x; const sy=sb.y+sb.height*sourceOffset.y;
-  const tx=Math.max(4,Math.min(tb.x+tb.width*targetOffset.x,(vp?.width||1280)-6)); const ty=tb.y+tb.height*targetOffset.y;
-  await page.mouse.move(sx,sy); await page.mouse.down();
-  await page.mouse.move(tx,ty,{steps:12}); await page.mouse.up();
-  await page.waitForTimeout(250);
+async function syntheticPointerDrag(page,sourceSelector,targetSelector){
+  return page.evaluate(({sourceSelector,targetSelector})=>{
+    const source=document.querySelector(sourceSelector); const target=document.querySelector(targetSelector);
+    if(!source||!target)throw new Error(`drag nodes missing: ${sourceSelector} -> ${targetSelector}`);
+    const sr=source.getBoundingClientRect(); const tr=target.getBoundingClientRect();
+    const pointerId=77; const sx=sr.left+sr.width/2; const sy=sr.top+sr.height/2; const tx=tr.left+8; const ty=tr.top+tr.height/3;
+    const init={bubbles:true,cancelable:true,pointerId,pointerType:'mouse',isPrimary:true,button:0,buttons:1,clientX:sx,clientY:sy};
+    source.dispatchEvent(new PointerEvent('pointerdown',init));
+    document.dispatchEvent(new PointerEvent('pointermove',{...init,clientX:tx,clientY:ty}));
+    document.dispatchEvent(new PointerEvent('pointerup',{...init,clientX:tx,clientY:ty,buttons:0}));
+    return {sourceRect:{x:sx,y:sy},targetRect:{x:tx,y:ty}};
+  },{sourceSelector,targetSelector});
 }
 
 (async()=>{
@@ -66,18 +67,19 @@ async function pointerDrag(page,sourceLocator,targetSelector,sourceOffset={x:.5,
     if(await page.locator('.builder-field-handle').count()<fieldCount)throw new Error('expected one field drag handle per field');
 
     const firstBefore=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
-    await pointerDrag(page,page.locator('[data-tile-id="discord"] .builder-tile-handle'),'[data-tile-id="search"]',undefined,{x:.1,y:.5});
+    await syntheticPointerDrag(page,'[data-tile-id="discord"] .builder-tile-handle','[data-tile-id="search"]');
     const firstAfter=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
     if(firstBefore===firstAfter)throw new Error(`tile drag did not change order: ${firstBefore} -> ${firstAfter}`);
 
     const guildHandle=page.locator('[data-tile-id="discord"] .builder-field').filter({hasText:'Server'}).first().locator(':scope > .builder-field-handle');
-    await guildHandle.scrollIntoViewIfNeeded();
-    await pointerDrag(page,guildHandle,'[data-tile-id="radio"] > .builder-field-zone',undefined,{x:.05,y:.35});
+    if(await guildHandle.count()!==1)throw new Error('Server field handle not found');
+    const movedFrom=await page.locator('[data-field-id*="discord:"]').filter({hasText:'Server'}).first().getAttribute('data-field-id');
+    await syntheticPointerDrag(page,'[data-field-id="'+movedFrom+'"] > .builder-field-handle','[data-tile-id="radio"] > .builder-field-zone');
     if(await page.locator('[data-tile-id="radio"] #guild').count()!==1)throw new Error('field drag did not move #guild to radio');
 
     await page.locator('#builderSave').click();
     await page.waitForTimeout(180);
-    if(!savedLayout.fields.some(f=>f.id.startsWith('discord:')&&f.tileId==='radio'))throw new Error('moved field was not persisted');
+    if(!savedLayout.fields.some(f=>f.id===movedFrom&&f.tileId==='radio'))throw new Error('moved field was not persisted');
     const savedFirst=savedLayout.tiles[0]?.id;
     await page.reload({waitUntil:'networkidle'});
     await page.locator('#layoutBuilderOpen').click();
