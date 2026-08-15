@@ -10,7 +10,9 @@ Auf einer frischen Ubuntu-Installation genügt dieser eine Befehl. Er aktualisie
 sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-final.sh | sudo bash
 ```
 
-Der `install-final.sh`-Installer lädt einen fest gepinnten, vollständig getesteten Code-Stand. Er installiert Node.js 24, FFmpeg, yt-dlp, Deno, MusikBot187, das responsive Web-Dashboard und einen systemd-Dienst. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
+Während der Installation fragt der Installer auf einem interaktiven Terminal verbindlich nach **Web-Benutzername und Web-Passwort**. Das Passwort muss mindestens 12 Zeichen lang sein und wird zweimal bestätigt. Anschließend werden Dashboard, Benutzername und Ersteinrichtungs-URL farblich hervorgehoben ausgegeben. Deno wird ohne zusätzliche Rückfrage installiert.
+
+Der `install-final.sh`-Installer lädt einen fest gepinnten Code-Stand und baut das Backend reproduzierbar mit seinen Build-Abhängigkeiten. Er installiert Node.js 24, FFmpeg, yt-dlp, Deno, MusikBot187, das responsive Web-Dashboard und einen systemd-Dienst. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
 
 Nach der Installation ist keine manuelle Linux-Konfiguration nötig: Der Installer zeigt eine einmalige **Ersteinrichtungs-URL** an. Darüber werden Discord, Web-Zugang, Spotify, YouTube und weitere Einstellungen direkt im Browser eingerichtet. Der einmalige Code steckt im URL-Fragment (`#setup=...`) und wird nach erfolgreicher Einrichtung gelöscht.
 
