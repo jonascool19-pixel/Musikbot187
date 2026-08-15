@@ -18,15 +18,25 @@ jobs:
           cache-dependency-path: backend/package.json
       - name: Install system audio dependency
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Prepare patched backend
+        run: |
+          sudo rm -rf /opt/radiobot
+          sudo mkdir -p /opt/radiobot/backend /opt/radiobot/patches /opt/radiobot/frontend /opt/radiobot/scripts
+          sudo cp -a backend/. /opt/radiobot/backend/
+          sudo cp -a patches/. /opt/radiobot/patches/
+          sudo cp -a frontend/. /opt/radiobot/frontend/
+          sudo cp -a scripts/. /opt/radiobot/scripts/
+          sudo python3 /opt/radiobot/patches/final-hardening.py
+          sudo python3 /opt/radiobot/patches/instance-routing.py
       - name: Build backend including TS3
-        working-directory: backend
+        working-directory: /opt/radiobot/backend
         run: |
           npm install --include=dev --no-audit --no-fund
           npm run build
       - name: Offline TS3 resource benchmark
         run: |
-          chmod +x scripts/ts3-resource-benchmark.sh
-          DURATION=10 OUT="$RUNNER_TEMP/ts3-resource-benchmark.csv" ./scripts/ts3-resource-benchmark.sh
+          chmod +x /opt/radiobot/scripts/ts3-resource-benchmark.sh
+          DURATION=10 OUT="$RUNNER_TEMP/ts3-resource-benchmark.csv" /opt/radiobot/scripts/ts3-resource-benchmark.sh
       - name: Upload TS3 benchmark
         uses: actions/upload-artifact@v4
         with:
