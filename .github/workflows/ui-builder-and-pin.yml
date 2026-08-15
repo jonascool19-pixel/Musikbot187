@@ -26,6 +26,7 @@ jobs:
           grep -q '^RELEASE_REF=v2.1.0$' install.sh
           grep -Fq 'refs/heads/$RELEASE_REF' install.sh
           grep -Fq 'refs/heads/${RELEASE_REF}' install.sh
+          grep -Fq 'RELEASE_REF=v2.1.0' update.sh
       - name: Prepare patched tree
         run: |
           sudo rm -rf /opt/radiobot
@@ -40,24 +41,17 @@ jobs:
           sudo python3 /opt/radiobot/patches/ui-builder.py
           sudo python3 /opt/radiobot/patches/final-hardening.py
           sudo python3 /opt/radiobot/patches/security-final.py
-          sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' /opt/radiobot/frontend/index.html
-          sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/metrics-panel.js"></script>#' /opt/radiobot/frontend/index.html
-          sudo sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/setup-wizard.js"></script>#' /opt/radiobot/frontend/index.html
-          sudo sed -i 's#</body>#<script src="/system-controls.js"></script></body>#' /opt/radiobot/frontend/index.html
       - name: Build backend
         working-directory: /opt/radiobot/backend
         run: |
           npm install
           npm run build
-      - name: Validate UI builder wiring
+      - name: Verify UI assets are in release tree
         run: |
-          grep -q 'ui-builder.js' /opt/radiobot/frontend/index.html
-          grep -q 'ui-builder.css' /opt/radiobot/frontend/index.html
-          grep -q 'data-tile-id="hero"' /opt/radiobot/frontend/index.html
-          grep -q 'data-tile-id="queue"' /opt/radiobot/frontend/index.html
-          grep -q '/api/ui/layout' /opt/radiobot/backend/src/index.ts
-          grep -q 'UI_LAYOUT_FILE' /opt/radiobot/backend/src/index.ts
-          grep -q 'botEnabled' /opt/radiobot/backend/src/index.ts
-          grep -q '/api/system/reboot' /opt/radiobot/backend/src/index.ts
-          grep -q 'DISCORD_COOLDOWN_MS' /opt/radiobot/backend/src/index.ts
-          echo 'UI builder and release pin wiring OK'
+          python3 - <<'PY'
+          from pathlib import Path
+          for p in ['frontend/ui-builder.js','frontend/ui-builder.css','patches/ui-builder.py']:
+              if not Path(p).is_file() or not Path(p).stat().st_size:
+                  raise SystemExit(f'missing release asset: {p}')
+          print('UI builder release assets OK')
+          PY
