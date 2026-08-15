@@ -56,19 +56,20 @@ async function pointerDrag(page,sourceLocator,targetSelector,sourceOffset={x:.5,
     await page.goto(`http://127.0.0.1:${port}/index.html`,{waitUntil:'networkidle'});
     await page.locator('#layoutBuilderOpen').waitFor();
     await page.locator('#layoutBuilderOpen').click();
-    const diagnostics=await page.evaluate(()=>({tiles:[...document.querySelectorAll('.grid > [data-tile-id]')].map(e=>e.dataset.tileId),fields:[...document.querySelectorAll('.builder-field')].map(e=>e.dataset.fieldId),handles:[...document.querySelectorAll('.builder-tile-handle')].length,builder:!!document.querySelector('#builderPanel')}));
+    const diagnostics=await page.evaluate(()=>({tiles:[...document.querySelectorAll('.grid > [data-tile-id]')].map(e=>e.dataset.tileId),fields:[...document.querySelectorAll('.builder-field')].map(e=>e.dataset.fieldId),handles:[...document.querySelectorAll('.builder-tile-handle')].length,fieldHandles:[...document.querySelectorAll('.builder-field-handle')].length,builder:!!document.querySelector('#builderPanel')}));
     console.log('UI diagnostics',JSON.stringify(diagnostics));
     const fieldCount=await page.locator('.builder-field').count();
     if(fieldCount<8)throw new Error(`expected movable fields, got ${fieldCount}`);
     if(await page.locator('.builder-tile-handle').count()<8)throw new Error('expected tile drag handles');
+    if(await page.locator('.builder-field-handle').count()<fieldCount)throw new Error('expected one field drag handle per field');
 
     const firstBefore=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
     await pointerDrag(page,page.locator('[data-tile-id="discord"] .builder-tile-handle'),'[data-tile-id="search"]');
     const firstAfter=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
     if(firstBefore===firstAfter)throw new Error(`tile drag did not change order: ${firstBefore} -> ${firstAfter}`);
 
-    const guildField=page.locator('[data-tile-id="discord"] .builder-field').filter({hasText:'Server'}).first();
-    await pointerDrag(page,guildField,'[data-tile-id="radio"] > .builder-field-zone',{x:.08,y:.12},{x:.5,y:.5});
+    const guildHandle=page.locator('[data-tile-id="discord"] .builder-field').filter({hasText:'Server'}).first().locator(':scope > .builder-field-handle');
+    await pointerDrag(page,guildHandle,'[data-tile-id="radio"] > .builder-field-zone');
     if(await page.locator('[data-tile-id="radio"] #guild').count()!==1)throw new Error('field drag did not move #guild to radio');
 
     await page.locator('#builderSave').click();
