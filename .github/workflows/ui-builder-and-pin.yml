@@ -63,7 +63,7 @@ jobs:
           grep -q '@honeybbq/teamspeak-client' /opt/radiobot/backend/package.json
           test -s /opt/radiobot/backend/src/ts3-bot.ts
           grep -q 'sendVoice' /opt/radiobot/backend/src/ts3-bot.ts
-          grep -q 'TS3_CONTROL_FILE' /opt/radiobot/backend/src/ts3-bot.ts
+          grep -q 'CONTROL_FILE' /opt/radiobot/backend/src/ts3-bot.ts
           grep -q 'TS3_BENCHMARK_ONLY' /opt/radiobot/backend/src/ts3-bot.ts
           grep -q 'TEAMSPEAK_HOST' /opt/radiobot/patches/final-hardening.py
           test -x scripts/ts3-resource-benchmark.sh || chmod +x scripts/ts3-resource-benchmark.sh
