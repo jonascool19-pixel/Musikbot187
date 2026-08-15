@@ -29,17 +29,15 @@ function routeApi(req,res){
 const server=http.createServer((req,res)=>req.url.startsWith('/api/')?routeApi(req,res):null);
 const staticServer=childProcess.spawn('python3',['-m','http.server',String(port),'--directory',root],{stdio:'ignore'});
 
-async function browserDrag(page, sourceSelector, targetSelector){
-  await page.evaluate(({sourceSelector,targetSelector})=>{
-    const source=document.querySelector(sourceSelector); const target=document.querySelector(targetSelector);
-    if(!source||!target) throw new Error(`drag nodes missing: ${sourceSelector} -> ${targetSelector}`);
-    const data=new DataTransfer();
-    source.dispatchEvent(new DragEvent('dragstart',{bubbles:true,cancelable:true,dataTransfer:data}));
-    target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:data}));
-    target.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:data}));
-    source.dispatchEvent(new DragEvent('dragend',{bubbles:true,cancelable:true,dataTransfer:data}));
-  },{sourceSelector,targetSelector});
-  await page.waitForTimeout(120);
+async function pointerDrag(page,sourceSelector,targetSelector,sourceOffset={x:.5,y:.5},targetOffset={x:.5,y:.5}){
+  const source=page.locator(sourceSelector);const target=page.locator(targetSelector);
+  const sb=await source.boundingBox();const tb=await target.boundingBox();
+  if(!sb||!tb)throw new Error(`drag boxes missing: ${sourceSelector} -> ${targetSelector}`);
+  await page.mouse.move(sb.x+sb.width*sourceOffset.x,sb.y+sb.height*sourceOffset.y);
+  await page.mouse.down();
+  await page.mouse.move(tb.x+tb.width*targetOffset.x,tb.y+tb.height*targetOffset.y,{steps:8});
+  await page.mouse.up();
+  await page.waitForTimeout(180);
 }
 
 (async()=>{
@@ -65,15 +63,18 @@ async function browserDrag(page, sourceSelector, targetSelector){
     if(await page.locator('.builder-tile-handle').count()<8)throw new Error('expected tile drag handles');
 
     const firstBefore=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
-    await browserDrag(page,'[data-tile-id="discord"] .builder-tile-handle','[data-tile-id="search"]');
+    await pointerDrag(page,'[data-tile-id="discord"] .builder-tile-handle','[data-tile-id="search"]');
     const firstAfter=await page.locator('.grid > [data-tile-id]').first().getAttribute('data-tile-id');
-    if(firstBefore===firstAfter)throw new Error('tile drag did not change order');
+    if(firstBefore===firstAfter)throw new Error(`tile drag did not change order: ${firstBefore} -> ${firstAfter}`);
 
-    await browserDrag(page,'[data-tile-id="discord"] .builder-field','[data-tile-id="radio"] > .builder-field-zone');
+    const guildField=page.locator('[data-tile-id="discord"] .builder-field').filter({hasText:'Server'}).first();
+    const guildBox=await guildField.boundingBox();const radioZone=page.locator('[data-tile-id="radio"] > .builder-field-zone');const radioBox=await radioZone.boundingBox();
+    if(!guildBox||!radioBox)throw new Error('field/zone boxes unavailable');
+    await pointerDrag(page,'[data-tile-id="discord"] .builder-field','[data-tile-id="radio"] > .builder-field-zone',{x:.08,y:.12},{x:.5,y:.5});
     if(await page.locator('[data-tile-id="radio"] #guild').count()!==1)throw new Error('field drag did not move #guild to radio');
 
     await page.locator('#builderSave').click();
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(180);
     if(!savedLayout.fields.some(f=>f.id.startsWith('discord:')&&f.tileId==='radio'))throw new Error('moved field was not persisted');
     const savedFirst=savedLayout.tiles[0]?.id;
     await page.reload({waitUntil:'networkidle'});
