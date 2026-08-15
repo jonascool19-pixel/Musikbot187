@@ -13,12 +13,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
       - name: Syntax
         run: |
           set -euo pipefail
-          bash -n install.sh install-final.sh update.sh scripts/resource-benchmark.sh
+          bash -n install.sh install-final.sh update.sh scripts/resource-benchmark.sh scripts/ts3-resource-benchmark.sh
           node --check frontend/app.js
           node --check tests/smoke.mjs
       - name: Build
@@ -30,5 +28,6 @@ jobs:
         run: node tests/smoke.mjs
       - name: Resource benchmark
         run: |
-          chmod +x scripts/resource-benchmark.sh
+          chmod +x scripts/resource-benchmark.sh scripts/ts3-resource-benchmark.sh
           scripts/resource-benchmark.sh
+          scripts/ts3-resource-benchmark.sh
