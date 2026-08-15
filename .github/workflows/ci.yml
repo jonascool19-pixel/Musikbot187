@@ -22,8 +22,12 @@ jobs:
       - name: TypeScript build
         working-directory: backend
         run: npm run build
-      - name: Validate installer
-        run: bash -n install.sh
+      - name: Validate installer and service
+        run: |
+          bash -n install.sh
+          grep -q 'CPUQuota=90%' radiobot.service
+          grep -q 'MemoryMax=480M' radiobot.service
+          grep -q '/usr/local/sbin/radiobot-update' install.sh
       - name: Smoke test web API
         working-directory: backend
         env:
