@@ -35,12 +35,12 @@ app.post<{ Body: { setupToken?: string; discordToken?: string; webUser?: string;
   return { ok: true, message: 'Einrichtung gespeichert. MusikBot187 startet jetzt neu.' };
 });
 app.get('/api/settings', async () => ({ webUser: WEB_USER, port: PORT, spotifyConfigured: Boolean(SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET), youtubeConfigured: Boolean(YOUTUBE_API_KEY), controlRole: DISCORD_CONTROL_ROLE, redirectUri: SPOTIFY_REDIRECT_URI }));
-app.post<{ Body: { webUser?: string; webPassword?: string; spotifyClientId?: string; spotifyClientSecret?: string; spotifyRedirectUri?: string; youtubeApiKey?: string; discordControlRole?: string; publicUrl?: string; port?: number } }>('/api/settings', async (req, reply) => {
+app.post<{ Body: { discordToken?: string; webUser?: string; webPassword?: string; spotifyClientId?: string; spotifyClientSecret?: string; spotifyRedirectUri?: string; youtubeApiKey?: string; discordControlRole?: string; publicUrl?: string; port?: number } }>('/api/settings', async (req, reply) => {
   if (!auth(req, reply)) return;
   const b = req.body ?? {};
   if (b.webPassword !== undefined && b.webPassword !== '' && b.webPassword.length < 12) return reply.code(400).send('Das Web-Passwort muss mindestens 12 Zeichen haben.');
   if (!fs.existsSync(CONFIG_HELPER)) return reply.code(503).send('Konfigurationshelfer fehlt.');
-  const payload = JSON.stringify({ webUser: b.webUser?.trim() || WEB_USER, webPassword: b.webPassword ?? WEB_PASSWORD, spotifyClientId: b.spotifyClientId?.trim() ?? SPOTIFY_CLIENT_ID, spotifyClientSecret: b.spotifyClientSecret?.trim() ?? SPOTIFY_CLIENT_SECRET, spotifyRedirectUri: b.spotifyRedirectUri?.trim() ?? SPOTIFY_REDIRECT_URI, youtubeApiKey: b.youtubeApiKey?.trim() ?? YOUTUBE_API_KEY, discordControlRole: b.discordControlRole?.trim() ?? DISCORD_CONTROL_ROLE, publicUrl: b.publicUrl?.trim() || '', port: Number(b.port || PORT), setupToken: '' });
+  const payload = JSON.stringify({ discordToken: b.discordToken?.trim() || undefined, webUser: b.webUser?.trim() || WEB_USER, webPassword: b.webPassword ?? WEB_PASSWORD, spotifyClientId: b.spotifyClientId?.trim() ?? SPOTIFY_CLIENT_ID, spotifyClientSecret: b.spotifyClientSecret?.trim() ?? SPOTIFY_CLIENT_SECRET, spotifyRedirectUri: b.spotifyRedirectUri?.trim() ?? SPOTIFY_REDIRECT_URI, youtubeApiKey: b.youtubeApiKey?.trim() ?? YOUTUBE_API_KEY, discordControlRole: b.discordControlRole?.trim() ?? DISCORD_CONTROL_ROLE, publicUrl: b.publicUrl?.trim() || '', port: Number(b.port || PORT), setupToken: '' });
   const child = spawn('sudo', ['-n', CONFIG_HELPER], { detached: true, stdio: ['pipe', 'ignore', 'ignore'] }); child.stdin?.end(payload); child.unref();
   return { ok: true, message: 'Einstellungen gespeichert. MusikBot187 startet jetzt neu.' };
 });
