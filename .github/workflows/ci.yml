@@ -63,7 +63,9 @@ jobs:
           grep -q 'systemOpen' /opt/radiobot/frontend/index.html
           grep -q 'system-controls.js' /opt/radiobot/frontend/index.html
           grep -q 'DISCORD_COOLDOWN_MS' /opt/radiobot/backend/src/index.ts
+          grep -q 'DISCORD_GUILD_MAX_COMMANDS' /opt/radiobot/backend/src/index.ts
           grep -q 'MAX_SEARCH_IN_FLIGHT' /opt/radiobot/backend/src/index.ts
+          grep -q 'privilegedConfigWrite' /opt/radiobot/backend/src/index.ts
           grep -q '/api/system/reboot' /opt/radiobot/backend/src/index.ts
           grep -q '/api/system/shutdown' /opt/radiobot/backend/src/index.ts
           grep -q 'botEnabled' /opt/radiobot/backend/src/index.ts
@@ -72,6 +74,7 @@ jobs:
           test -f /etc/systemd/system/radiobot-privileged.service
           grep -q 'ExecStart=/usr/bin/python3 /opt/radiobot/scripts/radiobot-privileged.py' /etc/systemd/system/radiobot-privileged.service
           grep -q '/run/radiobot-privileged.sock' scripts/radiobot-privileged.py
+          grep -q 'config-write' scripts/radiobot-privileged.py
           grep -q 'bot-update' scripts/radiobot-privileged.py
           grep -q '/api/setup/status' /opt/radiobot/backend/src/index.ts
           grep -q '/api/settings' /opt/radiobot/backend/src/index.ts
@@ -115,8 +118,9 @@ jobs:
           while True:
               c,_=s.accept()
               with c:
-                  cmd=c.recv(128).strip()
-                  if cmd in {b'bot-restart', b'bot-update', b'server-reboot', b'server-shutdown'}: c.sendall(b'OK\n')
+                  data=c.recv(16384)
+                  cmd=data.split(b'\n',1)[0]
+                  if cmd in {b'bot-restart', b'bot-update', b'server-reboot', b'server-shutdown', b'config-write'}: c.sendall(b'OK\n')
                   else: c.sendall(b'ERR invalid-command\n')
           PY
           socket_pid=$!
