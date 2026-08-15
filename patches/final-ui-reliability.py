@@ -15,7 +15,7 @@ html = re.sub(r'<script[^>]+src=["\']/ui-builder\.js["\'][^>]*></script>\s*', ''
 html = html.replace('</body>', '<script src="/ui-builder.js"></script></body>', 1)
 INDEX.write_text(html, encoding='utf-8')
 
-# Keep the dashboard alive even while older layouts are missing optional queue elements.
+# Keep the dashboard alive while optional DOM/API pieces are absent or shaped differently.
 s = APP.read_text(encoding='utf-8')
 if "const queueEl = $('#queue'); const queueLabelEl = $('#queueInstanceLabel'); if (!queueEl) return;" not in s:
     s = s.replace(
@@ -27,6 +27,13 @@ if "const queueEl = $('#queue'); const queueLabelEl = $('#queueInstanceLabel'); 
     s = s.replace("$('#queueInstanceLabel').textContent = 'TeamSpeak 3';", "if (queueLabelEl) queueLabelEl.textContent = 'TeamSpeak 3';", 1)
     s = s.replace("$('#queue').innerHTML = q.length ?", "queueEl.innerHTML = q.length ?", 1)
     s = s.replace("$('#queueInstanceLabel').textContent = 'Discord';", "if (queueLabelEl) queueLabelEl.textContent = 'Discord';", 1)
+
+# Accept the instance API as either an array or a wrapped/object response.
+s = s.replace(
+    "const instances = await api('/api/instances'); const ts3 = instances.find(x => x.id === 'ts3');",
+    "const rawInstances = await api('/api/instances'); const instances = Array.isArray(rawInstances) ? rawInstances : (Array.isArray(rawInstances?.instances) ? rawInstances.instances : Object.values(rawInstances || {})); const ts3 = instances.find(x => x?.id === 'ts3');",
+    1,
+)
 APP.write_text(s, encoding='utf-8')
 
 # ui-builder.js may be loaded more than once by patched trees; do not create a second toolbar button.
