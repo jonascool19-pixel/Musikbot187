@@ -53,6 +53,7 @@ python3 "$APP_DIR/patches/enable-radio-features.py"
 python3 "$APP_DIR/patches/fix-radio-feature-patch.py"
 python3 "$APP_DIR/patches/setup-wizard.py"
 python3 "$APP_DIR/patches/ui-builder.py"
+python3 "$APP_DIR/patches/ui-builder-pointer.py"
 python3 "$APP_DIR/patches/final-hardening.py"
 python3 "$APP_DIR/patches/security-final.py"
 if ! grep -q 'radio-enhancements.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' "$APP_DIR/frontend/index.html"; fi
