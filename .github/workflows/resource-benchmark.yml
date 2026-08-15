@@ -20,30 +20,49 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/package.json
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm install --no-audit --no-fund --ignore-scripts
-      - name: Build backend
-        working-directory: backend
-        run: npm run build
       - name: Install runtime prerequisites
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg python3
           ffmpeg -version | head -n 1
+      - name: Prepare production-patched tree
+        run: |
+          set -Eeuo pipefail
+          sudo rm -rf /opt/radiobot
+          sudo mkdir -p /opt/radiobot/backend /opt/radiobot/frontend /opt/radiobot/patches /opt/radiobot/scripts
+          sudo cp -a backend/. /opt/radiobot/backend/
+          sudo cp -a frontend/. /opt/radiobot/frontend/
+          sudo cp -a patches/. /opt/radiobot/patches/
+          sudo cp -a scripts/. /opt/radiobot/scripts/
+          sudo python3 /opt/radiobot/patches/enable-radio-features.py
+          sudo python3 /opt/radiobot/patches/fix-radio-feature-patch.py
+          sudo python3 /opt/radiobot/patches/setup-wizard.py
+          sudo python3 /opt/radiobot/patches/ui-builder.py
+          sudo python3 /opt/radiobot/patches/ui-builder-pointer.py
+          sudo python3 /opt/radiobot/patches/final-hardening.py
+          sudo python3 /opt/radiobot/patches/security-final.py
+          sudo python3 /opt/radiobot/patches/final-setup-routes.py
+          sudo python3 /opt/radiobot/patches/final-radio-routes.py
+          sudo python3 /opt/radiobot/patches/web-auth.py
+      - name: Install backend dependencies
+        working-directory: /opt/radiobot/backend
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Build production-patched backend
+        working-directory: /opt/radiobot/backend
+        run: npm run build
       - name: Start isolated benchmark process
         env:
           NODE_OPTIONS: --max-old-space-size=256 --max-semi-space-size=2
           UV_THREADPOOL_SIZE: 1
           PORT: 3099
-          APP_ROOT: ${{ github.workspace }}
+          APP_ROOT: /opt/radiobot
           DATA_DIR: ${{ runner.temp }}/radiobot-data
           WEB_PASSWORD: ''
           YTDLP_PATH: /usr/bin/false
         run: |
           set -Eeuo pipefail
           mkdir -p "$DATA_DIR"
-          node backend/dist/index.js > "$RUNNER_TEMP/radiobot.log" 2>&1 &
+          node /opt/radiobot/backend/dist/index.js > "$RUNNER_TEMP/radiobot.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/radiobot.pid"
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:3099/api/health >/dev/null 2>&1; then
