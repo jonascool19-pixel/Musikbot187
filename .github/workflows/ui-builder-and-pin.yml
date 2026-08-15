@@ -19,8 +19,8 @@ jobs:
       - name: Syntax checks
         run: |
           bash -n install.sh update.sh
-          python3 -m py_compile patches/*.py scripts/*.py tests/*.js
-          for f in frontend/*.js; do node --check "$f"; done
+          python3 -m py_compile patches/*.py scripts/*.py
+          for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         run: |
           grep -q '^RELEASE_REF=v2.1.0$' install.sh
