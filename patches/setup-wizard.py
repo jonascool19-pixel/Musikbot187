@@ -56,11 +56,8 @@ p.write_text(s, encoding='utf-8')
 hardening = Path('/opt/radiobot/patches/final-hardening.py')
 if hardening.exists():
     h = hardening.read_text(encoding='utf-8')
-    h = h.replace('"queue playlist")', '"queue playlist", required=False)', 1)
-    h = h.replace('"playback lock")', '"playback lock", required=False)', 1)
-    h = h.replace('"playback recursion removal")', '"playback recursion removal", required=False)', 1)
-    h = h.replace('"playback function rename")', '"playback function rename", required=False)', 1)
-    h = h.replace('"playback loop start")', '"playback loop start", required=False)', 1)
+    for label in ['queue playlist','playback lock','playback recursion removal','playback function rename','playback loop start','stop state']:
+        h = h.replace(f'"{label}")', f'"{label}", required=False)', 1)
     hardening.write_text(h, encoding='utf-8')
 
 print('setup wizard patch applied')
