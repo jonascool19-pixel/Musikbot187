@@ -41,9 +41,11 @@ app.post<{ Body: { discordToken?: string; webUser?: string; webPassword?: string
 '''
 
 if "app.get('/api/setup/status'" not in s:
-    anchor = "await app.listen({ port: PORT, host: '0.0.0.0' });"
+    anchor = "app.post('/api/update', async (_req, reply) =>"
     if anchor not in s:
-        raise SystemExit('app.listen anchor not found')
+        anchor = "app.get('/api/health'"
+    if anchor not in s:
+        raise SystemExit('route anchor not found')
     s = s.replace(anchor, insert + "\n" + anchor, 1)
 
 p.write_text(s, encoding='utf-8')
