@@ -38,13 +38,16 @@ tar -xzf "$TMP_DIR/radiobot.tgz" -C "$TMP_DIR"
 SRC_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name 'radiobot-main-*' | head -n1)
 [[ -n "$SRC_DIR" ]] || { echo 'Download fehlgeschlagen.'; exit 1; }
 mkdir -p "$APP_DIR" "$DATA_DIR/music" "$CONF_DIR"
-rm -rf "$APP_DIR/backend" "$APP_DIR/frontend"
+rm -rf "$APP_DIR/backend" "$APP_DIR/frontend" "$APP_DIR/patches"
 cp -a "$SRC_DIR/backend" "$APP_DIR/"
 cp -a "$SRC_DIR/frontend" "$APP_DIR/"
+cp -a "$SRC_DIR/patches" "$APP_DIR/"
 cp "$SRC_DIR/radiobot.service" "$APP_DIR/"
-# Defense-in-depth: enforce same-origin CORS and the current source type compatibility before building.
+# Defense-in-depth: enforce same-origin CORS and apply the Radio Browser/playlist runtime patch before compiling.
 sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' "$APP_DIR/backend/src/index.ts"
-sed -i "s/type SourceKind = 'file' | 'radio' | 'youtube';/type SourceKind = 'file' | 'radio' | 'youtube' | 'spotify';/" "$APP_DIR/backend/src/index.ts"
+python3 "$APP_DIR/patches/enable-radio-features.py"
+python3 "$APP_DIR/patches/fix-radio-feature-patch.py"
+sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/radio-enhancements.js"></script>#' "$APP_DIR/frontend/index.html"
 if ! id -u radiobot >/dev/null 2>&1; then useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin radiobot; fi
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"; chmod 700 "$DATA_DIR"
 if [[ ! -f "$CONF_DIR/radiobot.env" ]]; then cat > "$CONF_DIR/radiobot.env" <<EOF
@@ -123,3 +126,4 @@ echo
 echo 'Discord-Token setzen: radiobot config && radiobot restart'
 echo 'Status-Channel in Discord setzen: /statuschannel #dein-channel'
 echo 'Laufzeit-Ressource: 500 MB bis 1 GB RAM empfohlen; 768 MB ist der Zielwert.'
+echo 'Radio: Im Dashboard im Bereich Radio nach Sendern suchen und in die Radio-Playlist speichern.'
