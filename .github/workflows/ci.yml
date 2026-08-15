@@ -53,6 +53,8 @@ jobs:
           sudo python3 /opt/radiobot/patches/final-radio-routes.py
           sudo python3 /opt/radiobot/patches/configure-helper-hardening.py
           sudo python3 /opt/radiobot/patches/web-auth.py
+          getent group radiobot >/dev/null
+          test "$(id -gn radiobot)" = radiobot
 
       - name: Backend build
         working-directory: /opt/radiobot/backend
@@ -90,9 +92,8 @@ jobs:
       - name: Privileged bootstrap end-to-end
         run: |
           set -euo pipefail
-          if ! id -u radiobot >/dev/null 2>&1; then
-            sudo useradd --system --no-create-home --shell /usr/sbin/nologin radiobot
-          fi
+          getent group radiobot
+          test "$(id -gn radiobot)" = radiobot
           sudo install -d -m 0755 -o root -g root /usr/local/libexec/radiobot
           sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-privileged.py /usr/local/libexec/radiobot/radiobot-privileged.py
           sudo install -m 0755 -o root -g root /opt/radiobot/scripts/radiobot-configure.py /usr/local/sbin/radiobot-configure
@@ -111,7 +112,8 @@ jobs:
             exit 1
           fi
           test -S /run/radiobot-privileged.sock
-          test "$(stat -c '%U:%G' /run/radiobot-privileged.sock)" = 'root:radiobot'
+          socket_owner=$(stat -c '%U:%G' /run/radiobot-privileged.sock)
+          test "$socket_owner" = 'root:radiobot' || { echo "Unexpected socket owner: $socket_owner"; ls -l /run/radiobot-privileged.sock; id radiobot; getent group radiobot; exit 1; }
           sudo -u radiobot python3 -c 'import socket,json; p=json.dumps({"bootstrapUserOnly":True,"webUser":"ci-test","webPassword":"123456789012","setupToken":"ci-test-token"},separators=(",",":")); s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(3); s.connect("/run/radiobot-privileged.sock"); s.sendall(("config-write\\n"+p).encode()); assert s.recv(128)==b"OK\\n"'
           sudo grep -q '^WEB_USER=ci-test$' /etc/radiobot/radiobot.env
           sudo grep -q '^WEB_PASSWORD=123456789012$' /etc/radiobot/radiobot.env
