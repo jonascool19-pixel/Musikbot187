@@ -42,6 +42,8 @@ rm -rf "$APP_DIR/backend" "$APP_DIR/frontend"
 cp -a "$SRC_DIR/backend" "$APP_DIR/"
 cp -a "$SRC_DIR/frontend" "$APP_DIR/"
 cp "$SRC_DIR/radiobot.service" "$APP_DIR/"
+# Defense-in-depth: the dashboard is same-origin only; the installer enforces this even if a future source change reintroduces permissive CORS.
+sed -i 's/await app.register(cors, { origin: true });/await app.register(cors, { origin: false });/' "$APP_DIR/backend/src/index.ts"
 if ! id -u radiobot >/dev/null 2>&1; then useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin radiobot; fi
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"; chmod 700 "$DATA_DIR"
 if [[ ! -f "$CONF_DIR/radiobot.env" ]]; then cat > "$CONF_DIR/radiobot.env" <<EOF
@@ -108,7 +110,7 @@ systemctl restart radiobot.service
 sleep 2
 systemctl --no-pager --full status radiobot.service || true
 
-echo '[9/9] Fertig.'
+echo '[9/9] MusikBot187 fertig.'
 IP=$(hostname -I | awk '{print $1}')
 echo
 echo "Dashboard: http://$IP:3000"
@@ -119,3 +121,4 @@ echo "Logs:          radiobot logs"
 echo
 echo 'Discord-Token setzen: radiobot config && radiobot restart'
 echo 'Status-Channel in Discord setzen: /statuschannel #dein-channel'
+echo 'Laufzeit-Ressource: 500 MB bis 1 GB RAM empfohlen; 768 MB ist der Zielwert.'
