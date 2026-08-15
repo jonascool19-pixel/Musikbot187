@@ -5,7 +5,7 @@ set -euo pipefail
 # Includes Deno PATH handling, curl diagnostics, Node 24/AF_NETLINK compatibility,
 # privileged setup fixes, deterministic dev-dependency installation, interactive
 # web-account setup, optional TeamSpeak 3 setup, and a colored final status summary.
-PINNED_COMMIT="c70f6a54b4f882f7b03fd1af2efba19af9d12e2c"
+PINNED_COMMIT="5347d32f0a024d1836ec7c0772df040aedc82051"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -45,11 +45,7 @@ path.write_text(text)
 PY
 
 bash "$TMP_DIR/install.sh"
-
-# Apply the shared TS3 playlist routing after the base hardening patch.
 if [[ -x /usr/bin/python3 && -f /opt/radiobot/patches/instance-routing.py ]]; then python3 /opt/radiobot/patches/instance-routing.py; fi
-
-# Re-apply browser-session authentication and rebuild after all post-install patches.
 if [[ -x /usr/bin/python3 && -f /opt/radiobot/patches/web-auth.py ]]; then
   python3 /opt/radiobot/patches/web-auth.py
   cd /opt/radiobot/backend
