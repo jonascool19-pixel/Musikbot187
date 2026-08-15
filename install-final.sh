@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Pins to the complete installer payload containing the stable privileged socket path.
-PINNED_COMMIT="15ae208124328dcff68f44e8e06468a7327f8f82"
+# Pins to the complete installer payload containing the deterministic radiobot group/socket fix.
+PINNED_COMMIT="b1fa7524b0d1ada87305479592b2deb06bd2142d"
 REPO="jonascool19-pixel/radiobot"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -35,5 +35,5 @@ printf '\n%s========================================%s\n' "$G" "$R"
 printf '%sMusikBot187 Installation abgeschlossen%s\n' "$G" "$R"
 printf '%sDashboard:%s http://%s:3000\n' "$C" "$R" "$IP"
 [[ -n "$SETUP" ]] && printf '%sErsteinrichtung:%s http://%s:3000/#setup=%s\n' "$Y" "$R" "$IP" "$SETUP"
-if systemctl is-active --quiet radiobot.service; then printf '%sStatus:%s läuft\n' "$C" "$R"; else printf '%sStatus:%s nicht aktiv – bitte journalctl -u radiobot prüfen\n' "$C" "$R"; fi
+if systemctl is-active --quiet radiobot.service; then printf '%sStatus:%s läuft\n' "$C" "$R"; else printf '%sStatus:%s nicht aktiv – bitte journalctl -u radiobot prüfen\n' "$Y" "$R"; fi
 printf '%s========================================%s\n\n' "$G" "$R"
