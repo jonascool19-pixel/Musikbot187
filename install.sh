@@ -81,6 +81,10 @@ if ! grep -q 'metrics-panel.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<
 if ! grep -q 'setup-wizard.js' "$APP_DIR/frontend/index.html"; then sed -i 's#<script src="/app.js"></script>#<script src="/app.js"></script><script src="/setup-wizard.js"></script>#' "$APP_DIR/frontend/index.html"; fi
 if ! grep -q 'system-controls.js' "$APP_DIR/frontend/index.html"; then sed -i 's#</body>#<script src="/system-controls.js"></script></body>#' "$APP_DIR/frontend/index.html"; fi
 if ! id -u radiobot >/dev/null 2>&1; then useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin radiobot; fi
+# The web service must be able to talk to the root-owned privileged controller.
+# The controller intentionally owns the socket but grants rw access through this group.
+getent group radiobot-ops >/dev/null 2>&1 || groupadd --system radiobot-ops
+usermod -a -G radiobot-ops radiobot
 chown -R radiobot:radiobot "$APP_DIR" "$DATA_DIR"; chmod 700 "$DATA_DIR"
 install -m 0755 -o root -g root "$APP_DIR/scripts/radiobot-privileged.py" "$ROOT_BIN_DIR/radiobot-privileged.py"
 install -m 0644 -o root -g root "$APP_DIR/radiobot-privileged.service" /etc/systemd/system/radiobot-privileged.service
@@ -213,8 +217,14 @@ chmod 0444 /usr/local/libexec/radiobot/README
 
 echo '[8/10] Dienst starten...'
 systemctl restart radiobot.service
+systemctl restart radiobot-privileged.service
 sleep 2
 systemctl --no-pager --full status radiobot.service || true
+SOCK_GROUP=$(stat -c '%G' /run/radiobot-privileged.sock 2>/dev/null || true)
+getent group radiobot-ops >/dev/null || { echo 'radiobot-ops Gruppe fehlt.' >&2; exit 1; }
+id radiobot | grep -q 'radiobot-ops' || { echo 'radiobot ist nicht in radiobot-ops.' >&2; exit 1; }
+[[ "$SOCK_GROUP" == 'radiobot-ops' ]] || { echo "Privileged socket group ist '$SOCK_GROUP' statt 'radiobot-ops'." >&2; exit 1; }
+
 
 echo '[9/10] Metriken prüfen...'
 python3 "$APP_DIR/scripts/system-metrics.py"
