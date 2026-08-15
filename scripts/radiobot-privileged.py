@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import grp
 import os
 import socket
 import subprocess
@@ -13,17 +14,14 @@ def main() -> None:
         os.unlink(SOCKET)
     except FileNotFoundError:
         pass
+
+    socket_group = grp.getgrnam('radiobot')
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(SOCKET)
     os.chmod(SOCKET, 0o660)
-    try:
-        import grp
-        # Use the service account's primary group. This avoids creating a
-        # second, installer-specific system group just for the socket.
-        os.chown(SOCKET, 0, grp.getgrnam('radiobot').gr_gid)
-    except Exception:
-        pass
+    os.chown(SOCKET, 0, socket_group.gr_gid)
     server.listen(8)
+
     while True:
         conn, _ = server.accept()
         with conn:
