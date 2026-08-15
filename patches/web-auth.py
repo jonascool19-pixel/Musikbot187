@@ -7,15 +7,13 @@ FRONTEND = ROOT / 'frontend'
 
 s = BACKEND.read_text(encoding='utf-8')
 
-# Session helpers: multiple concurrent sessions are supported in memory. Browser auth
-# uses an HttpOnly cookie; Basic Auth remains available only when explicitly supplied.
 if 'const webSessions = new Map<string, { user: string; expires: number }>();' not in s:
     marker = "const searches = new Map<string, { expires: number; items: SearchItem[] }>();"
     if marker not in s:
         raise SystemExit('session insertion marker missing')
     s = s.replace(marker, marker + "\nconst webSessions = new Map<string, { user: string; expires: number }>();\nconst WEB_SESSION_TTL_MS = 8 * 60 * 60 * 1000;\n", 1)
 
-if 'function webAuth(req: any, reply: any)' not in s:
+if 'function parseCookieHeader(value: string)' not in s:
     marker = "const db = loadJson<Db>(DB_FILE, { radios: [], guilds: {}, playlists: [] });"
     if marker not in s:
         raise SystemExit('auth route insertion marker missing')
@@ -30,6 +28,17 @@ function parseCookieHeader(value: string) {
 }
 function webAuth(req: any, reply: any) {
   if (!WEB_PASSWORD) return true;
+  const origin = String(req.headers.origin ?? '');
+  if (origin) {
+    const host = String(req.headers.host ?? '');
+    const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim();
+    const protocol = forwardedProto || 'http';
+    const trustedOrigin = `${protocol}://${host}`;
+    if (origin !== trustedOrigin) {
+      reply.code(403).send({ error: 'ORIGIN_FORBIDDEN' });
+      return false;
+    }
+  }
   const cookies = parseCookieHeader(String(req.headers.cookie ?? ''));
   const token = cookies.musikbot187_session;
   if (token) {
@@ -51,24 +60,19 @@ function webAuth(req: any, reply: any) {
 }
 '''
     s = s.replace(marker, helper + "\n" + marker, 1)
+else:
+    old = "function webAuth(req: any, reply: any) {\n  if (!WEB_PASSWORD) return true;"
+    new = "function webAuth(req: any, reply: any) {\n  if (!WEB_PASSWORD) return true;\n  const origin = String(req.headers.origin ?? '');\n  if (origin) {\n    const host = String(req.headers.host ?? '');\n    const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim();\n    const protocol = forwardedProto || 'http';\n    const trustedOrigin = `${protocol}://${host}`;\n    if (origin !== trustedOrigin) { reply.code(403).send({ error: 'ORIGIN_FORBIDDEN' }); return false; }\n  }"
+    if old in s and 'ORIGIN_FORBIDDEN' not in s:
+        s = s.replace(old, new, 1)
 
 # Replace the existing auth hook with the cookie-based auth hook.
-old_hook = "app.addHook('preHandler', async (req, reply) => { if (req.url.startsWith('/api/') && !req.url.startsWith('/api/spotify/callback') && !auth(req, reply)) return reply; });"
-if old_hook in s:
-    new_hook = "app.addHook('preHandler', async (req, reply) => { const open = req.url.startsWith('/api/auth/') || req.url.startsWith('/api/setup') || req.url.startsWith('/api/spotify/callback'); if (req.url.startsWith('/api/') && !open && !webAuth(req, reply)) return reply; });"
-    s = s.replace(old_hook, new_hook, 1)
-else:
-    # Handle setup-wizard patched hook variant as well.
-    if "const openSetup = req.url.startsWith('/api/setup');" in s:
-        start = s.find("app.addHook('preHandler'")
-        if start >= 0:
-            end = s.find("\n\n", start)
-            if end > start:
-                s = s[:start] + "app.addHook('preHandler', async (req, reply) => { const open = req.url.startsWith('/api/auth/') || req.url.startsWith('/api/setup') || req.url.startsWith('/api/spotify/callback'); if (req.url.startsWith('/api/') && !open && !webAuth(req, reply)) return reply; });" + s[end:]
-            else:
-                raise SystemExit('preHandler replacement failed')
-    elif "app.addHook('preHandler'" not in s:
-        raise SystemExit('preHandler hook not found')
+new_hook = "app.addHook('preHandler', async (req, reply) => { const open = req.url.startsWith('/api/auth/') || req.url.startsWith('/api/setup') || req.url.startsWith('/api/spotify/callback'); if (req.url.startsWith('/api/') && !open && !webAuth(req, reply)) return reply; });"
+if "app.addHook('preHandler'" in s and 'const open = req.url.startsWith' not in s:
+    start = s.find("app.addHook('preHandler'")
+    end = s.find("\n\n", start)
+    if start >= 0 and end > start:
+        s = s[:start] + new_hook + s[end:]
 
 if "app.post('/api/auth/login'" not in s:
     anchor = "app.get('/api/health'"
@@ -110,62 +114,22 @@ app.post('/api/auth/logout', async (_req, reply) => {
 
 BACKEND.write_text(s, encoding='utf-8')
 
-# Browser login/logout UI. It is intentionally lightweight and adds no framework.
 ui = r'''(() => {
   const state = { authenticated: false, user: null };
   const css = `#musikbot-login-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(7,10,18,.78);backdrop-filter:blur(12px);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}#musikbot-login-card{width:min(420px,calc(100vw - 32px));padding:32px;border-radius:24px;background:#111827;color:#f8fafc;box-shadow:0 24px 80px rgba(0,0,0,.45)}#musikbot-login-card h1{margin:0 0 8px;font-size:28px}#musikbot-login-card p{margin:0 0 22px;color:#94a3b8}#musikbot-login-card label{display:block;margin:14px 0 6px;font-size:13px;color:#cbd5e1}#musikbot-login-card input{width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid #334155;border-radius:12px;background:#0f172a;color:#fff;font-size:15px}#musikbot-login-card button{width:100%;margin-top:18px;padding:12px 14px;border:0;border-radius:12px;background:#6366f1;color:#fff;font-weight:700;cursor:pointer}#musikbot-login-error{min-height:20px;margin-top:10px;color:#fca5a5;font-size:13px}.musikbot-user-menu{display:flex;gap:8px;align-items:center}.musikbot-logout{border:1px solid #334155;background:transparent;color:inherit;border-radius:10px;padding:7px 10px;cursor:pointer}`;
   const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
-
-  function overlay() {
-    if (document.getElementById('musikbot-login-overlay')) return;
-    const wrap = document.createElement('div'); wrap.id='musikbot-login-overlay';
-    wrap.innerHTML = `<div id="musikbot-login-card"><h1>MusikBot187</h1><p>Anmelden, um das Webinterface zu öffnen.</p><form id="musikbot-login-form"><label>Benutzername</label><input name="username" autocomplete="username" required><label>Passwort</label><input name="password" type="password" autocomplete="current-password" required><div id="musikbot-login-error"></div><button type="submit">Anmelden</button></form></div>`;
-    document.body.appendChild(wrap);
-    wrap.querySelector('input[name=username]')?.focus();
-    wrap.querySelector('form')?.addEventListener('submit', async e => {
-      e.preventDefault();
-      const form = e.currentTarget; const data = Object.fromEntries(new FormData(form));
-      const err = wrap.querySelector('#musikbot-login-error'); err.textContent='';
-      try {
-        const r = await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-        if (!r.ok) throw new Error('Benutzername oder Passwort ist falsch.');
-        location.reload();
-      } catch (ex) { err.textContent = ex instanceof Error ? ex.message : 'Anmeldung fehlgeschlagen.'; }
-    });
-  }
-  function hide() { document.getElementById('musikbot-login-overlay')?.remove(); }
-  function addLogout() {
-    if (document.querySelector('.musikbot-user-menu')) return;
-    const row = document.querySelector('header .row'); if (!row) return;
-    const box=document.createElement('div'); box.className='musikbot-user-menu'; box.innerHTML='<span id="musikbot-user-name"></span><button class="musikbot-logout" type="button">Abmelden</button>';
-    row.appendChild(box); box.querySelector('.musikbot-logout')?.addEventListener('click', async()=>{await fetch('/api/auth/logout',{method:'POST'});location.reload();});
-    const name=box.querySelector('#musikbot-user-name'); if(name) name.textContent=state.user || 'admin';
-  }
-  async function check() {
-    try {
-      const r=await fetch('/api/auth/session',{cache:'no-store'});
-      if (!r.ok) { state.authenticated=false; overlay(); return; }
-      const d=await r.json(); state.authenticated=Boolean(d.authenticated); state.user=d.user||null; if(state.authenticated){hide();setTimeout(addLogout,0);}else overlay();
-    } catch { overlay(); }
-  }
-  const originalFetch = window.fetch;
-  window.fetch = async (...args) => {
-    const r = await originalFetch(...args);
-    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
-    if (r.status === 401 && !url.includes('/api/auth/')) { state.authenticated=false; overlay(); }
-    return r;
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', check); else check();
+  function overlay(){if(document.getElementById('musikbot-login-overlay'))return;const wrap=document.createElement('div');wrap.id='musikbot-login-overlay';wrap.innerHTML='<div id="musikbot-login-card"><h1>MusikBot187</h1><p>Anmelden, um das Webinterface zu öffnen.</p><form id="musikbot-login-form"><label>Benutzername</label><input name="username" autocomplete="username" required><label>Passwort</label><input name="password" type="password" autocomplete="current-password" required><div id="musikbot-login-error"></div><button type="submit">Anmelden</button></form></div>';document.body.appendChild(wrap);wrap.querySelector('input[name=username]')?.focus();wrap.querySelector('form')?.addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;const data=Object.fromEntries(new FormData(form));const err=wrap.querySelector('#musikbot-login-error');err.textContent='';try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(!r.ok)throw new Error('Benutzername oder Passwort ist falsch.');location.reload();}catch(ex){err.textContent=ex instanceof Error?ex.message:'Anmeldung fehlgeschlagen.';}})}
+  function hide(){document.getElementById('musikbot-login-overlay')?.remove()}
+  function addLogout(){if(document.querySelector('.musikbot-user-menu'))return;const row=document.querySelector('header .row');if(!row)return;const box=document.createElement('div');box.className='musikbot-user-menu';box.innerHTML='<span id="musikbot-user-name"></span><button class="musikbot-logout" type="button">Abmelden</button>';row.appendChild(box);box.querySelector('.musikbot-logout')?.addEventListener('click',async()=>{await fetch('/api/auth/logout',{method:'POST'});location.reload()});const name=box.querySelector('#musikbot-user-name');if(name)name.textContent=state.user||'admin'}
+  async function check(){try{const r=await fetch('/api/auth/session',{cache:'no-store'});if(!r.ok){state.authenticated=false;overlay();return}const d=await r.json();state.authenticated=Boolean(d.authenticated);state.user=d.user||null;if(state.authenticated){hide();setTimeout(addLogout,0)}else overlay()}catch{overlay()}}
+  const originalFetch=window.fetch;window.fetch=async(...args)=>{const r=await originalFetch(...args);const url=typeof args[0]==='string'?args[0]:args[0]?.url||'';if(r.status===401&&!url.includes('/api/auth/')){state.authenticated=false;overlay()}return r};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',check);else check();
 })();
 '''
 (FRONTEND / 'web-auth.js').write_text(ui, encoding='utf-8')
-
 index = FRONTEND / 'index.html'
 html = index.read_text(encoding='utf-8')
 if 'web-auth.js' not in html:
-    if '</body>' in html:
-        html = html.replace('</body>', '<script src="/web-auth.js"></script></body>', 1)
-    else:
-        html += '<script src="/web-auth.js"></script>\n'
+    html = html.replace('</body>', '<script src="/web-auth.js"></script></body>', 1) if '</body>' in html else html + '<script src="/web-auth.js"></script>\n'
     index.write_text(html, encoding='utf-8')
-print('web auth patch applied')
+print('web auth patch applied with origin protection')
