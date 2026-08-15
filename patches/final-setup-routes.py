@@ -33,7 +33,13 @@ if "app.get('/api/setup/status'" not in s:
         raise SystemExit('health anchor not found')
     s = s.replace(anchor, route_block + "\n" + anchor, 1)
 
-# Final system-control routes: each route is checked independently so one existing route cannot mask missing ones.
+metrics_block = "app.get('/api/metrics', async (_req, reply) => { const file = '/var/lib/radiobot/metrics.json'; if (!Path(file).exists()) return reply.send({ ok: true, cpu: 0, memory: { used: 0, total: 0 }, disk: { used: 0, total: 0 }, network: { rxBytes: 0, txBytes: 0 } }); try { return JSON.parse(require('node:fs').readFileSync(file, 'utf8')); } catch { return reply.code(503).send({ error: 'Metrics nicht verfügbar' }); } });"
+if "app.get('/api/metrics'" not in s:
+    anchor = "app.get('/api/health'"
+    if anchor not in s:
+        raise SystemExit('health anchor not found for metrics route')
+    s = s.replace(anchor, metrics_block + "\n" + anchor, 1)
+
 system_routes = r'''app.post('/api/system/bot/disable', async () => {
   if (!db.botEnabled) return { ok: true, enabled: false };
   db.botEnabled = false;
@@ -59,7 +65,6 @@ for route in [
             raise SystemExit('health anchor not found for system route patch')
         s = s.replace(anchor, system_routes + "\n" + anchor, 1)
         break
-# Verify all five routes exist after the patch.
 for route in [
     "'/api/system/bot/disable'",
     "'/api/system/bot/enable'",
@@ -76,6 +81,8 @@ if "setup_route_registered=" not in s and listen_marker in s:
 
 if "app.get('/api/setup/status'" not in s:
     raise SystemExit('final setup route insertion failed')
+if "app.get('/api/metrics'" not in s:
+    raise SystemExit('final metrics route insertion failed')
 
 p.write_text(s, encoding='utf-8')
-print('final setup + system route patch applied')
+print('final setup + metrics + system route patch applied')
