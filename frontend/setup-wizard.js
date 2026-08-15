@@ -12,7 +12,7 @@
     const overlay = document.createElement('div'); overlay.className='setup-overlay';
     overlay.innerHTML = `<div class="setup-card"><div class="eyebrow">MusikBot187 · ${settings ? 'Einstellungen' : 'Ersteinrichtung'}</div><h1>${settings ? 'Bot konfigurieren' : 'Willkommen bei MusikBot187'}</h1><p>${settings ? 'Alle wichtigen Zugangsdaten können hier geändert werden. Nach dem Speichern startet der Bot automatisch neu.' : 'Du musst auf Linux nur installieren. Discord, Spotify, YouTube und Web-Zugang werden hier eingerichtet.'}</p><form class="setup-grid">
       ${settings ? '' : '<label class="setup-wide">Ersteinrichtungs-Code<input name="setupToken" value="'+esc(setupCode)+'" readonly></label>'}
-      ${settings ? '' : '<label>Discord Bot Token<input name="discordToken" type="password" autocomplete="off" required></label>'}
+      <label>Discord Bot Token<input name="discordToken" type="password" autocomplete="off" ${settings ? 'placeholder="leer lassen = unverändert"' : 'required'}></label>
       <label>Web-Benutzer<input name="webUser" value="admin" autocomplete="username"></label>
       <label>Web-Passwort<input name="webPassword" type="password" minlength="12" autocomplete="new-password" placeholder="mindestens 12 Zeichen"></label>
       <label>Discord Control Role ID<input name="discordControlRole" placeholder="optional"></label>
