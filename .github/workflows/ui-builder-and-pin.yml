@@ -23,7 +23,7 @@ jobs:
           for f in frontend/*.js tests/*.js; do node --check "$f"; done
       - name: Verify pinned release ref
         env:
-          EXPECTED_PIN: c70f6a54b4f882f7b03fd1af2efba19af9d12e2c
+          EXPECTED_PIN: 5347d32f0a024d1836ec7c0772df040aedc82051
         run: |
           actual_install_pin=$(sed -n 's/^PINNED_COMMIT="\([0-9a-f]\{40\}\)"$/\1/p' install-final.sh)
           actual_update_pin=$(sed -n 's/^PINNED_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' update.sh)
@@ -47,6 +47,7 @@ jobs:
           sudo python3 /opt/radiobot/patches/ui-builder.py
           sudo python3 /opt/radiobot/patches/ui-builder-pointer.py
           sudo python3 /opt/radiobot/patches/final-hardening.py
+          sudo python3 /opt/radiobot/patches/instance-routing.py
           sudo python3 /opt/radiobot/patches/security-final.py
           sudo python3 /opt/radiobot/patches/final-setup-routes.py
           sudo python3 /opt/radiobot/patches/final-radio-routes.py
@@ -58,11 +59,21 @@ jobs:
           npm run build
       - name: Verify TeamSpeak 3 wiring
         run: |
-          grep -q 'ts3-bot.js' /opt/radiobot/backend/package.json
+          grep -q 'start:ts3' /opt/radiobot/backend/package.json
           grep -q '@honeybbq/teamspeak-client' /opt/radiobot/backend/package.json
           test -s /opt/radiobot/backend/src/ts3-bot.ts
           grep -q 'sendVoice' /opt/radiobot/backend/src/ts3-bot.ts
+          grep -q 'TS3_CONTROL_FILE' /opt/radiobot/backend/src/ts3-bot.ts
           grep -q 'TEAMSPEAK_HOST' /opt/radiobot/patches/final-hardening.py
+      - name: Verify shared instance web control
+        run: |
+          grep -q 'id="instance"' /opt/radiobot/frontend/index.html
+          grep -q 'TeamSpeak 3' /opt/radiobot/frontend/index.html
+          grep -q '/api/instances' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/instances/ts3/control' /opt/radiobot/backend/src/index.ts
+          grep -q '/api/instances/ts3/playlist/:id' /opt/radiobot/backend/src/index.ts
+          grep -q 'instanceId' /opt/radiobot/frontend/app.js
+          grep -q 'ts3Control' /opt/radiobot/frontend/app.js
       - name: Verify patched UI wiring
         run: |
           grep -q 'ui-builder.css' /opt/radiobot/frontend/index.html
