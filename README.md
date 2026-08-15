@@ -5,10 +5,10 @@ Native Discord Radio/Music Bot für Ubuntu 24.04 – ohne Docker.
 ## Ein-Befehl-Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-final.sh | sudo bash
 ```
 
-Der Installer installiert Node.js 24, FFmpeg, yt-dlp, Deno, MusikBot187, das responsive Web-Dashboard und einen systemd-Dienst. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
+Der `install-final.sh`-Installer lädt einen fest gepinnten, vollständig getesteten Code-Stand. Er installiert Node.js 24, FFmpeg, yt-dlp, Deno, MusikBot187, das responsive Web-Dashboard und einen systemd-Dienst. Während der Installation sollten bis zu **1 GB RAM** eingeplant werden.
 
 Nach der Installation ist keine manuelle Linux-Konfiguration nötig: Der Installer zeigt eine einmalige **Ersteinrichtungs-URL** an. Darüber werden Discord, Web-Zugang, Spotify, YouTube und weitere Einstellungen direkt im Browser eingerichtet. Der einmalige Code steckt im URL-Fragment (`#setup=...`) und wird nach erfolgreicher Einrichtung gelöscht.
 
@@ -124,7 +124,7 @@ Die Netzwerkwerte beziehen sich auf den gesamten Ubuntu-CT, nicht ausschließlic
 
 ## Update-System
 
-Im Webinterface gibt es einen **Update-Button**. Er startet einen root-owned Update-Helfer, lädt die aktuelle Version, baut das Backend neu und startet den systemd-Dienst automatisch neu. Konfiguration und Musikdaten bleiben erhalten.
+Im Webinterface gibt es einen **Update-Button**. Er startet einen root-owned Update-Helfer, lädt die fest gepinnte getestete Version, baut das Backend neu und startet den systemd-Dienst automatisch neu. Konfiguration und Musikdaten bleiben erhalten.
 
 Alternativ per Konsole:
 
