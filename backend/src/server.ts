@@ -79,6 +79,6 @@ app.post("/api/ts3/:id/connect",async(request,reply)=>{if(!requireAdmin(request,
 app.post("/api/ts3/:id/disconnect",async(request,reply)=>{if(!requireAdmin(request,reply))return;await ts3.disconnect((request.params as {id:string}).id);return publicTS3();});
 app.put("/api/active-instance",async(request,reply)=>{if(!requireUser(request,reply))return;const body=request.body as {type?:"discord"|"ts3"|"none";id?:string};if(!body.type||!["discord","ts3","none"].includes(body.type))return reply.code(400).send({error:"Ungültiger Ausgabetyp"});db().settings.activeOutputType=body.type;db().settings.activeInstanceId=String(body.id||"");await saveState();return db().settings;});
 app.get("/",async(_request,reply)=>reply.sendFile("index.html"));
-app.setErrorHandler((error,_request,reply)=>{recordDiagnostic(db(),error.message);void reply.code(500).send({error:"Interner Fehler",detail:error.message});});
+app.setErrorHandler((error,_request,reply)=>{const message=error instanceof Error?error.message:String(error);recordDiagnostic(db(),message);void reply.code(500).send({error:"Interner Fehler",detail:message});});
 await app.listen({host:HOST,port:PORT});
 console.log(`Musikbot 187 läuft auf ${HOST}:${PORT}`);
