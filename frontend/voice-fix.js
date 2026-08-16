@@ -19,6 +19,14 @@
     });
   }
 
+  async function post(path, body = {}) {
+    return window.api(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
   function addRefreshButton(select, label, handler) {
     if (!select || select.dataset.refreshReady === "1") return;
     select.dataset.refreshReady = "1";
@@ -132,7 +140,7 @@
       try {
         guilds = await window.api(`/api/discord/${id}/guilds`);
       } catch {
-        await window.post(`/api/discord/${id}/connect`);
+        await post(`/api/discord/${id}/connect`);
         guilds = await window.api(`/api/discord/${id}/guilds`);
       }
       if (!guilds.length) {
@@ -141,7 +149,7 @@
       if (!instance.guildId) throw new Error("Bitte zuerst einen Discord-Server auswählen.");
       if (!instance.channelId) throw new Error("Bitte zuerst einen Channel auswählen.");
 
-      await window.post(`/api/discord/${id}/join`);
+      await post(`/api/discord/${id}/join`);
       await window.render();
     } catch (error) {
       alert(error.message || String(error));
