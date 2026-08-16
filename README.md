@@ -1,23 +1,31 @@
-# RadioBot 3
+# RadioBot 4
 
-Komplett neu aufgebauter Musik-/Radio-Dienst mit Web-Dashboard.
+Sauberer Neubau für Musik, Radio und Voice-Ausgabe.
 
-## Enthalten
+## Kernfunktionen
 - Play/Pause/Resume/Stop/Skip, Lautstärke, Queue und Wiedergabemodus
-- YouTube-Suche/Wiedergabe über yt-dlp + FFmpeg
-- Radio Browser Suche und Wiedergabe
+- YouTube-Suche + Wiedergabe über yt-dlp/FFmpeg
+- Radio Browser Suche + Streaming über dieselbe Queue
 - Spotify Client-Credentials Suche mit anschließender Mediensuche
-- Playlists mit Erstellen, Befüllen, Starten und Löschen einzelner Titel
-- Discord-Instanzverwaltung, Guild/Voice-Channel-Erkennung und Voice-Ausgabe
-- TeamSpeak-3-Instanzen mit Host/Channel/Nickname/Passwort, Verbindung und Opus-Voice-Ausgabe
-- Dashboard, Live-Systemdaten, Netzwerk-Interfaces und gespeicherte Kachelreihenfolge als API
-- Administrator-Ersteinrichtung, Login und Benutzerrollen
-- Ubuntu-Installer, systemd-Dienst, Node 24, yt-dlp, FFmpeg
-- CI-Smoke-Test
+- Playlists erstellen, füllen, öffnen, starten und einzelne Titel löschen
+- automatische Suche beim Tippen
+- mehrere Discord- und TeamSpeak-3-Instanzen
+- Discord Guild-/Voice-Channel-Auswahl und Prefix
+- TS3 Host/Port/Channel/Nickname/Passwort
+- Dashboard mit farbigen Themen, Icons, gesperrten Kernkacheln und Drag-&-Drop-Baukasten
+- gespeicherte Dashboard-Reihenfolge
+- CPU/RAM/Load/Netzwerk-Telemetrie
+- frei wählbares Netzwerkinterface in den Einstellungen
+- Ersteinrichtung, Login, Benutzer/Rollen, Diagnose
+- eigener `radiobot`-Dienstbenutzer, systemd, CPU/RAM-Limits
+- Node 24, Deno, yt-dlp, FFmpeg
+- CI-Smoke-Tests und `benchmark.sh`
 
-## Start
-`./install.sh` auf Ubuntu ausführen. Danach `http://SERVER:3000` öffnen.
+## Installation
+```bash
+sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-stable.sh | sudo bash
+```
 
-Spotify: `SPOTIFY_CLIENT_ID` und `SPOTIFY_CLIENT_SECRET` als Umgebungsvariablen setzen.
+Danach `http://SERVER-IP:3000` öffnen.
 
-Die neue Architektur trennt Web-UI, Persistenz, Suche, Medienpipeline und Voice-Adapter. Damit können weitere Wiedergabeziele ergänzt werden, ohne die Queue neu zu bauen.
+Spotify wird über `/etc/radiobot/radiobot.env` konfiguriert. Die Dashboard-Kernkacheln sind standardmäßig geschützt; im Baukasten können zusätzliche, frei verschiebbare Kacheln angelegt werden.

@@ -1,7 +1,0 @@
-import {spawn} from "node:child_process";
-import {YTDLP} from "./config.js";
-import type {MediaItem} from "./store.js";
-async function json(url:string,init?:RequestInit){const r=await fetch(url,init);if(!r.ok)throw new Error(`${r.status} ${r.statusText}`);return r.json()}
-export async function youtubeSearch(q:string):Promise<MediaItem[]>{return new Promise((resolve,reject)=>{const p=spawn(YTDLP,["ytsearch8:"+q,"--flat-playlist","--dump-single-json","--no-warnings"]);let s="";p.stdout.on("data",d=>s+=d);p.on("error",reject);p.on("close",c=>{if(c){reject(new Error("yt-dlp search failed"));return}try{const j=JSON.parse(s);resolve((j.entries||[]).map((x:any)=>({id:x.id||crypto.randomUUID(),title:x.title,url:x.url||`https://www.youtube.com/watch?v=${x.id}`,duration:x.duration,source:"youtube",thumbnail:x.thumbnails?.[0]?.url})))}catch(e){reject(e)}})})}
-export async function radioSearch(q:string){const j=await json("https://de1.api.radio-browser.info/json/stations/search?limit=12&hidebroken=true&order=clickcount&reverse=true&name="+encodeURIComponent(q));return j.map((x:any)=>({id:x.stationuuid,title:x.name,url:x.url_resolved||x.url,source:"radio",thumbnail:x.favicon}))}
-export async function resolveStream(item:MediaItem){if(item.source==="radio")return item.url;return new Promise<string>((resolve,reject)=>{const p=spawn(YTDLP,[item.url,"-f","bestaudio/best","-g","--no-playlist","--no-warnings"]);let s="";p.stdout.on("data",d=>s+=d);p.on("error",reject);p.on("close",c=>c?reject(new Error("stream resolve failed")):resolve(s.trim().split("\n")[0]))})}
