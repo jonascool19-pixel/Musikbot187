@@ -1,0 +1,28 @@
+[Unit]
+Description=Musikbot 187 Music and Radio Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=musikbot187
+Group=musikbot187
+WorkingDirectory=/opt/musikbot-187/backend
+Environment=MUSIKBOT187_DATA=/var/lib/musikbot-187
+Environment=MUSIKBOT187_FRONTEND=/opt/musikbot-187/frontend
+Environment=NODE_ENV=production
+EnvironmentFile=-/etc/musikbot-187/musikbot.env
+ExecStart=/usr/bin/node /opt/musikbot-187/backend/dist/server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/musikbot-187
+MemoryMax=1G
+CPUQuota=200%
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

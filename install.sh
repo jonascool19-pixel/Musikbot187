@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive
+APP=/opt/musikbot-187
+DATA=/var/lib/musikbot-187
+USER=musikbot187
+REPO=https://github.com/jonascool19-pixel/radiobot.git
+id "$USER" >/dev/null 2>&1 || useradd --system --home "$DATA" --create-home --shell /usr/sbin/nologin "$USER"
 apt-get update
-apt-get install -y curl git ffmpeg ca-certificates build-essential
+apt-get install -y ca-certificates curl git ffmpeg build-essential
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 apt-get install -y nodejs
-if ! command -v deno >/dev/null 2>&1; then curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh; fi
-if ! command -v yt-dlp >/dev/null 2>&1; then curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp; chmod 755 /usr/local/bin/yt-dlp; fi
-id radiobot >/dev/null 2>&1 || useradd --system --home /var/lib/radiobot --create-home --shell /usr/sbin/nologin radiobot
-rm -rf /opt/radiobot && install -d -o radiobot -g radiobot /opt/radiobot /var/lib/radiobot
-cp -a backend frontend deploy benchmark.sh README.md /opt/radiobot/
-cd /opt/radiobot/backend
+if ! command -v deno >/dev/null 2>&1; then curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh; ln -sf /usr/local/bin/deno /usr/bin/deno || true; fi
+if ! command -v yt-dlp >/dev/null 2>&1; then curl -L --fail https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp; chmod +x /usr/local/bin/yt-dlp; fi
+rm -rf "$APP"
+install -d -o "$USER" -g "$USER" "$APP" "$DATA" "$DATA/files" /etc/musikbot-187
+git clone --depth 1 "$REPO" "$APP"
+cd "$APP/backend"
 npm install
 npm run build
-chown -R radiobot:radiobot /opt/radiobot /var/lib/radiobot
-install -m 0644 /opt/radiobot/deploy/radiobot.service /etc/systemd/system/radiobot.service
+cat >/etc/musikbot-187/musikbot.env <<ENV
+NODE_ENV=production
+HOST=0.0.0.0
+PORT=3000
+ENV
+chmod 600 /etc/musikbot-187/musikbot.env
+chown -R "$USER:$USER" "$APP" "$DATA"
+install -m 0644 "$APP/deploy/musikbot187.service" /etc/systemd/system/musikbot187.service
 systemctl daemon-reload
-systemctl enable radiobot
-systemctl restart radiobot || systemctl start radiobot
-systemctl --no-pager --full status radiobot || true
-echo "RadioBot 4 installiert: http://$(hostname -I | awk '{print $1}'):3000"
+systemctl enable --now musikbot187
+systemctl --no-pager --full status musikbot187 || true
+echo
+echo "Musikbot 187 läuft auf Port 3000."
+echo "Dashboard: http://SERVER-IP:3000"

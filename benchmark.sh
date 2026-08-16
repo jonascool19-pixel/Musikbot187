@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'RadioBot benchmark\n'
+printf 'Musikbot 187 resource benchmark\n'
 printf 'Node: '; node -v
-printf 'Deno: '; deno --version | head -1
+printf 'Deno: '; deno --version | head -n1 || true
+printf 'FFmpeg: '; ffmpeg -version | head -n1
 printf 'yt-dlp: '; yt-dlp --version
-printf 'FFmpeg: '; ffmpeg -version | head -1
 printf 'CPU cores: '; nproc
-printf 'Memory: '; free -h | awk '/Mem:/{print $2}'
-for i in 1 2 3; do curl -fsS http://127.0.0.1:3000/api/health || true; echo; sleep .2; done
+printf 'Memory: '; free -h | awk '/Mem:/ {print $2}'
+printf 'Disk /opt: '; df -h /opt | awk 'NR==2 {print $4 " free"}'
+time -p sh -c 'cd backend && npm run build >/dev/null'
+printf 'Build benchmark: OK\n'

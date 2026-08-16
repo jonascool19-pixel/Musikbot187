@@ -1,1 +1,10 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RadioBot 4</title><link rel="stylesheet" href="/style.css"></head><body><div id="app"><aside><h1>🎛️ RadioBot</h1><nav><button data-v="dash">Dashboard</button><button data-v="search">🔎 Suche</button><button data-v="radio">📻 Radio</button><button data-v="playlists">📋 Playlists</button><button data-v="instances">🎧 Instanzen</button><button data-v="settings">⚙️ Einstellungen</button></nav><div id="sideStatus" class="muted"></div></aside><main><header><div><b id="now">Nichts läuft</b><small id="sub">Bereit</small></div><div class="controls"><button onclick="act('pause')">⏸</button><button onclick="act('resume')">▶</button><button onclick="act('skip')">⏭</button><button onclick="act('stop')">⏹</button><input id="vol" type="range" min="0" max="100" value="80" oninput="volume(this.value)"></div></header><section id="content"></section></main></div><div id="login" class="hidden"></div><script src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Musikbot 187</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<div id="app">
+  <aside id="sidebar"><div class="brand"><span class="brand-icon">187</span><div><strong>Musikbot 187</strong><small>Music & Radio</small></div></div><nav id="nav"><button data-view="dashboard">🏠 Dashboard</button><button data-view="search">🔎 Suche</button><button data-view="radio">📻 Radio</button><button data-view="playlists">💿 Playlists</button><button data-view="files">📁 Dateien</button><button data-view="instances">🎧 Discord / TS3</button><button data-view="settings">⚙️ Einstellungen</button></nav><div class="side-status" id="side-status">Nicht angemeldet</div></aside>
+  <main><header><div><h1 id="page-title">Dashboard</h1><p id="page-subtitle">Übersicht und Wiedergabe</p></div><div class="header-actions"><button id="refresh-btn">↻</button><button id="logout-btn">Abmelden</button></div></header><section id="content"></section></main>
+</div><div id="modal"></div><script src="/app.js"></script>
+</body>
+</html>
