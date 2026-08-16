@@ -2,7 +2,7 @@
 set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo 'Bitte mit sudo/root ausführen.' >&2; exit 1; }
 REPO='https://github.com/jonascool19-pixel/radiobot.git'
-PIN='c1ea50948b7b0ac2c7e6e4ec1b57fb4a7b4837d0'
+PIN='3d7dab8400a9b26b8f16d3116f932094a0dc7e8e'
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 apt-get update
