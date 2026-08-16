@@ -2,6 +2,7 @@
   let editing = false;
   let lastState = null;
   let authenticated = false;
+  let setupReady = false;
   let refreshTimer = null;
 
   const api = async (url, options = {}) => {
@@ -15,7 +16,7 @@
     return data;
   };
 
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const esc = value => String(value ?? '').replace(/[&<>\"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[c]));
   const formatBytes = bytes => { let n = Math.max(0, Number(bytes) || 0), i = 0; const u = ['B','KB','MB','GB','TB']; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return `${n.toFixed(i ? 1 : 0)} ${u[i]}`; };
   const formatTime = sec => { const s = Math.max(0, Math.floor(Number(sec) || 0)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
   const activeInstance = s => (s?.instances || []).find(x => x.id === s.activeInstance) || (s?.instances || []).find(x => x.connected) || null;
@@ -33,7 +34,7 @@
 
   function ensureEditorButton() {
     const top = document.querySelector('.top-actions');
-    if (!top || location.pathname !== '/') return;
+    if (!top || location.pathname !== '/' || !setupReady) return;
     let button = document.querySelector('#stableDashboardEdit');
     if (!button) {
       button = document.createElement('button');
@@ -56,15 +57,15 @@
 
   document.addEventListener('dragstart', e => {
     const tile = e.target.closest?.('[data-tile]');
-    if (tile && !editing) { e.preventDefault(); e.stopImmediatePropagation(); }
+    if (tile && (!editing || !setupReady)) { e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
   document.addEventListener('dragover', e => {
     const tile = e.target.closest?.('[data-tile]');
-    if (tile && !editing) { e.preventDefault(); e.stopImmediatePropagation(); }
+    if (tile && (!editing || !setupReady)) { e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
   document.addEventListener('drop', e => {
     const tile = e.target.closest?.('[data-tile]');
-    if (tile && !editing) { e.preventDefault(); e.stopImmediatePropagation(); }
+    if (tile && (!editing || !setupReady)) { e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
 
   function renderNowPlaying(instance) {
@@ -83,7 +84,7 @@
       if (controls) controls.insertAdjacentHTML('beforeend', `<label class="stable-volume" title="Lautstärke">🔊 <input id="stableVolume" type="range" min="0" max="100" value="${Number(instance.volume ?? 80)}"></label>`);
       document.querySelector('#stableVolume')?.addEventListener('input', async e => {
         try { await api('/api/control', { method:'POST', body:JSON.stringify({ action:'volume', value:Number(e.target.value) }) }); }
-        catch (error) { if (error.status === 401) authenticated = false; }
+        catch (error) { if (error.status === 401) { authenticated = false; setupReady = false; stopPolling(); } }
       });
     } else {
       const volume=document.querySelector('#stableVolume');
@@ -101,12 +102,14 @@
 
   async function checkAuth() {
     try {
-      await api('/api/me');
+      const me = await api('/api/me');
       authenticated = true;
-      return true;
+      setupReady = Boolean(me.setupComplete);
+      return { authenticated: true, setupReady };
     } catch (error) {
       authenticated = false;
-      return false;
+      setupReady = false;
+      return { authenticated: false, setupReady: false };
     }
   }
 
@@ -123,12 +126,13 @@
   }
 
   async function refreshStable() {
-    if (!authenticated) {
-      if (!(await checkAuth())) {
-        scheduleRefresh(5000);
-        return;
-      }
+    const authState = await checkAuth();
+    if (!authState.authenticated || !authState.setupReady) {
+      stopPolling();
+      scheduleRefresh(5000);
+      return;
     }
+
     try {
       const fresh=await api('/api/state');
       lastState=fresh;
@@ -140,8 +144,9 @@
       injectNetworkTab();
       injectPlaylistOpeners(fresh.playlists||[]);
     } catch (error) {
-      if (error.status === 401) {
+      if (error.status === 401 || error.status === 409) {
         authenticated = false;
+        setupReady = false;
         stopPolling();
         scheduleRefresh(5000);
         return;
@@ -151,6 +156,7 @@
   }
 
   function injectNetworkTab() {
+    if (!setupReady) return;
     const tabs=document.querySelector('.settings-tabs'); if(!tabs)return;
     let tab=tabs.querySelector('[data-settab="network"]'); if(tab)return;
     tab=document.createElement('button'); tab.dataset.settab='network'; tab.textContent='Netzwerkverbrauch';
@@ -160,16 +166,18 @@
   }
 
   async function renderNetworkSettings(target) {
-    if(!target)return;
-    if (!(await checkAuth())) return;
+    if(!target || !setupReady)return;
+    const authState = await checkAuth();
+    if (!authState.authenticated || !authState.setupReady) return;
     try {
       const [info,stats]=await Promise.all([api('/api/network/interfaces'),api('/api/network/stats')]);
       target.innerHTML=`<section class="page-panel"><div class="page-head"><div><h2>Netzwerkverbrauch</h2><p>Gesamtverbrauch sowie Download und Upload des ausgewählten Interfaces.</p></div></div><div class="form-grid two"><label>Netzwerkkarte<select id="stableNetworkInterface">${(info.interfaces||[]).map(name=>`<option value="${esc(name)}" ${name===info.selected?'selected':''}>${esc(name)}</option>`).join('')}</select></label><div class="metric-card"><span>Ausgewählt</span><strong>${esc(stats.interface)}</strong><small>Interface für die Gesamtzählung</small></div></div><div class="system-cards"><div class="metric-card"><span>Gesamt</span><strong>${formatBytes(stats.total)}</strong><small>RX + TX</small></div><div class="metric-card"><span>Download</span><strong>${formatBytes(stats.rxTotal)}</strong><small>RX</small></div><div class="metric-card"><span>Upload</span><strong>${formatBytes(stats.txTotal)}</strong><small>TX</small></div><div class="metric-card"><span>Live</span><strong>↓ ${formatBytes(stats.rxRate)}/s</strong><small>↑ ${formatBytes(stats.txRate)}/s</small></div></div></section>`;
       document.querySelector('#stableNetworkInterface')?.addEventListener('change',async e=>{await api('/api/settings',{method:'PUT',body:JSON.stringify({settings:{networkInterface:e.target.value}})});await renderNetworkSettings(target);});
-    }catch(error){if(error.status===401){authenticated=false;return;}target.innerHTML=`<div class="page-panel"><div class="empty">${esc(error.message)}</div></div>`;}
+    }catch(error){if(error.status===401||error.status===409){authenticated=false;setupReady=false;stopPolling();return;}target.innerHTML=`<div class="page-panel"><div class="empty">${esc(error.message)}</div></div>`;}
   }
 
   function injectPlaylistOpeners(playlists) {
+    if (!setupReady) return;
     document.querySelectorAll('.playlist-card').forEach(card=>{
       if(card.querySelector('.stable-open-playlist'))return;
       const title=card.querySelector('h3')?.textContent?.trim();
@@ -181,14 +189,15 @@
   }
 
   function openPlaylist(playlist) {
+    if (!setupReady) return;
     document.querySelector('#stablePlaylistModal')?.remove();
     const modal=document.createElement('div'); modal.id='stablePlaylistModal'; modal.className='stable-modal-backdrop';
     modal.innerHTML=`<div class="stable-modal"><div class="page-head"><div><h2>${esc(playlist.name)}</h2><p>${playlist.items?.length||0} Titel</p></div><button id="stableClose">✕</button></div><div class="stable-playlist-list">${(playlist.items||[]).map((item,i)=>`<div class="queue-item"><span>${i+1}</span><b>${esc(item.title||item.input)}</b><button data-del="${i}">Löschen</button></div>`).join('')||'<div class="empty">Playlist ist leer.</div>'}</div></div>`;
     document.body.appendChild(modal); modal.querySelector('#stableClose').onclick=()=>modal.remove(); modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
-    modal.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async()=>{try{await api(`/api/playlist/${playlist.id}/item/${b.dataset.del}`,{method:'DELETE'});modal.remove();await refreshStable();document.querySelector('[data-nav="playlists"]')?.click();}catch(error){if(error.status===401)authenticated=false;}}));
+    modal.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async()=>{try{await api(`/api/playlist/${playlist.id}/item/${b.dataset.del}`,{method:'DELETE'});modal.remove();await refreshStable();document.querySelector('[data-nav="playlists"]')?.click();}catch(error){if(error.status===401||error.status===409){authenticated=false;setupReady=false;stopPolling();}}}));
   }
 
-  const observer=new MutationObserver(()=>{if(authenticated){ensureEditorButton();lockDashboard();injectNetworkTab();}});
+  const observer=new MutationObserver(()=>{if(authenticated && setupReady){ensureEditorButton();lockDashboard();injectNetworkTab();}});
   observer.observe(document.body,{childList:true,subtree:true});
 
   void refreshStable();
