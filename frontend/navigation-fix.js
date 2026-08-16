@@ -27,25 +27,8 @@
     }
   };
 
-  const safeLoad = async () => {
-    if (busy) return;
-    busy = true;
-    try {
-      clearInterval(window.clockTimer);
-      clearInterval(window.pollTimer);
-      const fresh = await window.api('/api/state');
-      setGlobal('state', fresh);
-      const page = String(window.eval('currentPage'));
-      if (typeof window.renderPage === 'function') await window.renderPage(page);
-      if (page === 'dashboard' && typeof window.refreshDashboardBits === 'function') window.refreshDashboardBits();
-      if (typeof window.startLiveUpdates === 'function') window.startLiveUpdates();
-    } catch (error) {
-      window.notify?.(error?.message || String(error), 'error');
-    } finally {
-      busy = false;
-    }
-  };
-
+  // Do not override window.load here. The original app.js load() contains the
+  // first-user/setup-required state machine. Overriding it makes a fresh install
+  // treat the expected 409 SETUP_REQUIRED response as a fatal login error.
   window.go = safeNavigate;
-  window.load = safeLoad;
 })();
