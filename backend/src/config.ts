@@ -20,8 +20,33 @@ export function defaultConfig() {
     instances: { discord: [], ts3: [], spotify: [] },
     playlists: [],
     uiOrder: [...DEFAULT_UI_ORDER],
-    settings: { prefix: '!', volume: 80 }
+    settings: { prefix: '!', volume: 80, discordPrefixes: {}, discordMessageContentIntent: {} }
   };
+}
+
+function attachDiscordRuntimeConfig(cfg: BotConfig) {
+  const prefixes = cfg.settings.discordPrefixes && typeof cfg.settings.discordPrefixes === 'object' ? cfg.settings.discordPrefixes : {};
+  const intents = cfg.settings.discordMessageContentIntent && typeof cfg.settings.discordMessageContentIntent === 'object' ? cfg.settings.discordMessageContentIntent : {};
+  cfg.instances.discord.forEach((instance: any) => {
+    if (!instance || typeof instance !== 'object' || !instance.id) return;
+    const originalPrefix = typeof instance.prefix === 'string' && instance.prefix ? instance.prefix : cfg.settings.prefix || '!';
+    const originalIntent = instance.messageContentIntent !== false;
+    Object.defineProperty(instance, 'prefix', {
+      enumerable: false,
+      configurable: true,
+      get() { return typeof prefixes[instance.id] === 'string' && prefixes[instance.id] ? prefixes[instance.id] : originalPrefix; },
+      set(value: any) { prefixes[instance.id] = String(value || '!').slice(0, 3); }
+    });
+    Object.defineProperty(instance, 'messageContentIntent', {
+      enumerable: false,
+      configurable: true,
+      get() { return typeof intents[instance.id] === 'boolean' ? intents[instance.id] : originalIntent; },
+      set(value: any) { intents[instance.id] = value !== false; }
+    });
+  });
+  cfg.settings.discordPrefixes = prefixes;
+  cfg.settings.discordMessageContentIntent = intents;
+  return cfg;
 }
 
 export function normalizeConfig(input: BotConfig): BotConfig {
@@ -57,7 +82,7 @@ export function normalizeConfig(input: BotConfig): BotConfig {
     const first = normalized.users[0];
     normalized.auth = { user: first.username, salt: first.salt, hash: first.hash };
   }
-  return normalized;
+  return attachDiscordRuntimeConfig(normalized);
 }
 
 export function readConfig(): BotConfig {
