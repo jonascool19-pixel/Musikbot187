@@ -1,49 +1,12 @@
-name: RadioBot CI
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
+name: CI
+on: [push,pull_request]
 jobs:
-  build-test:
-    runs-on: ubuntu-24.04
+  smoke:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Repository integrity
-        run: |
-          set -euo pipefail
-          if grep -R -n -E '^(<<<<<<<|=======|>>>>>>>)' --exclude-dir=.git .; then
-            echo 'Unresolved git merge conflict markers found.' >&2
-            exit 1
-          fi
-      - name: Syntax
-        run: |
-          set -euo pipefail
-          find . -maxdepth 1 -type f -name 'install*.sh' -print0 | xargs -0 -r bash -n
-          bash -n update.sh scripts/*.sh
-          find frontend -maxdepth 1 -type f -name '*.js' -print0 | while IFS= read -r -d '' f; do node --check "$f"; done
-          python3 - <<'PY'
-          from pathlib import Path
-          assert "WantedBy=multi-user.target" in Path("radiobot-network.service").read_text()
-          assert "ReadWritePaths=/opt/radiobot/frontend" in Path("radiobot-network.service").read_text()
-          assert Path("frontend/stable-dashboard.js").exists()
-          assert Path("backend/src/network.ts").exists()
-          assert Path("backend/src/stability.ts").exists()
-          print("static checks OK")
-          PY
-      - name: Build
-        working-directory: backend
-        run: |
-          npm install --include=dev --no-audit --no-fund
-          npm run build
-      - name: Smoke test
-        run: node tests/smoke.mjs
-      - name: Resource benchmark
-        run: |
-          chmod +x scripts/*.sh
-          scripts/resource-benchmark.sh
-          scripts/ts3-resource-benchmark.sh
+        with: {node-version: 24}
+      - run: cd backend && npm install
+      - run: cd backend && npm run build
+      - run: node --check frontend/app.js

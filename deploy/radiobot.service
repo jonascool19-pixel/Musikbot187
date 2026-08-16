@@ -1,27 +1,24 @@
 [Unit]
-Description=RadioBot music service
+Description=RadioBot Music and Radio Service
 After=network-online.target
 Wants=network-online.target
-
 [Service]
 Type=simple
 User=radiobot
 Group=radiobot
 WorkingDirectory=/opt/radiobot/backend
+Environment=RADIOBOT_DATA=/var/lib/radiobot
+Environment=RADIOBOT_FRONTEND=/opt/radiobot/frontend
 Environment=NODE_ENV=production
-Environment=DATA_DIR=/var/lib/radiobot
-Environment=FRONTEND_DIR=/opt/radiobot/frontend
-Environment=PORT=3000
 ExecStart=/usr/bin/node /opt/radiobot/backend/dist/index.js
 Restart=always
-RestartSec=2
-PrivateTmp=true
+RestartSec=3
+NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/radiobot
-MemoryMax=720M
-CPUQuota=90%
-LimitNOFILE=65536
-
+MemoryMax=1G
+CPUQuota=200%
+LimitNOFILE=65535
 [Install]
 WantedBy=multi-user.target
