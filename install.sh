@@ -11,7 +11,7 @@ curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 apt-get install -y nodejs
 if ! command -v deno >/dev/null 2>&1; then
   curl -fsSL https://deno.land/install.sh -o /tmp/deno-install.sh
-  printf 'Y\n' | DENO_INSTALL=/usr/local sh /tmp/deno-install.sh
+  DENO_INSTALL=/usr/local sh /tmp/deno-install.sh -y
   rm -f /tmp/deno-install.sh
   ln -sf /usr/local/bin/deno /usr/bin/deno || true
 fi
