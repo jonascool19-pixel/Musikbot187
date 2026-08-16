@@ -9,7 +9,12 @@ apt-get update
 apt-get install -y ca-certificates curl git ffmpeg build-essential unzip
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 apt-get install -y nodejs
-if ! command -v deno >/dev/null 2>&1; then curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh; ln -sf /usr/local/bin/deno /usr/bin/deno || true; fi
+if ! command -v deno >/dev/null 2>&1; then
+  curl -fsSL https://deno.land/install.sh -o /tmp/deno-install.sh
+  printf 'y\n' | DENO_INSTALL=/usr/local sh /tmp/deno-install.sh
+  ln -sf /usr/local/bin/deno /usr/bin/deno || true
+  rm -f /tmp/deno-install.sh
+fi
 if ! command -v yt-dlp >/dev/null 2>&1; then curl -L --fail https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp; chmod +x /usr/local/bin/yt-dlp; fi
 rm -rf "$APP"
 install -d -o "$USER" -g "$USER" "$APP" "$DATA" "$DATA/files" /etc/musikbot-187
