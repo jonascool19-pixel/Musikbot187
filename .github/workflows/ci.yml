@@ -13,6 +13,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Repository integrity
+        run: |
+          set -euo pipefail
+          if grep -R -n -E '^(<<<<<<<|=======|>>>>>>>)' --exclude-dir=.git .; then
+            echo 'Unresolved git merge conflict markers found.' >&2
+            exit 1
+          fi
       - name: Syntax
         run: |
           set -euo pipefail
