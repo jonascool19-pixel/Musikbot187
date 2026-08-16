@@ -2,11 +2,16 @@ import { createAudioResource, StreamType, AudioPlayerStatus } from '@discordjs/v
 import { spawnPcm } from './media.js';
 
 function errorText(error: unknown) { return error instanceof Error ? error.message : String(error); }
+function mediaCover(input: string) {
+  const match = String(input).match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  return match ? `https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg` : null;
+}
 
 export function applyDiscordStability(instance: any) {
   if (instance.__stabilityApplied) return instance;
   instance.__stabilityApplied = true;
   const originalEnsureVoice = instance.ensureVoice.bind(instance);
+  const originalState = instance.state.bind(instance);
   instance.ensureVoice = async () => {
     if (instance.connection && instance.connection.state?.status === 'ready') {
       instance.connection.subscribe(instance.player);
@@ -18,11 +23,25 @@ export function applyDiscordStability(instance: any) {
     instance.volume = Math.max(0, Math.min(100, Number(value) || 0));
     instance.currentResource?.volume?.setVolume(instance.volume / 100);
   };
+  instance.state = () => {
+    const base = originalState();
+    const current = instance.current;
+    return {
+      ...base,
+      playing: current?.title ?? null,
+      playingInput: current?.input ?? null,
+      coverUrl: current?.input ? mediaCover(current.input) : null,
+      startedAt: instance.startedAt ?? null,
+      elapsedSeconds: instance.startedAt ? Math.max(0, Math.floor((Date.now() - instance.startedAt) / 1000)) : 0,
+      volume: instance.volume
+    };
+  };
   instance.next = async () => {
     if (instance.current) return;
     const item = instance.queue.shift();
     if (!item) return;
     instance.current = item;
+    instance.startedAt = Date.now();
     try {
       instance.log?.('INFO', `Starte Wiedergabe: ${item.title}`);
       await instance.ensureVoice();
@@ -50,6 +69,7 @@ export function applyDiscordStability(instance: any) {
     } finally {
       instance.ffmpeg = undefined;
       instance.currentResource = undefined;
+      instance.startedAt = undefined;
       instance.current = undefined;
       if (instance.queue.length) void instance.next();
     }
