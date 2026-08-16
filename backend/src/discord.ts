@@ -67,8 +67,15 @@ export class DiscordInstance {
   async stop() { this.ffmpeg?.kill('SIGTERM'); this.connection?.destroy(); this.connected = false; this.inviteUrl = ''; try { await this.client.destroy(); } catch {} }
   async restart() { await this.stop(); await this.start(); }
 
+  private guildForChannels(guildId = this.cfg.guildId) {
+    const configured = guildId ? this.client.guilds.cache.get(guildId) : undefined;
+    if (configured) return configured;
+    if (!guildId && this.client.guilds.cache.size === 1) return this.client.guilds.cache.first();
+    return this.client.guilds.cache.size === 1 ? this.client.guilds.cache.first() : undefined;
+  }
+
   listVoiceChannels(guildId = this.cfg.guildId) {
-    const guild = this.client.guilds.cache.get(guildId);
+    const guild = this.guildForChannels(guildId);
     if (!guild) return [];
     return [...guild.channels.cache.values()]
       .filter((channel: any) => typeof channel.isVoiceBased === 'function' && channel.isVoiceBased())
@@ -76,8 +83,21 @@ export class DiscordInstance {
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
   }
 
+  async fetchVoiceChannels(guildId = this.cfg.guildId) {
+    if (!this.client.isReady()) throw new Error('Discord ist noch nicht verbunden.');
+    const guild = this.guildForChannels(guildId);
+    if (!guild) throw new Error('Discord-Server nicht gefunden. Prüfe die Guild-ID.');
+    const fetched = await guild.channels.fetch();
+    const channels = [...fetched.values()]
+      .filter((channel: any) => channel && typeof channel.isVoiceBased === 'function' && channel.isVoiceBased())
+      .map((channel: any) => ({ id: channel.id, name: channel.name, type: channel.type }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    if (!channels.length) throw new Error('Keine Sprachkanäle gefunden. Prüfe die Server-/Kanalrechte des Bots.');
+    return channels;
+  }
+
   private async ensureVoice() {
-    const guild = this.client.guilds.cache.get(this.cfg.guildId);
+    const guild = this.guildForChannels(this.cfg.guildId);
     if (!guild) throw new Error('Discord-Server nicht gefunden. Bitte den Bot über den Einladungslink hinzufügen und die Guild-ID prüfen.');
     const channel = guild.channels.cache.get(this.cfg.voiceChannelId) as any;
     if (!channel?.isVoiceBased?.()) throw new Error('Kein gültiger Discord-Sprachkanal ausgewählt. Bitte unter Einstellungen → Instanzen einen Voice-Kanal auswählen.');
@@ -109,6 +129,7 @@ export class DiscordInstance {
   }
 
   state() {
+    const guilds = [...this.client.guilds.cache.values()].map((guild: any) => ({ id:guild.id, name:guild.name })).sort((a,b)=>a.name.localeCompare(b.name,'de'));
     return {
       id:this.cfg.id,
       name:this.cfg.name,
@@ -121,6 +142,7 @@ export class DiscordInstance {
       error:this.lastError||null,
       inviteUrl:this.inviteUrl||this.buildInviteUrl()||null,
       botUser:this.client.user?.tag??null,
+      guilds,
       voiceChannels:this.listVoiceChannels()
     };
   }

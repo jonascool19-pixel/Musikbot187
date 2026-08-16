@@ -1,10 +1,24 @@
 (() => {
-  const DISABLED = '__RADIOBOT_DISABLED__';
-  const seen = new WeakSet();
   const esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[char]));
 
   function activeInstance(id) {
     return (state.instances || []).find(instance => instance.id === id) || null;
+  }
+
+  async function refreshForm(form, replacement, input, field) {
+    notify('Discord-Daten werden neu gelesen…', 'info');
+    try {
+      state = await api('/api/state');
+      form.dataset.channelPicker = '';
+      replacement.remove();
+      field?.appendChild(input);
+      applyPicker(form);
+      const current = activeInstance(form.querySelector('[data-f="id"]')?.value || '');
+      if (current?.voiceChannels?.length) notify(`${current.voiceChannels.length} Sprachkanäle gefunden.`, 'success');
+      else notify('Keine Sprachkanäle gefunden. Prüfe Guild-ID und Discord-Rechte.', 'error');
+    } catch (error) {
+      notify(error.message, 'error');
+    }
   }
 
   function applyPicker(form) {
@@ -19,39 +33,22 @@
 
     const field = input.closest('label');
     const channels = Array.isArray(instance.voiceChannels) ? instance.voiceChannels : [];
+    const guilds = Array.isArray(instance.guilds) ? instance.guilds : [];
     const current = input.value || '';
     const replacement = document.createElement('div');
     replacement.className = 'discord-channel-picker';
-    replacement.innerHTML = `<div class="discord-channel-row"><select data-f="voiceChannelId" aria-label="Discord Sprachkanal"><option value="">Kanal auswählen…</option>${channels.map(channel => `<option value="${esc(channel.id)}" ${channel.id === current ? 'selected' : ''}>${esc(channel.name)}${channel.type === 13 ? ' · Bühne' : ''}</option>`).join('')}</select><button type="button" class="ghost discord-channel-refresh" title="Discord-Kanäle aktualisieren">↻</button></div><small class="discord-channel-hint">Discord-Kanäle werden aus dem ausgewählten Server gelesen.</small>`;
-    if (!channels.length) {
-      replacement.querySelector('select').disabled = true;
-      replacement.querySelector('select').insertAdjacentHTML('beforeend', '<option>Keine Sprachkanäle gefunden</option>');
-    }
+    replacement.innerHTML = `<div class="discord-channel-row"><select data-f="voiceChannelId" aria-label="Discord Sprachkanal"><option value="">${channels.length ? 'Kanal auswählen…' : 'Keine Sprachkanäle gefunden'}</option>${channels.map(channel => `<option value="${esc(channel.id)}" ${channel.id === current ? 'selected' : ''}>${esc(channel.name)}${channel.type === 13 ? ' · Bühne' : ''}</option>`).join('')}</select><button type="button" class="ghost discord-channel-refresh" title="Discord-Kanäle aktualisieren">↻</button></div><small class="discord-channel-hint">${channels.length ? `${channels.length} Sprachkanäle aus dem Discord-Server gefunden.` : guilds.length ? `Bot ist in: ${guilds.map(g => `${esc(g.name)} (${esc(g.id)})`).join(', ')}. Prüfe die Guild-ID.` : 'Bot ist mit keinem Discord-Server verbunden oder die Guild-ID ist falsch.'}</small>`;
+
     input.remove();
     field?.appendChild(replacement);
-    replacement.querySelector('select')?.addEventListener('change', event => {
-      input.value = event.target.value;
-    });
-    replacement.querySelector('.discord-channel-refresh')?.addEventListener('click', async () => {
-      notify('Discord-Kanäle werden neu gelesen…', 'info');
-      try {
-        state = await api('/api/state');
-        form.dataset.channelPicker = '';
-        replacement.remove();
-        field?.appendChild(input);
-        applyPicker(form);
-        notify('Discord-Kanäle aktualisiert.', 'success');
-      } catch (error) {
-        notify(error.message, 'error');
-      }
-    });
+    replacement.querySelector('select')?.addEventListener('change', event => { input.value = event.target.value; });
+    replacement.querySelector('.discord-channel-refresh')?.addEventListener('click', async () => refreshForm(form, replacement, input, field));
   }
 
   function scan() {
     document.querySelectorAll('.instance-card[data-kind="discord"]').forEach(applyPicker);
   }
 
-  const observer = new MutationObserver(scan);
-  observer.observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
   scan();
 })();
