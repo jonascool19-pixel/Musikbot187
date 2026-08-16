@@ -16,15 +16,17 @@ jobs:
       - name: Syntax
         run: |
           set -euo pipefail
-          bash -n install.sh install-final.sh update.sh scripts/resource-benchmark.sh scripts/ts3-resource-benchmark.sh scripts/network-telemetry.sh
-          node --check frontend/app.js
-          node --check frontend/network.js
-          node --check tests/smoke.mjs
+          find . -maxdepth 1 -type f -name 'install*.sh' -print0 | xargs -0 -r bash -n
+          bash -n update.sh scripts/*.sh
+          find frontend -maxdepth 1 -type f -name '*.js' -print0 | while IFS= read -r -d '' f; do node --check "$f"; done
           python3 - <<'PY'
           from pathlib import Path
           assert "WantedBy=multi-user.target" in Path("radiobot-network.service").read_text()
           assert "ReadWritePaths=/opt/radiobot/frontend" in Path("radiobot-network.service").read_text()
-          print("network service checks OK")
+          assert Path("frontend/stable-dashboard.js").exists()
+          assert Path("backend/src/network.ts").exists()
+          assert Path("backend/src/stability.ts").exists()
+          print("static checks OK")
           PY
       - name: Build
         working-directory: backend
@@ -35,6 +37,6 @@ jobs:
         run: node tests/smoke.mjs
       - name: Resource benchmark
         run: |
-          chmod +x scripts/resource-benchmark.sh scripts/ts3-resource-benchmark.sh scripts/network-telemetry.sh
+          chmod +x scripts/*.sh
           scripts/resource-benchmark.sh
           scripts/ts3-resource-benchmark.sh
