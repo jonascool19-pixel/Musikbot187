@@ -29,19 +29,40 @@ function attachDiscordRuntimeConfig(cfg: BotConfig) {
   if (!cfg.settings.discordMessageContentIntent || typeof cfg.settings.discordMessageContentIntent !== 'object') cfg.settings.discordMessageContentIntent = {};
   cfg.instances.discord.forEach((instance: any) => {
     if (!instance || typeof instance !== 'object' || !instance.id) return;
-    const originalPrefix = typeof instance.prefix === 'string' && instance.prefix ? instance.prefix : cfg.settings.prefix || '!';
-    const originalIntent = instance.messageContentIntent !== false;
+
+    const storedPrefix = cfg.settings.discordPrefixes[instance.id];
+    const originalPrefix = typeof storedPrefix === 'string' && storedPrefix
+      ? storedPrefix
+      : (typeof instance.prefix === 'string' && instance.prefix ? instance.prefix : cfg.settings.prefix || '!');
+    if (typeof storedPrefix !== 'string' || !storedPrefix) cfg.settings.discordPrefixes[instance.id] = originalPrefix;
+
+    const storedIntent = cfg.settings.discordMessageContentIntent[instance.id];
+    const originalIntent = typeof storedIntent === 'boolean'
+      ? storedIntent
+      : (typeof instance.messageContentIntent === 'boolean' ? instance.messageContentIntent : false);
+    if (typeof storedIntent !== 'boolean') cfg.settings.discordMessageContentIntent[instance.id] = originalIntent;
+
     Object.defineProperty(instance, 'prefix', {
       enumerable: false,
       configurable: true,
-      get() { const map = cfg.settings.discordPrefixes; return typeof map?.[instance.id] === 'string' && map[instance.id] ? map[instance.id] : originalPrefix; },
-      set(value: any) { cfg.settings.discordPrefixes[instance.id] = String(value || '!').slice(0, 3); }
+      get() {
+        const map = cfg.settings.discordPrefixes;
+        return typeof map?.[instance.id] === 'string' && map[instance.id] ? map[instance.id] : originalPrefix;
+      },
+      set(value: any) {
+        cfg.settings.discordPrefixes[instance.id] = String(value || '!').slice(0, 3);
+      }
     });
     Object.defineProperty(instance, 'messageContentIntent', {
       enumerable: false,
       configurable: true,
-      get() { const map = cfg.settings.discordMessageContentIntent; return typeof map?.[instance.id] === 'boolean' ? map[instance.id] : originalIntent; },
-      set(value: any) { cfg.settings.discordMessageContentIntent[instance.id] = value !== false; }
+      get() {
+        const map = cfg.settings.discordMessageContentIntent;
+        return typeof map?.[instance.id] === 'boolean' ? map[instance.id] : originalIntent;
+      },
+      set(value: any) {
+        cfg.settings.discordMessageContentIntent[instance.id] = value === true;
+      }
     });
   });
   return cfg;
