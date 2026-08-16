@@ -67,11 +67,20 @@ export class DiscordInstance {
   async stop() { this.ffmpeg?.kill('SIGTERM'); this.connection?.destroy(); this.connected = false; this.inviteUrl = ''; try { await this.client.destroy(); } catch {} }
   async restart() { await this.stop(); await this.start(); }
 
+  listVoiceChannels(guildId = this.cfg.guildId) {
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) return [];
+    return [...guild.channels.cache.values()]
+      .filter((channel: any) => typeof channel.isVoiceBased === 'function' && channel.isVoiceBased())
+      .map((channel: any) => ({ id: channel.id, name: channel.name, type: channel.type }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  }
+
   private async ensureVoice() {
     const guild = this.client.guilds.cache.get(this.cfg.guildId);
     if (!guild) throw new Error('Discord-Server nicht gefunden. Bitte den Bot über den Einladungslink hinzufügen und die Guild-ID prüfen.');
     const channel = guild.channels.cache.get(this.cfg.voiceChannelId) as any;
-    if (!channel?.isVoiceBased?.()) throw new Error('Discord-Sprachkanal nicht gefunden.');
+    if (!channel?.isVoiceBased?.()) throw new Error('Kein gültiger Discord-Sprachkanal ausgewählt. Bitte unter Einstellungen → Instanzen einen Voice-Kanal auswählen.');
     this.connection = joinVoiceChannel({ channelId: channel.id, guildId: guild.id, adapterCreator: guild.voiceAdapterCreator });
     this.connection.subscribe(this.player);
   }
@@ -99,7 +108,22 @@ export class DiscordInstance {
     finally { this.ffmpeg = undefined; this.current = undefined; if (this.queue.length) void this.next(); }
   }
 
-  state() { return { id:this.cfg.id, name:this.cfg.name, type:'discord', enabled:this.isEnabled(), connected:this.connected, playing:this.current?.title ?? null, queue:this.queue.map(x=>x.title), volume:this.volume, error:this.lastError||null, inviteUrl:this.inviteUrl||this.buildInviteUrl()||null, botUser:this.client.user?.tag??null }; }
+  state() {
+    return {
+      id:this.cfg.id,
+      name:this.cfg.name,
+      type:'discord',
+      enabled:this.isEnabled(),
+      connected:this.connected,
+      playing:this.current?.title ?? null,
+      queue:this.queue.map(x=>x.title),
+      volume:this.volume,
+      error:this.lastError||null,
+      inviteUrl:this.inviteUrl||this.buildInviteUrl()||null,
+      botUser:this.client.user?.tag??null,
+      voiceChannels:this.listVoiceChannels()
+    };
+  }
 
   private async onMessage(message: any) {
     if (message.author.bot || this.cfg.messageContentIntent !== true) return;
