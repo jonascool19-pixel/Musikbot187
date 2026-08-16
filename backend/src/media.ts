@@ -18,9 +18,18 @@ export function runCommand(args: string[], timeout = 30000): Promise<string> {
 }
 
 export async function resolveMedia(input: string) {
-  if (/^https?:\/\//i.test(input)) return input;
-  const out = await runCommand([YTDLP, '--no-playlist', '--no-warnings', '--get-url', '-f', 'bestaudio/best', `ytsearch1:${input}`]);
-  return out.split(/\r?\n/)[0];
+  const value = input.trim();
+  if (!value) throw new Error('Keine Quelle angegeben.');
+  const isYouTube = /^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\//i.test(value);
+  if (isYouTube) {
+    const out = await runCommand([YTDLP, '--no-playlist', '--no-warnings', '--get-url', '-f', 'bestaudio/best', value], 30000);
+    const url = out.split(/\r?\n/).find(Boolean)?.trim();
+    if (!url) throw new Error('Kein abspielbarer Audiostream gefunden.');
+    return url;
+  }
+  if (/^https?:\/\//i.test(value)) return value;
+  const out = await runCommand([YTDLP, '--no-playlist', '--no-warnings', '--get-url', '-f', 'bestaudio/best', `ytsearch1:${value}`]);
+  return out.split(/\r?\n/).find(Boolean)?.trim() || (() => { throw new Error('Kein Audiostream gefunden.'); })();
 }
 
 export async function mediaTitle(input: string) {
