@@ -2,6 +2,7 @@ import { Client, GatewayIntentBits, PermissionsBitField, SlashCommandBuilder, ty
 import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior, StreamType, VoiceConnectionStatus, entersState, type VoiceConnection } from '@discordjs/voice';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { spawnPcm, mediaTitle, searchYouTube, searchRadio } from './media.js';
+import { readConfig } from './config.js';
 
 const SLASH_COMMANDS = [
   new SlashCommandBuilder().setName('play').setDescription('Musik oder Radio abspielen').addStringOption(o => o.setName('quelle').setDescription('Titel, Suchbegriff oder URL').setRequired(true)),
@@ -32,7 +33,7 @@ export class DiscordInstance {
   private readonly playlistProvider: () => any[];
   private readonly searchResults = new Map<string, any[]>();
 
-  constructor(cfg: any, playlistProvider: () => any[] = () => []) {
+  constructor(cfg: any, playlistProvider: () => any[] = () => readConfig().playlists ?? []) {
     this.cfg = cfg;
     this.playlistProvider = playlistProvider;
     const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates];
@@ -57,9 +58,7 @@ export class DiscordInstance {
   private async registerSlashCommands() {
     try {
       if (!this.client.application) return;
-      for (const guild of this.client.guilds.cache.values()) {
-        await guild.commands.set(SLASH_COMMANDS);
-      }
+      for (const guild of this.client.guilds.cache.values()) await guild.commands.set(SLASH_COMMANDS);
     } catch (error) {
       this.lastError = `Discord-Befehle konnten nicht registriert werden: ${error instanceof Error ? error.message : String(error)}`;
       console.error(`Discord slash commands ${this.cfg.name}`, error);
@@ -141,7 +140,6 @@ export class DiscordInstance {
     if (!permissions?.has(PermissionsBitField.Flags.ViewChannel)) throw new Error(`Discord darf den Kanal „${channel.name}“ nicht sehen (ViewChannel).`);
     if (!permissions?.has(PermissionsBitField.Flags.Connect)) throw new Error(`Discord darf „${channel.name}“ nicht beitreten (Connect).`);
     if (!permissions?.has(PermissionsBitField.Flags.Speak) && channel.type !== 13) throw new Error(`Discord darf in „${channel.name}“ nicht sprechen (Speak).`);
-
     this.connection?.destroy();
     this.connection = joinVoiceChannel({ channelId: channel.id, guildId: guild.id, adapterCreator: guild.voiceAdapterCreator, selfDeaf: true, selfMute: false });
     this.connection.on(VoiceConnectionStatus.Disconnected, async () => {
@@ -189,21 +187,7 @@ export class DiscordInstance {
 
   state() {
     const guilds = [...this.client.guilds.cache.values()].map((guild: any) => ({ id:guild.id, name:guild.name })).sort((a,b)=>a.name.localeCompare(b.name,'de'));
-    return {
-      id:this.cfg.id,
-      name:this.cfg.name,
-      type:'discord',
-      enabled:this.isEnabled(),
-      connected:this.connected,
-      playing:this.current?.title ?? null,
-      queue:this.queue.map(x=>x.title),
-      volume:this.volume,
-      error:this.lastError||null,
-      inviteUrl:this.inviteUrl||this.buildInviteUrl()||null,
-      botUser:this.client.user?.tag??null,
-      guilds,
-      voiceChannels:this.listVoiceChannels()
-    };
+    return { id:this.cfg.id,name:this.cfg.name,type:'discord',enabled:this.isEnabled(),connected:this.connected,playing:this.current?.title ?? null,queue:this.queue.map(x=>x.title),volume:this.volume,error:this.lastError||null,inviteUrl:this.inviteUrl||this.buildInviteUrl()||null,botUser:this.client.user?.tag??null,guilds,voiceChannels:this.listVoiceChannels() };
   }
 
   private playlistReply(interaction: ChatInputCommandInteraction, name?: string) {
@@ -223,7 +207,7 @@ export class DiscordInstance {
     await interaction.deferReply();
     let added = 0;
     for (const item of items) {
-      try { await this.add(String(item.input ?? ''), false); added++; } catch { /* continue with next item */ }
+      try { await this.add(String(item.input ?? ''), false); added++; } catch { }
     }
     await interaction.editReply(`📚 ${added} Titel zur Queue hinzugefügt.`);
   }
@@ -253,12 +237,10 @@ export class DiscordInstance {
           const results = await searchRadio(q);
           this.searchResults.set(interaction.user.id, results.map((r: any) => ({ ...r, url: r.url })));
           const text = results.slice(0, 8).map((r: any, i: number) => `${i + 1}. **${r.name}** — ${r.country || 'Radio'}`).join('\n');
-          await interaction.reply({ content: results.length ? `📻 Radiosender für „${q}“\n${text}\n\nDanach: /play quelle:<Nummer>` : `Keine Radiosender gefunden.`, ephemeral: true });
+          await interaction.reply({ content: results.length ? `📻 Radiosender für „${q}“\n${text}\n\nDanach: /play quelle:<Nummer>` : 'Keine Radiosender gefunden.', ephemeral: true });
           break;
         }
-        case 'playlist':
-          await this.playlistReply(interaction, interaction.options.getString('name') ?? undefined);
-          break;
+        case 'playlist': await this.playlistReply(interaction, interaction.options.getString('name') ?? undefined); break;
         case 'warteschlange': {
           const current = this.current?.title ? `▶️ ${this.current.title}\n` : '';
           const queued = this.queue.length ? this.queue.map((x, i) => `${i + 1}. ${x.title}`).join('\n') : 'Queue ist leer.';
