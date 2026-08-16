@@ -76,6 +76,17 @@ export class DiscordInstance {
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
   }
 
+  async fetchVoiceChannels(guildId = this.cfg.guildId) {
+    if (!this.client.isReady()) throw new Error('Discord ist noch nicht verbunden.');
+    if (!guildId) throw new Error('Guild-ID fehlt.');
+    const guild = await this.client.guilds.fetch(guildId);
+    const fetched = await guild.channels.fetch();
+    return [...fetched.values()]
+      .filter((channel: any) => channel && typeof channel.isVoiceBased === 'function' && channel.isVoiceBased())
+      .map((channel: any) => ({ id: channel.id, name: channel.name, type: channel.type }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  }
+
   private async ensureVoice() {
     const guild = this.client.guilds.cache.get(this.cfg.guildId);
     if (!guild) throw new Error('Discord-Server nicht gefunden. Bitte den Bot über den Einladungslink hinzufügen und die Guild-ID prüfen.');
