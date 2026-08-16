@@ -1,52 +1,11 @@
-import { Client, GatewayIntentBits, ChannelType } from "discord.js";
-import { createAudioPlayer, createAudioResource, joinVoiceChannel, StreamType, type AudioPlayer, type VoiceConnection } from "@discordjs/voice";
-import { PassThrough } from "node:stream";
-import type { DiscordInstance } from "./types.js";
-
-class DiscordRuntime {
-  client: Client;
-  voice?: VoiceConnection;
-  player?: AudioPlayer;
-  stream?: PassThrough;
-  constructor(public readonly config: DiscordInstance) {
-    this.client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
-  }
-}
-
-export class DiscordManager {
-  private runtimes = new Map<string, DiscordRuntime>();
-  async connect(config: DiscordInstance): Promise<void> {
-    await this.disconnect(config.id);
-    if (!config.token) throw new Error(`Discord-Token für ${config.name} fehlt`);
-    const runtime = new DiscordRuntime(config);
-    await runtime.client.login(config.token);
-    this.runtimes.set(config.id, runtime);
-  }
-  async disconnect(id: string): Promise<void> {
-    const runtime = this.runtimes.get(id);
-    if (!runtime) return;
-    runtime.voice?.destroy(); runtime.stream?.end(); await runtime.client.destroy(); this.runtimes.delete(id);
-  }
-  async join(id: string): Promise<void> {
-    const runtime = this.runtimes.get(id);
-    if (!runtime) throw new Error("Discord-Instanz ist nicht verbunden");
-    const guild = runtime.client.guilds.cache.get(runtime.config.guildId);
-    if (!guild) throw new Error("Guild nicht gefunden");
-    if (!runtime.config.channelId) throw new Error("Voice-Channel ist nicht konfiguriert");
-    runtime.voice = joinVoiceChannel({ guildId: guild.id, channelId: runtime.config.channelId, adapterCreator: guild.voiceAdapterCreator });
-    runtime.player = createAudioPlayer(); runtime.voice.subscribe(runtime.player); runtime.stream = new PassThrough();
-    runtime.player.play(createAudioResource(runtime.stream, { inputType: StreamType.Raw }));
-  }
-  writeAudio(data: Buffer, activeId: string): void { this.runtimes.get(activeId)?.stream?.write(data); }
-  status() {
-    return [...this.runtimes.values()].map((runtime) => ({ id: runtime.config.id, name: runtime.config.name, connected: true, guildId: runtime.config.guildId, channelId: runtime.config.channelId, prefix: runtime.config.prefix, guilds: runtime.client.guilds.cache.size, inviteUrl: runtime.config.clientId ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(runtime.config.clientId)}&scope=bot%20applications.commands&permissions=36700160` : "" }));
-  }
-  guilds(id: string) {
-    const runtime = this.runtimes.get(id);
-    return runtime ? [...runtime.client.guilds.cache.values()].map((guild) => ({ id: guild.id, name: guild.name })) : [];
-  }
-  channels(id: string, guildId: string) {
-    const runtime = this.runtimes.get(id); const guild = runtime?.client.guilds.cache.get(guildId);
-    return guild ? [...guild.channels.cache.values()].filter((channel) => channel.type === ChannelType.GuildVoice).map((channel) => ({ id: channel.id, name: channel.name })) : [];
-  }
+import {Client,GatewayIntentBits,ChannelType} from "discord.js"; import {createAudioPlayer,createAudioResource,joinVoiceChannel,StreamType,type VoiceConnection,AudioPlayer} from "@discordjs/voice"; import {PassThrough} from "node:stream"; import type {DiscordInstance} from "./types.js"; import type {Player} from "./player.js";
+class Runtime{client:Client;voice?:VoiceConnection;player?:AudioPlayer;stream?:PassThrough;constructor(public cfg:DiscordInstance){this.client=new Client({intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildMessages,GatewayIntentBits.MessageContent,GatewayIntentBits.GuildVoiceStates]})}}
+export class DiscordManager{private map=new Map<string,Runtime>();constructor(private music:Player){}
+ async connect(cfg:DiscordInstance){await this.disconnect(cfg.id);if(!cfg.enabled)throw new Error("Instanz ist ausgeschaltet");if(!cfg.token)throw new Error("Bot-Token fehlt");const r=new Runtime(cfg);r.client.on("messageCreate",async m=>{if(m.author.bot||!m.guild||!m.content.startsWith(cfg.prefix))return;const [cmd,...args]=m.content.slice(cfg.prefix.length).trim().split(/\s+/);try{if(cmd==="play")await this.music.enqueue([{id:Date.now().toString(),title:args.join(" "),url:`ytsearch1:${args.join(" ")}`,source:"youtube"}]);else if(cmd==="pause")this.music.pause();else if(cmd==="resume")this.music.resume();else if(cmd==="skip")this.music.skip();else if(cmd==="stop")this.music.stop();else if(cmd==="volume"&&args[0])this.music.setVolume(Number(args[0]));else if(cmd==="queue")await m.reply(this.music.queue.map(x=>x.title).join("\n")||"Queue ist leer.") ;}catch(e){await m.reply(`Fehler: ${e instanceof Error?e.message:String(e)}`)}});await r.client.login(cfg.token);this.map.set(cfg.id,r)}
+ async disconnect(id:string){const r=this.map.get(id);if(!r)return;r.voice?.destroy();r.stream?.end();await r.client.destroy();this.map.delete(id)}
+ async join(id:string){const r=this.map.get(id);if(!r)throw new Error("Instanz nicht verbunden");if(!r.cfg.guildId||!r.cfg.channelId)throw new Error("Server und Voice-Kanal auswählen");const g=r.client.guilds.cache.get(r.cfg.guildId);if(!g)throw new Error("Discord-Server nicht gefunden");r.voice=joinVoiceChannel({guildId:g.id,channelId:r.cfg.channelId,adapterCreator:g.voiceAdapterCreator});r.player=createAudioPlayer();r.voice.subscribe(r.player);r.stream=new PassThrough();r.player.play(createAudioResource(r.stream,{inputType:StreamType.Raw}));}
+ writeAudio(data:Buffer,id:string){this.map.get(id)?.stream?.write(data)}
+ guilds(id:string){const r=this.map.get(id);return r?[...r.client.guilds.cache.values()].map(g=>({id:g.id,name:g.name})):[]}
+ channels(id:string,guildId:string){const r=this.map.get(id),g=r?.client.guilds.cache.get(guildId);return g?[...g.channels.cache.values()].filter(c=>c.type===ChannelType.GuildVoice).map(c=>({id:c.id,name:c.name})):[]}
+ status(){return [...this.map.values()].map(r=>({id:r.cfg.id,name:r.cfg.name,enabled:r.cfg.enabled,connected:true,guildId:r.cfg.guildId,channelId:r.cfg.channelId,inviteUrl:r.cfg.clientId?`https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(r.cfg.clientId)}&scope=bot%20applications.commands&permissions=36700160`:""}))}
 }

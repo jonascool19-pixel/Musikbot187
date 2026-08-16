@@ -1,22 +1,15 @@
-name: Musikbot 187 CI
+name: CI
 on:
   push:
   pull_request:
 jobs:
-  smoke:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Install backend
-        run: cd backend && npm install
-      - name: Build TypeScript
-        run: cd backend && npm run build
-      - name: Validate frontend syntax
-        run: node --check frontend/app.js
-      - name: Validate shell scripts
-        run: bash -n install.sh install-stable.sh benchmark.sh
-      - name: Validate deployment files
-        run: test -f deploy/musikbot187.service && test -f frontend/index.html
+        with: {node-version: 24}
+      - run: cd backend && npm ci
+      - run: cd backend && npm run build
+      - run: bash -n install.sh && bash -n install-stable.sh && bash -n deploy/musikbot187-control
+      - run: node --check frontend/app.js
