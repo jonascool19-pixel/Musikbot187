@@ -4,7 +4,7 @@ set -euo pipefail
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y curl unzip ca-certificates
 TMP=$(mktemp); trap 'rm -f "$TMP"' EXIT
-INSTALL_REF="89b8facbd078679921a18947e9bcafffbab3fe72"
+INSTALL_REF="5b1d11d6b02c2e780c210cb846cde7c761f55722"
 curl -fsSL "https://raw.githubusercontent.com/jonascool19-pixel/radiobot/${INSTALL_REF}/install.sh" -o "$TMP"
 chmod +x "$TMP"
 exec bash "$TMP"
