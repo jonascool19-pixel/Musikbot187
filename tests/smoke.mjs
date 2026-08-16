@@ -25,8 +25,17 @@ try {
   if (setupRequired.status !== 409) throw new Error(`setup gate failed: ${setupRequired.status}`);
   const settings = await fetch('http://127.0.0.1:3137/api/settings', {headers:{cookie}});
   if (!settings.ok) throw new Error('settings read failed');
-  const finish = await fetch('http://127.0.0.1:3137/api/settings', {method:'PUT',headers:{'content-type':'application/json',cookie},body:JSON.stringify({discord:[],ts3:[],spotify:[]})});
+  const finish = await fetch('http://127.0.0.1:3137/api/settings', {method:'PUT',headers:{'content-type':'application/json',cookie},body:JSON.stringify({discord:[],ts3:[],spotify:[],settings:{networkInterface:'auto'}})});
   if (!finish.ok) throw new Error(`setup finish failed: ${await finish.text()}`);
+  const networkInterfaces = await fetch('http://127.0.0.1:3137/api/network/interfaces', {headers:{cookie}});
+  if (!networkInterfaces.ok) throw new Error(`network interfaces failed: ${await networkInterfaces.text()}`);
+  const networkStats = await fetch('http://127.0.0.1:3137/api/network/stats', {headers:{cookie}});
+  if (!networkStats.ok) throw new Error(`network stats failed: ${await networkStats.text()}`);
+  const playlist = await fetch('http://127.0.0.1:3137/api/playlist', {method:'POST',headers:{'content-type':'application/json',cookie},body:JSON.stringify({name:'Smoke'})});
+  if (!playlist.ok) throw new Error(`playlist create failed: ${await playlist.text()}`);
+  const created = await playlist.json();
+  const add = await fetch(`http://127.0.0.1:3137/api/playlist/${created.id}/item`, {method:'POST',headers:{'content-type':'application/json',cookie},body:JSON.stringify({input:'https://example.com/test',title:'Smoke Test'})});
+  if (!add.ok) throw new Error(`playlist item failed: ${await add.text()}`);
   const state = await fetch('http://127.0.0.1:3137/api/state', {headers:{cookie}});
   if (!state.ok) throw new Error(`state after setup failed: ${await state.text()}`);
   const layout = await fetch('http://127.0.0.1:3137/api/ui/layout', {method:'PUT',headers:{'content-type':'application/json',cookie},body:JSON.stringify({order:['hero','ts3','discord']})});
