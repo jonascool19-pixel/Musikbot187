@@ -176,15 +176,18 @@ export class DiscordManager {
       runtime.connecting = false;
       this.map.set(cfg.id, runtime);
 
+      // Connecting the bot should not be blocked by REST command registration.
+      // Discord can occasionally take tens of seconds for this request. The bot
+      // is usable for guild/channel discovery and voice immediately after login.
       if (runtime.client.user) {
-        try {
-          const rest = new REST({ version: "10" }).setToken(cfg.token);
-          await rest.put(Routes.applicationCommands(runtime.client.user.id), {
+        const rest = new REST({ version: "10" }).setToken(cfg.token);
+        void rest
+          .put(Routes.applicationCommands(runtime.client.user.id), {
             body: commandData(),
+          })
+          .catch((error) => {
+            console.error("Discord command registration failed", error);
           });
-        } catch (error) {
-          console.error("Discord command registration failed", error);
-        }
       }
     } catch (error) {
       runtime.connecting = false;
