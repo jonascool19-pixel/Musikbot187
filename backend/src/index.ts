@@ -96,6 +96,9 @@ async function rebuildInstances() {
   ts3.clear();
   await startInstances();
 }
+function rebuildInstancesInBackground() {
+  void rebuildInstances().catch(error => console.error('Instanzen konnten nicht neu aufgebaut werden:', error));
+}
 async function systemCommand(command: 'reboot' | 'poweroff' | 'restart') {
   const args = command === 'restart' ? ['/usr/bin/systemctl', 'restart', 'radiobot'] : ['/usr/bin/systemctl', command];
   await execFile('/usr/bin/sudo', args, { timeout: 10000 });
@@ -195,52 +198,16 @@ app.put('/api/settings', async (request: any, reply: any) => {
   if (Array.isArray(body.spotify) && user.role !== 'viewer') config.instances.spotify = body.spotify;
   config.setupComplete = true;
   save();
-  await rebuildInstances();
+  rebuildInstancesInBackground();
   return { ok: true };
 });
 
-app.put('/api/ui/layout', async (request: any, reply: any) => {
-  const user = auth(request, reply); if (!user) return;
-  if (user.role === 'viewer') return reply.code(403).send({ error: 'Keine Schreibrechte.' });
-  const order = (request.body ?? {}).order;
-  if (!Array.isArray(order) || !order.every((x: any) => typeof x === 'string')) return reply.code(400).send({ error: 'Ungültige Reihenfolge.' });
-  config.uiOrder = order.slice(0, 30); save(); return { ok: true, order: config.uiOrder };
-});
+app.put('/api/ui/layout', async (request: any, reply: any) => { const user = auth(request, reply); if (!user) return; if (user.role === 'viewer') return reply.code(403).send({ error: 'Keine Schreibrechte.' }); const order = (request.body ?? {}).order; if (!Array.isArray(order) || !order.every((x: any) => typeof x === 'string')) return reply.code(400).send({ error: 'Ungültige Reihenfolge.' }); config.uiOrder = order.slice(0, 30); save(); return { ok: true, order: config.uiOrder }; });
 
-app.get('/api/users', async (request: any, reply: any) => {
-  if (!requireAdmin(request, reply)) return;
-  return config.users.map((u: any) => ({ id: u.id, username: u.username, role: u.role }));
-});
-app.post('/api/users', async (request: any, reply: any) => {
-  if (!requireAdmin(request, reply)) return;
-  const body = request.body ?? {};
-  const username = String(body.username ?? '').trim();
-  const password = String(body.password ?? '');
-  const role = ['admin','operator','viewer'].includes(body.role) ? body.role : 'viewer';
-  if (!username || password.length < 5 || password.length > 30) return reply.code(400).send({ error: 'Benutzername und Passwort (5 bis 30 Zeichen) erforderlich.' });
-  if (config.users.some((u: any) => u.username.toLowerCase() === username.toLowerCase())) return reply.code(409).send({ error: 'Benutzername bereits vorhanden.' });
-  const pass = passwordHash(password);
-  config.users.push({ id: randomBytes(8).toString('hex'), username, role, salt: pass.salt, hash: pass.hash }); save();
-  return { ok: true };
-});
-app.put('/api/users/:id', async (request: any, reply: any) => {
-  if (!requireAdmin(request, reply)) return;
-  const target = config.users.find((u: any) => u.id === request.params.id);
-  if (!target) return reply.code(404).send({ error: 'Benutzer nicht gefunden.' });
-  const body = request.body ?? {};
-  if (body.username) target.username = String(body.username).trim();
-  if (['admin','operator','viewer'].includes(body.role)) target.role = body.role;
-  if (body.password) { if (String(body.password).length < 5 || String(body.password).length > 30) return reply.code(400).send({ error: 'Passwort muss zwischen 5 und 30 Zeichen lang sein.' }); const pass = passwordHash(String(body.password)); target.salt = pass.salt; target.hash = pass.hash; }
-  save(); return { ok: true };
-});
-app.delete('/api/users/:id', async (request: any, reply: any) => {
-  const admin = requireAdmin(request, reply); if (!admin) return;
-  if (request.params.id === admin.id) return reply.code(400).send({ error: 'Der aktuell angemeldete Administrator kann nicht gelöscht werden.' });
-  const target = config.users.find((u: any) => u.id === request.params.id);
-  if (!target) return reply.code(404).send({ error: 'Benutzer nicht gefunden.' });
-  if (target.role === 'admin' && config.users.filter((u: any) => u.role === 'admin').length <= 1) return reply.code(400).send({ error: 'Mindestens ein Administrator muss erhalten bleiben.' });
-  config.users = config.users.filter((u: any) => u.id !== target.id); save(); return { ok: true };
-});
+app.get('/api/users', async (request: any, reply: any) => { if (!requireAdmin(request, reply)) return; return config.users.map((u: any) => ({ id: u.id, username: u.username, role: u.role })); });
+app.post('/api/users', async (request: any, reply: any) => { if (!requireAdmin(request, reply)) return; const body = request.body ?? {}; const username = String(body.username ?? '').trim(); const password = String(body.password ?? ''); const role = ['admin','operator','viewer'].includes(body.role) ? body.role : 'viewer'; if (!username || password.length < 5 || password.length > 30) return reply.code(400).send({ error: 'Benutzername und Passwort (5 bis 30 Zeichen) erforderlich.' }); if (config.users.some((u: any) => u.username.toLowerCase() === username.toLowerCase())) return reply.code(409).send({ error: 'Benutzername bereits vorhanden.' }); const pass = passwordHash(password); config.users.push({ id: randomBytes(8).toString('hex'), username, role, salt: pass.salt, hash: pass.hash }); save(); return { ok: true }; });
+app.put('/api/users/:id', async (request: any, reply: any) => { if (!requireAdmin(request, reply)) return; const target = config.users.find((u: any) => u.id === request.params.id); if (!target) return reply.code(404).send({ error: 'Benutzer nicht gefunden.' }); const body = request.body ?? {}; if (body.username) target.username = String(body.username).trim(); if (['admin','operator','viewer'].includes(body.role)) target.role = body.role; if (body.password) { if (String(body.password).length < 5 || String(body.password).length > 30) return reply.code(400).send({ error: 'Passwort muss zwischen 5 und 30 Zeichen lang sein.' }); const pass = passwordHash(String(body.password)); target.salt = pass.salt; target.hash = pass.hash; } save(); return { ok: true }; });
+app.delete('/api/users/:id', async (request: any, reply: any) => { const admin = requireAdmin(request, reply); if (!admin) return; if (request.params.id === admin.id) return reply.code(400).send({ error: 'Der aktuell angemeldete Administrator kann nicht gelöscht werden.' }); const target = config.users.find((u: any) => u.id === request.params.id); if (!target) return reply.code(404).send({ error: 'Benutzer nicht gefunden.' }); if (target.role === 'admin' && config.users.filter((u: any) => u.role === 'admin').length <= 1) return reply.code(400).send({ error: 'Mindestens ein Administrator muss erhalten bleiben.' }); config.users = config.users.filter((u: any) => u.id !== target.id); save(); return { ok: true }; });
 
 app.get('/api/search', async (request: any, reply: any) => { const user = auth(request, reply); if (!user) return; const q = String(request.query?.q ?? '').trim(); if (!q) return []; try { return await searchYouTube(q); } catch (e) { return reply.code(502).send({ error: e instanceof Error ? e.message : String(e) }); } });
 app.get('/api/radio/search', async (request: any, reply: any) => { const user = auth(request, reply); if (!user) return; const q = String(request.query?.q ?? '').trim(); if (!q) return []; try { return await searchRadio(q); } catch (e) { return reply.code(502).send({ error: e instanceof Error ? e.message : String(e) }); } });
