@@ -6,7 +6,7 @@ USER=musikbot187
 REPO=https://github.com/jonascool19-pixel/radiobot.git
 id "$USER" >/dev/null 2>&1 || useradd --system --home "$DATA" --create-home --shell /usr/sbin/nologin "$USER"
 apt-get update
-apt-get install -y ca-certificates curl git ffmpeg build-essential
+apt-get install -y ca-certificates curl git ffmpeg build-essential unzip
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 apt-get install -y nodejs
 if ! command -v deno >/dev/null 2>&1; then curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh; ln -sf /usr/local/bin/deno /usr/bin/deno || true; fi
