@@ -23,7 +23,7 @@ fi
 DISCORD="$BACK/discord.ts"
 INDEX="$BACK/index.ts"
 
-perl -0pi -e 's/  volume = 80;\n  connected = false;/  volume = 80;\n  private currentResource: any;\n  connected = false;/' "$DISCORD"
+perl -0pi -e 's/  volume = 80;\n  connected = false;/  volume = 80;\n  private currentResource?: any;\n  connected = false;/' "$DISCORD"
 
 perl -0pi -e 's/  clearLogs\(\) \{\n    this\.logs = \[\];\n    this\.lastError = \'\';\n  \}/  clearLogs() {\n    this.logs = [];\n    this.lastError = \'\';\n  }\n\n  setVolume(value: number) {\n    this.volume = Math.max(0, Math.min(100, Number(value) || 0));\n    this.currentResource?.volume?.setVolume(this.volume \/ 100);\n  }/' "$DISCORD"
 
