@@ -1,7 +1,6 @@
 (() => {
   const DISABLED_DISCORD = '__RADIOBOT_DISABLED__';
   const DISABLED_TS3 = '__RADIOBOT_DISABLED__';
-  let bound = false;
 
   async function apiRequest(url, options = {}) {
     const response = await fetch(url, { credentials: 'include', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
@@ -36,7 +35,10 @@
       section.className = 'instance-sidebar-section';
       nav.insertAdjacentElement('afterend', section);
     }
-    section.innerHTML = `<div class="instance-sidebar-title">Instanzen</div><div class="instance-sidebar-list">${instances().map(row).join('') || '<div class="empty">Keine Instanzen</div>'}</div>`;
+    const desired = instances().map(row).join('') || '<div class="empty">Keine Instanzen</div>';
+    const nextHtml = `<div class="instance-sidebar-title">Instanzen</div><div class="instance-sidebar-list">${desired}</div>`;
+    if (section.innerHTML === nextHtml) return;
+    section.innerHTML = nextHtml;
     section.querySelectorAll('[data-instance-id]').forEach(button => {
       button.addEventListener('click', async event => {
         if (event.target.closest('[data-instance-toggle]')) return;
@@ -65,8 +67,6 @@
     });
   }
 
-  const observer = new MutationObserver(render);
-  observer.observe(document.body, { childList: true, subtree: true });
-  setInterval(render, 3000);
-  render();
+  setInterval(() => { void render(); }, 3000);
+  void render();
 })();
