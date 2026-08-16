@@ -7,6 +7,7 @@
   ];
   const storageKey = 'musikbot187.theme';
   let picker;
+  let syncing = false;
 
   const currentTheme = () => localStorage.getItem(storageKey) || 'default';
 
@@ -24,6 +25,7 @@
   }
 
   function createPicker() {
+    if (picker) return;
     picker = document.createElement('aside');
     picker.className = 'theme-picker';
     picker.innerHTML = `<div class="theme-picker-head"><div><strong>Oberfläche</strong><span>Wähle ein Farbschema. Deine Widget-Anordnung bleibt erhalten.</span></div><button class="icon-btn" type="button" data-theme-close aria-label="Oberfläche schließen">×</button></div><div class="theme-options"></div><div class="theme-picker-foot">Die Auswahl wird auf diesem Gerät gespeichert.</div>`;
@@ -42,23 +44,29 @@
   }
 
   function ensureButton() {
+    if (syncing) return;
     const topActions = document.querySelector('.top-actions');
     if (!topActions) return;
-    let button = document.querySelector('#themeQuick');
-    if (!button) {
-      button = document.createElement('button');
-      button.id = 'themeQuick';
-      button.className = 'icon-btn';
-      button.type = 'button';
-      button.title = 'Oberfläche';
-      button.textContent = '◐';
-      button.addEventListener('click', () => {
-        if (!picker) createPicker();
-        picker.classList.toggle('open');
-      });
-      topActions.insertBefore(button, topActions.querySelector('#settingsQuick') || null);
+    syncing = true;
+    try {
+      let button = document.querySelector('#themeQuick');
+      if (!button) {
+        button = document.createElement('button');
+        button.id = 'themeQuick';
+        button.className = 'icon-btn';
+        button.type = 'button';
+        button.title = 'Oberfläche';
+        button.textContent = '◐';
+        button.addEventListener('click', () => {
+          if (!picker) createPicker();
+          picker.classList.toggle('open');
+        });
+        topActions.insertBefore(button, topActions.querySelector('#settingsQuick') || null);
+      }
+      applyTheme(currentTheme());
+    } finally {
+      syncing = false;
     }
-    applyTheme(currentTheme());
   }
 
   document.addEventListener('click', event => {
@@ -67,7 +75,10 @@
     close();
   });
 
-  const observer = new MutationObserver(() => ensureButton());
+  const observer = new MutationObserver(() => {
+    if (syncing) return;
+    ensureButton();
+  });
   observer.observe(document.body, { childList: true, subtree: true });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { createPicker(); ensureButton(); applyTheme(currentTheme()); });
   else { createPicker(); ensureButton(); applyTheme(currentTheme()); }
