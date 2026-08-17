@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -77,6 +77,12 @@ test("first-run setup requires the installer token and preserves admin/user role
     assert.equal(users.status, 200);
     assert.equal(users.body.find(x => x.name === "normal").role, "user");
     assert.equal(users.body.find(x => x.name === "second-admin").role, "admin");
+
+    const stored = JSON.parse(await readFile(join(dataDir, "data.json"), "utf8"));
+    const hashes = stored.users.map(x => x.hash);
+    assert.ok(hashes.every(x => /^scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}$/.test(x)));
+    assert.notEqual(hashes[0], hashes[1], "password hashes must use unique salts");
+    assert.notEqual(hashes[1], hashes[2], "password hashes must use unique salts");
   } catch (error) {
     error.message += `\nServer stderr:\n${stderr}`;
     throw error;
