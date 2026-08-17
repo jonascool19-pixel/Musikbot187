@@ -3,7 +3,10 @@ import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const { chromium } = require("../backend/node_modules/playwright");
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const frontend = join(root, "frontend");
