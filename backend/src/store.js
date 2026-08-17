@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 
@@ -6,6 +6,7 @@ const DATA_DIR = process.env.MUSIKBOT187_DATA_DIR || path.resolve(process.cwd(),
 const FILE = path.join(DATA_DIR, "data.json");
 let state = null;
 const sessions = new Map();
+let saveChain = Promise.resolve();
 
 const defaults = () => ({
   users: [],
@@ -19,7 +20,7 @@ const defaults = () => ({
 });
 
 export async function load() {
-  await mkdir(DATA_DIR, { recursive: true });
+  await mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
   try { state = JSON.parse(await readFile(FILE, "utf8")); }
   catch { state = defaults(); await save(); }
   state = { ...defaults(), ...state, settings: { ...defaults().settings, ...(state.settings || {}) }, integration: { ...defaults().integration, ...(state.integration || {}) } };
@@ -27,7 +28,20 @@ export async function load() {
   return state;
 }
 export function db() { if (!state) throw new Error("Datenbank wurde noch nicht geladen"); return state; }
-export async function save() { await mkdir(DATA_DIR, { recursive: true }); const tmp = `${FILE}.tmp`; await writeFile(tmp, JSON.stringify(state, null, 2), { mode: 0o600 }); await writeFile(FILE, await readFile(tmp), { mode: 0o600 }); }
+export function save() {
+  const snapshot = JSON.stringify(state, null, 2);
+  const tmp = `${FILE}.${process.pid}.${Date.now()}.tmp`;
+  saveChain = saveChain.then(async () => {
+    await mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
+    await writeFile(tmp, snapshot, { mode: 0o600 });
+    await rename(tmp, FILE);
+  }).catch(async (error) => {
+    try { await writeFile(tmp, snapshot, { mode: 0o600 }); await rename(tmp, FILE); }
+    catch {}
+    throw error;
+  });
+  return saveChain;
+}
 
 function hash(password) { return scryptSync(password, "musikbot187", 32); }
 function check(password, hex) { try { return timingSafeEqual(hash(password), Buffer.from(hex, "hex")); } catch { return false; } }
