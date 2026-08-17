@@ -122,7 +122,7 @@ jobs:
               ss -lntp || true
               exit 1
             fi
-            sudo -u musikbot187 /usr/local/sbin/musikbot187-control restart-bot
+            runuser -u musikbot187 -- /usr/bin/sudo /usr/local/sbin/musikbot187-control restart-bot
           '
       - name: Ubuntu 24.04 CT-style preflight
         run: |
