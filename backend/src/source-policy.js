@@ -3,14 +3,30 @@ import net from "node:net";
 import path from "node:path";
 import { realpath } from "node:fs/promises";
 
-const BLOCKED_IPV4 = [/^0\./, /^10\./, /^127\./, /^169\.254\./, /^172\.(1[6-9]|2\d|3[0-1])\./, /^192\.0\.0\./, /^192\.0\.2\./, /^198\.(18|19)\./, /^198\.51\.100\./, /^203\.0\.113\./, /^224\./, /^240\./];
-
+function ipv4ToNumber(value) {
+  const parts = String(value).split('.').map(Number);
+  if (parts.length !== 4 || parts.some(x => !Number.isInteger(x) || x < 0 || x > 255)) return null;
+  return (((parts[0] * 256 + parts[1]) * 256 + parts[2]) * 256 + parts[3]);
+}
+function blockedIpv4(address) {
+  const n = ipv4ToNumber(address);
+  if (n === null) return true;
+  const ranges = [
+    ['0.0.0.0', '0.255.255.255'], ['10.0.0.0', '10.255.255.255'], ['100.64.0.0', '100.127.255.255'], ['127.0.0.0', '127.255.255.255'],
+    ['169.254.0.0', '169.254.255.255'], ['172.16.0.0', '172.31.255.255'], ['192.0.0.0', '192.0.0.255'], ['192.0.2.0', '192.0.2.255'],
+    ['192.168.0.0', '192.168.255.255'], ['198.18.0.0', '198.19.255.255'], ['198.51.100.0', '198.51.100.255'], ['203.0.113.0', '203.0.113.255'],
+    ['224.0.0.0', '255.255.255.255']
+  ];
+  return ranges.some(([start, end]) => { const a = ipv4ToNumber(start); const b = ipv4ToNumber(end); return n >= a && n <= b; });
+}
 function blockedAddress(address) {
   const family = net.isIP(address);
-  if (family === 4) return BLOCKED_IPV4.some(rule => rule.test(address));
+  if (family === 4) return blockedIpv4(address);
   if (family !== 6) return true;
-  const normalized = address.toLowerCase();
-  return normalized === "::" || normalized === "::1" || normalized.startsWith("fc") || normalized.startsWith("fd") || /^fe[89ab]/.test(normalized) || normalized.startsWith("ff");
+  let normalized = String(address).toLowerCase();
+  if (normalized.includes('%')) normalized = normalized.split('%')[0];
+  if (normalized.startsWith('::ffff:') && net.isIP(normalized.slice(7)) === 4) return blockedIpv4(normalized.slice(7));
+  return normalized === '::' || normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || /^fe[89ab]/.test(normalized) || normalized.startsWith('ff');
 }
 
 async function validateHttpTarget(value, label) {
