@@ -33,8 +33,18 @@ jobs:
         run: |
           grep -F 'SERVICE_USER="musikbot187"' install-stable.sh
           grep -F 'User=$SERVICE_USER' install-stable.sh
-          grep -F 'ProtectSystem=full' install-stable.sh
+          grep -F 'UMask=0077' install-stable.sh
+          grep -F 'NoNewPrivileges=true' install-stable.sh
+          grep -F 'PrivateDevices=true' install-stable.sh
+          grep -F 'ProtectSystem=strict' install-stable.sh
           grep -F 'ProtectHome=true' install-stable.sh
+          grep -F 'ProtectKernelModules=true' install-stable.sh
+          grep -F 'ProtectKernelTunables=true' install-stable.sh
+          grep -F 'ProtectControlGroups=true' install-stable.sh
+          grep -F 'RestrictSUIDSGID=true' install-stable.sh
+          grep -F 'LockPersonality=true' install-stable.sh
+          grep -F 'RestrictRealtime=true' install-stable.sh
+          grep -F 'SystemCallArchitectures=native' install-stable.sh
           grep -F 'ReadWritePaths=$DATA' install-stable.sh
           grep -F 'visudo -cf /etc/sudoers.d/musikbot187' install-stable.sh
           grep -F 'MUSIKBOT187_CONTROL' install-stable.sh
@@ -79,8 +89,11 @@ jobs:
             test "$(stat -c %U /var/lib/musikbot187)" = musikbot187
             test "$(stat -c %U /opt/musikbot187)" = musikbot187
             grep -F "User=musikbot187" /etc/systemd/system/musikbot187.service
-            grep -F "ProtectSystem=full" /etc/systemd/system/musikbot187.service
+            grep -F "ProtectSystem=strict" /etc/systemd/system/musikbot187.service
             grep -F "ProtectHome=true" /etc/systemd/system/musikbot187.service
+            grep -F "NoNewPrivileges=true" /etc/systemd/system/musikbot187.service
+            grep -F "PrivateDevices=true" /etc/systemd/system/musikbot187.service
+            grep -F "UMask=0077" /etc/systemd/system/musikbot187.service
             visudo -cf /etc/sudoers.d/musikbot187
             grep -F "musikbot187 ALL=(root) NOPASSWD" /etc/sudoers.d/musikbot187
             systemctl is-active --quiet musikbot187
