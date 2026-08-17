@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import http from "node:http";
 
 async function findPort() {
   const net = await import("node:net");
@@ -14,12 +15,27 @@ async function findPort() {
   await new Promise(resolve => server.close(resolve));
   return port;
 }
-async function waitFor(url) {
+function request(port, path, { method = "GET", headers = {}, body = undefined } = {}) {
+  return new Promise((resolve, reject) => {
+    const data = body === undefined ? null : JSON.stringify(body);
+    const req = http.request({ hostname: "127.0.0.1", port, path, method, agent: false, headers: { Connection: "close", ...(data ? { "content-type": "application/json", "content-length": Buffer.byteLength(data) } : {}), ...headers } }, res => {
+      let text = "";
+      res.setEncoding("utf8");
+      res.on("data", chunk => { text += chunk; });
+      res.on("end", () => { let parsed = {}; try { parsed = JSON.parse(text || "{}"); } catch {} resolve({ status: res.statusCode, body: parsed }); });
+    });
+    req.on("error", reject);
+    req.setTimeout(5000, () => req.destroy(new Error("HTTP test timeout")));
+    if (data) req.write(data);
+    req.end();
+  });
+}
+async function waitFor(port) {
   for (let i = 0; i < 40; i++) {
-    try { const r = await fetch(url); if (r.ok) return; } catch {}
+    try { const r = await request(port, "/api/health"); if (r.status === 200) return; } catch {}
     await new Promise(resolve => setTimeout(resolve, 250));
   }
-  throw new Error(`Server did not become ready: ${url}`);
+  throw new Error(`Server did not become ready on ${port}`);
 }
 
 test("first-run setup requires the installer token and preserves admin/user roles", async () => {
@@ -34,31 +50,33 @@ test("first-run setup requires the installer token and preserves admin/user role
   let stderr = "";
   child.stderr.on("data", d => { stderr += String(d); });
   try {
-    await waitFor(`http://127.0.0.1:${port}/api/health`);
-    const setup = await fetch(`http://127.0.0.1:${port}/api/setup`).then(r => r.json());
-    assert.equal(setup.initialized, false);
-    assert.equal(setup.requiresToken, true);
+    await waitFor(port);
+    const setup = await request(port, "/api/setup");
+    assert.equal(setup.status, 200);
+    assert.equal(setup.body.initialized, false);
+    assert.equal(setup.body.requiresToken, true);
 
-    const denied = await fetch(`http://127.0.0.1:${port}/api/setup`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "admin", password: "password1" }) });
+    const denied = await request(port, "/api/setup", { method: "POST", body: { name: "admin", password: "password1" } });
     assert.equal(denied.status, 403);
-    const wrong = await fetch(`http://127.0.0.1:${port}/api/setup`, { method: "POST", headers: { "content-type": "application/json", "X-MusikBot-Setup-Token": "wrong" }, body: JSON.stringify({ name: "admin", password: "password1" }) });
+    const wrong = await request(port, "/api/setup", { method: "POST", headers: { "X-MusikBot-Setup-Token": "wrong" }, body: { name: "admin", password: "password1" } });
     assert.equal(wrong.status, 403);
 
-    const created = await fetch(`http://127.0.0.1:${port}/api/setup`, { method: "POST", headers: { "content-type": "application/json", "X-MusikBot-Setup-Token": token }, body: JSON.stringify({ name: "admin", password: "password1" }) });
+    const created = await request(port, "/api/setup", { method: "POST", headers: { "X-MusikBot-Setup-Token": token }, body: { name: "admin", password: "password1" } });
     assert.equal(created.status, 200);
-    const session = await created.json();
-    assert.equal(session.user.role, "admin");
+    assert.equal(created.body.user.role, "admin");
 
-    const reused = await fetch(`http://127.0.0.1:${port}/api/setup`, { method: "POST", headers: { "content-type": "application/json", "X-MusikBot-Setup-Token": token }, body: JSON.stringify({ name: "second", password: "password2" }) });
+    const reused = await request(port, "/api/setup", { method: "POST", headers: { "X-MusikBot-Setup-Token": token }, body: { name: "second", password: "password2" } });
     assert.equal(reused.status, 409);
 
-    const createUser = await fetch(`http://127.0.0.1:${port}/api/users`, { method: "POST", headers: { "content-type": "application/json", Authorization: `Bearer ${session.token}` }, body: JSON.stringify({ name: "normal", password: "password2", role: "user" }) });
+    const auth = { Authorization: `Bearer ${created.body.token}` };
+    const createUser = await request(port, "/api/users", { method: "POST", headers: auth, body: { name: "normal", password: "password2", role: "user" } });
     assert.equal(createUser.status, 200);
-    const createAdmin = await fetch(`http://127.0.0.1:${port}/api/users`, { method: "POST", headers: { "content-type": "application/json", Authorization: `Bearer ${session.token}` }, body: JSON.stringify({ name: "second-admin", password: "password3", role: "admin" }) });
+    const createAdmin = await request(port, "/api/users", { method: "POST", headers: auth, body: { name: "second-admin", password: "password3", role: "admin" } });
     assert.equal(createAdmin.status, 200);
-    const users = await fetch(`http://127.0.0.1:${port}/api/users`, { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json());
-    assert.equal(users.find(x => x.name === "normal").role, "user");
-    assert.equal(users.find(x => x.name === "second-admin").role, "admin");
+    const users = await request(port, "/api/users", { headers: auth });
+    assert.equal(users.status, 200);
+    assert.equal(users.body.find(x => x.name === "normal").role, "user");
+    assert.equal(users.body.find(x => x.name === "second-admin").role, "admin");
   } catch (error) {
     error.message += `\nServer stderr:\n${stderr}`;
     throw error;
