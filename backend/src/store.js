@@ -6,6 +6,7 @@ const DATA_DIR = process.env.MUSIKBOT187_DATA_DIR || path.resolve(process.cwd(),
 const FILE = path.join(DATA_DIR, "data.json");
 let state = null;
 const sessions = new Map();
+const loginAttempts = new Map();
 let saveChain = Promise.resolve();
 
 const defaults = () => ({
@@ -48,7 +49,24 @@ function check(password, hex) { try { return timingSafeEqual(hash(password), Buf
 function publicUser(u) { return { id: u.id, name: u.name, role: u.role }; }
 
 export function createAdmin(name, password) { const u = { id: randomUUID(), name, hash: hash(password).toString("hex"), role: "admin" }; db().users.push(u); return publicUser(u); }
-export function login(name, password) { const u = db().users.find((x) => x.name === name && check(password, x.hash)); if (!u) return null; const token = `${randomUUID()}${randomUUID()}`; sessions.set(token, { userId: u.id, expires: Date.now() + 7 * 24 * 60 * 60 * 1000 }); return { token, user: publicUser(u) }; }
+export function login(name, password) {
+  const key = String(name || "").toLowerCase();
+  const now = Date.now();
+  const attempt = loginAttempts.get(key) || { count: 0, first: now, blockedUntil: 0 };
+  if (attempt.first + 15 * 60 * 1000 <= now) { attempt.count = 0; attempt.first = now; attempt.blockedUntil = 0; }
+  if (attempt.blockedUntil > now) return null;
+  const u = db().users.find((x) => x.name === name);
+  if (!u || !check(password, u.hash)) {
+    attempt.count += 1;
+    if (attempt.count >= 5) attempt.blockedUntil = now + 15 * 60 * 1000;
+    loginAttempts.set(key, attempt);
+    return null;
+  }
+  loginAttempts.delete(key);
+  const token = `${randomUUID()}${randomUUID()}`;
+  sessions.set(token, { userId: u.id, expires: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+  return { token, user: publicUser(u) };
+}
 export function user(header) { if (!header) return null; const token = String(header).replace(/^Bearer\s+/i, ""); const s = sessions.get(token); if (!s || s.expires < Date.now()) { sessions.delete(token); return null; } return db().users.find((x) => x.id === s.userId) || null; }
 export function publicDiscord() { return db().discord.map(({ token, ...x }) => x); }
 export function publicTS3() { return db().ts3.map(({ password, ...x }) => x); }
