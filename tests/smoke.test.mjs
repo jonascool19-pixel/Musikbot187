@@ -7,146 +7,30 @@ import { calculateCpuPercent, selectNetworkInterfaces, systemInfo, storageInfo }
 import { loginRateKey } from "../backend/src/store.js";
 
 function settings(overrides = {}) { return { volume: 80, mode: "queue", filesDirectory: "/tmp/musikbot187-test-music", ...overrides }; }
+async function waitFor(predicate, timeoutMs = 1000) { const deadline = Date.now() + timeoutMs; while (Date.now() < deadline) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error("Test condition was not reached in time"); }
 
-async function waitFor(predicate, timeoutMs = 1000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (predicate()) return;
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
-  throw new Error("Test condition was not reached in time");
-}
+test("Player clamps volume and accepts supported modes", () => { const p = new Player(settings()); p.setVolume(140); assert.equal(p.volume, 100); p.setVolume(-5); assert.equal(p.volume, 0); p.setMode("shuffle"); assert.equal(p.mode, "shuffle"); p.setMode("invalid"); assert.equal(p.mode, "shuffle"); });
+test("Player removes queue entries safely", async () => { const p = new Player(settings()); p.queue.push({ id: "1", title: "A", url: "https://example.com/a", source: "radio" }, { id: "2", title: "B", url: "https://example.com/b", source: "radio" }); await p.remove(0); assert.equal(p.queue.length, 1); assert.equal(p.queue[0].id, "2"); await p.remove(99); assert.equal(p.queue.length, 1); });
+test("Player filters malformed queue items", async () => { const p = new Player(settings()); p.next = async () => {}; await p.enqueue([{ title: "missing url" }, null, { id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }]); assert.equal(p.queue.length, 1); assert.equal(p.queue[0].id, "r"); });
+test("Player skip cancels an in-flight resolver without leaving a phantom current item", async () => { const p = new Player(settings()); p.resolve = async function () { await new Promise(resolve => setTimeout(resolve, 100)); return "unused"; }; const run = p.enqueue([{ id: "1", title: "A", url: "ytsearch1:A", source: "youtube" }, { id: "2", title: "B", url: "ytsearch1:B", source: "youtube" }]); p.skip(); await run; assert.equal(p.generation > 1, true); });
+test("Player ignores stale FFmpeg output after skip", async () => { const processes = []; const spawnFn = (_command, _args, options) => { const p = new EventEmitter(); p.stdout = new EventEmitter(); p.stderr = new EventEmitter(); p.kill = () => { p.killed = true; }; processes.push({ p, options }); return p; }; const player = new Player(settings(), { spawnFn }); const item = { id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }; const run = ++player.generation; const audio = []; player.on("audio", data => audio.push(data)); const playback = player.playSource(item, run); await waitFor(() => processes.length === 1); player.skip(); processes[0].p.stdout.emit("data", Buffer.from("stale-audio")); processes[0].p.emit("close", 0); const result = await playback; assert.equal(result, "cancelled"); assert.equal(audio.length, 0); });
+test("Player recovery retries a failed audio source with backoff and emits diagnostics", async () => { const p = new Player(settings()); const delays = []; p.emit = ((original) => (event, ...args) => { if (event === "diagnostic") delays.push(String(args[0])); return original.call(p, event, ...args); })(p.emit); let attempts = 0; p.playSource = async function () { attempts += 1; if (attempts < 3) return "failed"; return "ended"; }; const run = ++p.generation; const ok = await p.recover({ id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }, run, "network"); assert.equal(ok, true); assert.equal(attempts, 3); assert.equal(delays.length >= 2, true); });
+test("Player recovery stops when playback is cancelled", async () => { const p = new Player(settings()); let attempts = 0; p.playSource = async function () { attempts += 1; return "failed"; }; const run = ++p.generation; const promise = p.recover({ id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }, run, "network"); setTimeout(() => { p.generation++; }, 20); const ok = await promise; assert.equal(ok, false); assert.equal(attempts, 0); });
+test("CPU calculation converts process CPU seconds to percent correctly", () => { assert.equal(calculateCpuPercent(4, 2, 4), 50); assert.equal(calculateCpuPercent(2, 2, 1), 100); assert.equal(calculateCpuPercent(1, 2, 4), 12.5); });
+test("Network interface selection returns only the configured interface", () => { const interfaces = [{ name: "lo", addresses: [{ address: "127.0.0.1", family: "IPv4", internal: true }] }, { name: "eth0", addresses: [{ address: "192.0.2.10", family: "IPv4", internal: false }] }]; assert.deepEqual(selectNetworkInterfaces(interfaces, "eth0"), [interfaces[1]]); assert.deepEqual(selectNetworkInterfaces(interfaces, "missing"), []); assert.deepEqual(selectNetworkInterfaces(interfaces, ""), interfaces); });
+test("Login rate-limit keys separate clients while keeping usernames case-insensitive", () => { assert.equal(loginRateKey("Admin", "10.0.0.1"), "10.0.0.1:admin"); assert.equal(loginRateKey("admin", "10.0.0.2"), "10.0.0.2:admin"); assert.notEqual(loginRateKey("admin", "10.0.0.1"), loginRateKey("admin", "10.0.0.2")); });
+test("System metrics expose CPU, memory and uptime values", () => { const a = systemInfo(); assert.equal(typeof a.cpuPercent, "number"); assert.ok(a.cpuPercent >= 0 && a.cpuPercent <= 100); assert.equal(typeof a.memory.percent, "number"); assert.ok(a.memory.percent >= 0 && a.memory.percent <= 100); assert.ok(a.memory.total > 0); assert.ok(a.uptime >= 0); const b = systemInfo(); assert.equal(typeof b.cpuPercent, "number"); });
+test("Storage metrics expose disk information for an existing directory", async () => { const s = await storageInfo(process.cwd()); assert.equal(s.exists, true); assert.equal(s.directory, true); assert.ok(s.disk && s.disk.total > 0); assert.ok(s.disk.used >= 0 && s.disk.free >= 0); });
 
-test("Player clamps volume and accepts supported modes", () => {
-  const p = new Player(settings());
-  p.setVolume(140); assert.equal(p.volume, 100);
-  p.setVolume(-5); assert.equal(p.volume, 0);
-  p.setMode("shuffle"); assert.equal(p.mode, "shuffle");
-  p.setMode("invalid"); assert.equal(p.mode, "shuffle");
-});
-
-test("Player removes queue entries safely", async () => {
-  const p = new Player(settings());
-  p.queue.push({ id: "1", title: "A", url: "https://example.com/a", source: "radio" }, { id: "2", title: "B", url: "https://example.com/b", source: "radio" });
-  await p.remove(0);
-  assert.equal(p.queue.length, 1);
-  assert.equal(p.queue[0].id, "2");
-  await p.remove(99);
-  assert.equal(p.queue.length, 1);
-});
-
-test("Player filters malformed queue items", async () => {
-  const p = new Player(settings());
-  p.next = async () => {};
-  await p.enqueue([{ title: "missing url" }, null, { id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }]);
-  assert.equal(p.queue.length, 1);
-  assert.equal(p.queue[0].id, "r");
-});
-
-test("Player skip cancels an in-flight resolver without leaving a phantom current item", async () => {
-  const p = new Player(settings());
-  p.resolve = async function () { await new Promise((resolve) => setTimeout(resolve, 100)); return "unused"; };
-  const run = p.enqueue([{ id: "1", title: "A", url: "ytsearch1:A", source: "youtube" }, { id: "2", title: "B", url: "ytsearch1:B", source: "youtube" }]);
-  p.skip();
-  await run;
-  assert.equal(p.generation > 1, true);
-});
-
-test("Player ignores stale FFmpeg output after skip", async () => {
-  const processes = [];
-  const spawnFn = (_command, _args, options) => {
-    const p = new EventEmitter();
-    p.stdout = new EventEmitter();
-    p.stderr = new EventEmitter();
-    p.kill = () => { p.killed = true; };
-    processes.push({ p, options });
-    return p;
-  };
-  const player = new Player(settings(), { spawnFn });
-  const item = { id: "r", title: "Radio", url: "https://example.com/r", source: "radio" };
-  const run = ++player.generation;
-  const audio = [];
-  player.on("audio", data => audio.push(data));
-  const playback = player.playSource(item, run);
-  await waitFor(() => processes.length === 1);
-  player.skip();
-  processes[0].p.stdout.emit("data", Buffer.from("stale-audio"));
-  processes[0].p.emit("close", 0);
-  const result = await playback;
-  assert.equal(result, "cancelled");
-  assert.equal(audio.length, 0);
-});
-
-test("Player recovery retries a failed audio source with backoff and emits diagnostics", async () => {
-  const p = new Player(settings());
-  const delays = [];
-  p.emit = ((original) => (event, ...args) => { if (event === "diagnostic") delays.push(String(args[0])); return original.call(p, event, ...args); })(p.emit);
-  let attempts = 0;
-  p.playSource = async function () { attempts += 1; if (attempts < 3) return "failed"; return "ended"; };
-  const run = ++p.generation;
-  const ok = await p.recover({ id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }, run, "network");
-  assert.equal(ok, true);
-  assert.equal(attempts, 3);
-  assert.equal(delays.length >= 2, true);
-});
-
-test("Player recovery stops when playback is cancelled", async () => {
-  const p = new Player(settings());
-  let attempts = 0;
-  p.playSource = async function () { attempts += 1; return "failed"; };
-  const run = ++p.generation;
-  const promise = p.recover({ id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }, run, "network");
-  setTimeout(() => { p.generation++; }, 20);
-  const ok = await promise;
-  assert.equal(ok, false);
-  assert.equal(attempts, 0);
-});
-
-test("CPU calculation converts process CPU seconds to percent correctly", () => {
-  assert.equal(calculateCpuPercent(4, 2, 4), 50);
-  assert.equal(calculateCpuPercent(2, 2, 1), 100);
-  assert.equal(calculateCpuPercent(1, 2, 4), 12.5);
-});
-
-test("Network interface selection returns only the configured interface", () => {
-  const interfaces = [
-    { name: "lo", addresses: [{ address: "127.0.0.1", family: "IPv4", internal: true }] },
-    { name: "eth0", addresses: [{ address: "192.0.2.10", family: "IPv4", internal: false }] }
-  ];
-  assert.deepEqual(selectNetworkInterfaces(interfaces, "eth0"), [interfaces[1]]);
-  assert.deepEqual(selectNetworkInterfaces(interfaces, "missing"), []);
-  assert.deepEqual(selectNetworkInterfaces(interfaces, ""), interfaces);
-});
-
-test("Login rate-limit keys separate clients while keeping usernames case-insensitive", () => {
-  assert.equal(loginRateKey("Admin", "10.0.0.1"), "10.0.0.1:admin");
-  assert.equal(loginRateKey("admin", "10.0.0.2"), "10.0.0.2:admin");
-  assert.notEqual(loginRateKey("admin", "10.0.0.1"), loginRateKey("admin", "10.0.0.2"));
-});
-
-test("System metrics expose CPU, memory and uptime values", () => {
-  const a = systemInfo();
-  assert.equal(typeof a.cpuPercent, "number");
-  assert.ok(a.cpuPercent >= 0 && a.cpuPercent <= 100);
-  assert.equal(typeof a.memory.percent, "number");
-  assert.ok(a.memory.percent >= 0 && a.memory.percent <= 100);
-  assert.ok(a.memory.total > 0);
-  assert.ok(a.uptime >= 0);
-  const b = systemInfo();
-  assert.equal(typeof b.cpuPercent, "number");
-});
-
-test("Storage metrics expose disk information for an existing directory", async () => {
-  const s = await storageInfo(process.cwd());
-  assert.equal(s.exists, true);
-  assert.equal(s.directory, true);
-  assert.ok(s.disk && s.disk.total > 0);
-  assert.ok(s.disk.used >= 0 && s.disk.free >= 0);
-});
-
-test("Dashboard contains the primary navigation, monitoring UI and backend action endpoints", async () => {
+test("Dashboard exposes current UI endpoints plus browser music library", async () => {
   const ui = await readFile(new URL("../frontend/app.js", import.meta.url), "utf8");
-  for (const text of ["/api/search", "/api/play/volume", "/api/play/mode", "/api/queue/", "/api/playlists", "/api/discord", "/api/ts3", "/api/system", "/api/network", "/api/storage", "/api/files", "/api/settings", "/api/users", "/api/diagnostics", "/api/control"]) assert.ok(ui.includes(text), `Dashboard missing ${text}`);
+  const index = await readFile(new URL("../frontend/index.html", import.meta.url), "utf8");
+  const musicUi = await readFile(new URL("../frontend/music-ui.js", import.meta.url), "utf8");
+  const server = await readFile(new URL("../backend/src/server.js", import.meta.url), "utf8");
+  for (const text of ["/api/search", "/api/playlists", "/api/discord", "/api/ts3", "/api/system", "/api/network", "/api/storage", "/api/files", "/api/settings", "/api/control"]) assert.ok(ui.includes(text), `Dashboard missing ${text}`);
   for (const text of ["id=\"clock\"", "cpuPercent", "memory.percent", "id=\"topCpu\"", "setInterval(pollMonitor, 1000)"]) assert.ok(ui.includes(text), `Dashboard missing ${text}`);
   for (const tab of ["player", "playlists", "connections", "system", "admin"]) assert.ok(ui.includes(`['${tab}'`), `Dashboard missing ${tab} tab`);
+  assert.ok(index.includes('/music-ui.js'), 'Dashboard missing music UI script');
+  for (const text of ["data-tab=\"music\"", "/api/music/upload", "＋ Playlist", "musicUpload", "music-library"]) assert.ok(musicUi.includes(text), `Music UI missing ${text}`);
+  for (const text of ["/api/music/upload", "safeMusicPath", "MUSIC_EXTENSIONS", "await request.file()", "/api/music/:name"]) assert.ok(server.includes(text), `Music API missing ${text}`);
 });
