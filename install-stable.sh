@@ -76,7 +76,6 @@ Restart=on-failure
 RestartSec=3
 User=$SERVICE_USER
 Group=$SERVICE_USER
-NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
