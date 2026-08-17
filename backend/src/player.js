@@ -41,7 +41,7 @@ export class Player extends EventEmitter {
   skip() { this.generation++; if (this.resolver) { this.resolver.kill("SIGTERM"); this.resolver = null; void this.next(); } else if (this.ff) { const old = this.ff; this.ff = null; old.kill("SIGTERM"); void this.next(); } else if (this.current) void this.next(); }
   clear() { this.queue = []; this.emit("state"); }
   async remove(index) { if (Number.isInteger(index) && index >= 0 && index < this.queue.length) this.queue.splice(index, 1); this.emit("state"); }
-  async enqueue(items) { const clean = Array.isArray(items) ? items.filter(x => x && typeof x.url === "string" && x.url.trim()) : []; this.queue.push(...clean); if (!this.current) await this.next(); else this.emit("state"); }
+  async enqueue(items) { const clean = Array.isArray(items) ? items.filter(x => x && typeof x.url === "string" && x.url.trim()) : []; this.queue.push(...clean); if (!this.current) void this.next(); else this.emit("state"); }
   async resolve(item) {
     const input = String(item.url);
     if (item.source === "radio" || item.source === "file" || item.source === "direct") return input;
