@@ -12,8 +12,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
       - run: cd backend && npm install --no-audit --no-fund
       - run: cd backend && npm test
       - run: bash -n install-stable.sh
