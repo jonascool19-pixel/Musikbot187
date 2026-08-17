@@ -1,17 +1,7 @@
 const systemTimers=new Set();
-const originalSetInterval=window.setInterval.bind(window);
-const originalClearInterval=window.clearInterval.bind(window);
 const originalSetTimeout=window.setTimeout.bind(window);
 const originalClearTimeout=window.clearTimeout.bind(window);
 
-window.setInterval=(callback,delay,...args)=>{
-  const id=originalSetInterval(callback,delay,...args);
-  try{
-    if(typeof callback==='function' && String(callback).includes('tick')) systemTimers.add(id);
-  }catch{}
-  return id;
-};
-window.clearInterval=id=>{systemTimers.delete(id);return originalClearInterval(id)};
 window.setTimeout=(callback,delay,...args)=>{
   const id=originalSetTimeout(callback,delay,...args);
   try{
@@ -20,7 +10,7 @@ window.setTimeout=(callback,delay,...args)=>{
   return id;
 };
 window.clearTimeout=id=>{systemTimers.delete(id);return originalClearTimeout(id)};
-function clearSystemTimers(){for(const id of systemTimers){originalClearInterval(id);originalClearTimeout(id)}systemTimers.clear()}
+function clearSystemTimers(){for(const id of systemTimers)originalClearTimeout(id);systemTimers.clear()}
 
 document.addEventListener('click',event=>{
   const tab=event.target.closest?.('[data-tab]');
