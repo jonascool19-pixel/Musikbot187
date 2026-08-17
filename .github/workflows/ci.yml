@@ -37,15 +37,20 @@ jobs:
           grep -F 'ReadWritePaths=$DATA' install-stable.sh
           grep -F 'visudo -cf /etc/sudoers.d/musikbot187' install-stable.sh
           grep -F 'MUSIKBOT187_CONTROL' install-stable.sh
-      - name: Run installer in isolated Debian container
+      - name: Run installer in isolated systemd container
         run: |
-          docker run --rm -v "$PWD:/repo:ro" debian:bookworm-slim bash -lc '
+          set -euo pipefail
+          docker rm -f musikbot187-ci >/dev/null 2>&1 || true
+          docker run -d --name musikbot187-ci --privileged --cgroupns=host -v "$PWD:/repo:ro" debian:bookworm-slim /sbin/init
+          trap 'docker rm -f musikbot187-ci >/dev/null 2>&1 || true' EXIT
+          for i in {1..30}; do docker exec musikbot187-ci systemctl is-system-running >/dev/null 2>&1 && break; sleep 1; done
+          docker exec musikbot187-ci bash -lc '
             set -euo pipefail
             apt-get update
-            DEBIAN_FRONTEND=noninteractive apt-get install -y bash ca-certificates curl git sudo systemd systemd-sysv ffmpeg python3
-            # Exercise the installer logic without modifying the host runner.
+            DEBIAN_FRONTEND=noninteractive apt-get install -y bash ca-certificates curl git sudo ffmpeg python3
             cp /repo/install-stable.sh /tmp/install-stable.sh
             sed -i "s#REPO=\"https://github.com/jonascool19-pixel/radiobot.git\"#REPO=\"file:///repo\"#" /tmp/install-stable.sh
+            chmod 0755 /tmp/install-stable.sh
             bash -n /tmp/install-stable.sh
             /tmp/install-stable.sh
             id musikbot187
@@ -56,4 +61,6 @@ jobs:
             grep -F "ProtectHome=true" /etc/systemd/system/musikbot187.service
             visudo -cf /etc/sudoers.d/musikbot187
             grep -F "musikbot187 ALL=(root) NOPASSWD" /etc/sudoers.d/musikbot187
+            systemctl is-active --quiet musikbot187
+            curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3000/ >/dev/null
           '
