@@ -22,6 +22,12 @@ function commands() {
   ].map((x) => x.toJSON());
 }
 
+function makePlayItem(query) {
+  const value = String(query).trim();
+  const direct = /^https?:\/\//i.test(value);
+  return { id: Date.now().toString(), title: value, url: direct ? value : `ytsearch1:${value}`, source: direct ? "youtube" : "youtube" };
+}
+
 export class DiscordManager {
   constructor(music) { this.music = music; this.map = new Map(); }
   async connect(cfg) {
@@ -38,7 +44,7 @@ export class DiscordManager {
       const parts = message.content.slice((cfg.prefix || "!").length).trim().split(/\s+/);
       const command = parts.shift()?.toLowerCase();
       try {
-        if (command === "play") return this.music.enqueue([{ id: Date.now().toString(), title: parts.join(" "), url: `ytsearch1:${parts.join(" ")}`, source: "youtube" }]);
+        if (command === "play") return this.music.enqueue([makePlayItem(parts.join(" "))]);
         if (command === "pause") this.music.pause();
         else if (command === "resume") this.music.resume();
         else if (command === "skip") this.music.skip();
@@ -63,7 +69,7 @@ export class DiscordManager {
   }
   async handleSlash(interaction) {
     switch (interaction.commandName) {
-      case "play": { const q = interaction.options.getString("suche", true); await this.music.enqueue([{ id: Date.now().toString(), title: q, url: `ytsearch1:${q}`, source: "youtube" }]); return interaction.reply(`▶️ **${q}** wurde zur Wiedergabe hinzugefügt.`); }
+      case "play": { const q = interaction.options.getString("suche", true); await this.music.enqueue([makePlayItem(q)]); return interaction.reply(`▶️ **${q}** wurde zur Wiedergabe hinzugefügt.`); }
       case "pause": this.music.pause(); return interaction.reply("⏸️ Pausiert.");
       case "resume": this.music.resume(); return interaction.reply("▶️ Fortgesetzt.");
       case "skip": this.music.skip(); return interaction.reply("⏭️ Übersprungen.");
