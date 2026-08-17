@@ -64,17 +64,17 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 
 ## Installation und Betrieb
 
-Der Stable-Installer ist für Debian/Ubuntu mit `apt-get` ausgelegt. Er installiert nur die benötigten Pakete und führt **kein ungefragtes vollständiges System-Upgrade** durch. Voraussetzung ist ein systemd-basiertes Debian/Ubuntu-System; für Proxmox wird ein **Ubuntu-24.04-LXC/CT mit systemd und verfügbaren cgroups** verwendet. fileciteturn68file0L2-L6
+Der Stable-Installer ist für Debian/Ubuntu mit `apt-get` ausgelegt. Für den von dir gewünschten Schnellstart wird vor der eigentlichen MusikBot187-Installation das System aktualisiert und `curl` installiert. Voraussetzung ist ein systemd-basiertes Debian/Ubuntu-System; für Proxmox wird ein **Ubuntu-24.04-LXC/CT mit systemd und verfügbaren cgroups** verwendet.
 
-### Stable-Installation
+### Offizieller Installations-Einzeiler
 
 Auf dem frisch erstellten Container als Root oder mit einem Benutzer mit `sudo`-Rechten:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-stable.sh | sudo bash
+sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-stable.sh | sudo bash
 ```
 
-Der Installer richtet unter anderem ein:
+Dieser Einzeiler ist der bevorzugte aktuelle Installationsweg. Der eigentliche Stable-Installer richtet unter anderem ein:
 
 - Node.js 22
 - FFmpeg
