@@ -46,7 +46,7 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 - Playlist-Bereich
 - Verbindungs- und Instanzverwaltung
 - System-, Netzwerk-, Speicher- und Dateiinformationen
-- Diagnose- und Systemsteuerung
+- Diagnosebereich
 - Admin-Bereich
 - Benutzer, Rollen, Login und Sessions
 - geschützter Setup-Bereich
@@ -55,10 +55,10 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 
 ## Installation und Betrieb
 
-Der Stable-Installer ist für Debian/Ubuntu mit `apt-get` ausgelegt und automatisiert die Einrichtung der benötigten Laufzeit:
+Der Stable-Installer ist für Debian/Ubuntu mit `apt-get` ausgelegt. Er installiert nur die benötigten Pakete und führt **kein ungefragtes vollständiges System-Upgrade** durch:
 
 ```bash
-sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-stable.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-stable.sh | sudo bash
 ```
 
 Der Installer richtet unter anderem ein:
@@ -69,7 +69,8 @@ Der Installer richtet unter anderem ein:
 - MusikBot187 unter `/opt/musikbot187`
 - eigenen Systemdienst-Benutzer statt dauerhaftem Root-Betrieb
 - systemd-Service `musikbot187`
-- notwendige Dienst-/sudo-Konfiguration
+- restriktive systemd-Sandbox für den Dienst
+- begrenzte sudo-Regel nur für Bot-Start/Stop/Restart
 - automatisierten Start des Bots
 
 Nach der Installation ist das Dashboard unter folgender Adresse erreichbar:
@@ -93,13 +94,17 @@ Der Installer und die CI-Teststrecke prüfen den Betrieb in einer isolierten Ubu
 
 Der aktuelle Stand enthält unter anderem:
 
-- geschützten Setup-Zugriff
+- geschützten Setup-Zugriff mit einmaligem Installer-Token
 - rollenbasierte Admin-Prüfung
 - Login-Rate-Limit pro Client und Benutzer
+- automatisch bereinigten Session-/Rate-Limit-State
+- individuelle zufällige Salt-Werte für Passwort-Hashes
+- Migration älterer Passwort-Hashes beim erfolgreichen Login
 - separaten systemd-Service-User
-- begrenzte sudo-Regel
+- restriktive systemd-Sandbox
+- begrenzte sudo-Regel ohne System-Reboot/Shutdown-Rechte
 - Validierung von Audioquellen
-- Schutz lokaler Audiopfade
+- Schutz lokaler Audiopfade inklusive Symlink-Prüfung
 - Schutz vor privaten/unsicheren Netzwerkzielen bei direkten Audioquellen
 - Guild-Begrenzung für Discord-Befehle
 - Audio-Race-Schutz bei Wechsel/Skip
@@ -109,7 +114,7 @@ Der aktuelle Stand enthält unter anderem:
 
 ## Teststatus
 
-Der aktuelle `main`-Stand wurde zuletzt mit der vollständigen CI-Kette geprüft:
+Der aktuelle `main`-Stand enthält die vollständige CI-Kette mit:
 
 - Backend-Regressionstests
 - Playwright-/Chromium-Browser-Test
@@ -118,7 +123,6 @@ Der aktuelle `main`-Stand wurde zuletzt mit der vollständigen CI-Kette geprüft
 - Ubuntu-24.04-systemd-Testimage
 - echter Installerlauf in isolierter Ubuntu-24.04-Umgebung
 - Ubuntu-24.04-CT-Style-Preflight
+- Regressionstest für individuelle Passwort-Salts
 
-Der zuletzt geprüfte CI-Lauf **#866** ist vollständig erfolgreich durchgelaufen.
-
-**Hinweis:** Ein grüner CI-Lauf bedeutet, dass die automatisierten Prüfungen bestanden wurden; er ist kein mathematischer Beweis dafür, dass niemals ein weiterer Fehler existiert. Deshalb wird der aktuelle Stand weiterhin durch Tiefenaudits und zusätzliche Regressionstests überprüft.
+**Wichtig:** Die Änderungen in diesem Audit wurden gerade auf `main` eingespielt. Der neue vollständige CI-Lauf für den aktuellen Stand muss noch von GitHub Actions ausgeführt werden. Erst wenn dieser Lauf komplett grün ist, behandeln wir den Stand als verifiziertes Installations-Release.
