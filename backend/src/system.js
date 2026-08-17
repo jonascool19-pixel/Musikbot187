@@ -1,5 +1,6 @@
 import os from 'node:os';
-import { readFile, readFileSync, stat, statfs } from 'node:fs/promises';
+import { readFile, stat, statfs } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 export function calculateCpuPercent(usedSeconds, elapsedSeconds, cpuCount) {
