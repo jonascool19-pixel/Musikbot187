@@ -48,14 +48,15 @@ export function save() {
 function hash(password) { return scryptSync(password, "musikbot187", 32); }
 function check(password, hex) { try { return timingSafeEqual(hash(password), Buffer.from(hex, "hex")); } catch { return false; } }
 function publicUser(u) { return { id: u.id, name: u.name, role: u.role }; }
+export function loginRateKey(name, clientKey='unknown') { return `${String(clientKey || "unknown").trim() || "unknown"}:${String(name || "").toLowerCase()}`; }
 
 export function createAdmin(name, password) {
   const u = { id: randomUUID(), name, hash: hash(password).toString("hex"), role: "admin" };
   db().users.push(u);
   return publicUser(u);
 }
-export function login(name, password) {
-  const key = String(name || "").toLowerCase();
+export function login(name, password, clientKey='unknown') {
+  const key = loginRateKey(name, clientKey);
   const now = Date.now();
   const attempt = loginAttempts.get(key) || { count: 0, first: now, blockedUntil: 0 };
   if (attempt.first + 15 * 60 * 1000 <= now) { attempt.count = 0; attempt.first = now; attempt.blockedUntil = 0; }
