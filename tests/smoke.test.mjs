@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { Player } from "../backend/src/player.js";
+import { systemInfo, storageInfo } from "../backend/src/system.js";
 
 function settings(overrides = {}) { return { volume: 80, mode: "queue", ...overrides }; }
 
@@ -38,8 +39,29 @@ test("Player skip cancels an in-flight resolver without leaving a phantom curren
   assert.equal(p.generation > 1, true);
 });
 
-test("Dashboard contains the primary navigation and backend action endpoints", async () => {
+test("System metrics expose CPU, memory and uptime values", () => {
+  const a = systemInfo();
+  assert.equal(typeof a.cpuPercent, "number");
+  assert.ok(a.cpuPercent >= 0 && a.cpuPercent <= 100);
+  assert.equal(typeof a.memory.percent, "number");
+  assert.ok(a.memory.percent >= 0 && a.memory.percent <= 100);
+  assert.ok(a.memory.total > 0);
+  assert.ok(a.uptime >= 0);
+  const b = systemInfo();
+  assert.equal(typeof b.cpuPercent, "number");
+});
+
+test("Storage metrics expose disk information for an existing directory", async () => {
+  const s = await storageInfo(process.cwd());
+  assert.equal(s.exists, true);
+  assert.equal(s.directory, true);
+  assert.ok(s.disk && s.disk.total > 0);
+  assert.ok(s.disk.used >= 0 && s.disk.free >= 0);
+});
+
+test("Dashboard contains the primary navigation, monitoring UI and backend action endpoints", async () => {
   const ui = await readFile(new URL("../frontend/app.js", import.meta.url), "utf8");
   for (const text of ["/api/search", "/api/play/volume", "/api/play/mode", "/api/queue/", "/api/playlists", "/api/discord", "/api/ts3", "/api/system", "/api/network", "/api/storage", "/api/files", "/api/settings", "/api/users", "/api/diagnostics", "/api/control"]) assert.ok(ui.includes(text), `Dashboard missing ${text}`);
+  for (const text of ["id=\"clock\"", "cpuPercent", "memory.percent", "c.disk", "setInterval(tick,1000)", "setTimeout(refresh,5000)"]) assert.ok(ui.includes(text), `Dashboard missing ${text}`);
   for (const tab of ["player", "playlists", "connections", "system", "admin"]) assert.ok(ui.includes(`['${tab}'`), `Dashboard missing ${tab} tab`);
 });
