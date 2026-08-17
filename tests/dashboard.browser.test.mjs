@@ -61,6 +61,7 @@ try {
   await page.locator('[data-tab="playlists"]').click(); await assertText(page, "Test Playlist");
   await page.locator('[data-tab="system"]').click(); await assertText(page, "System"); await assertText(page, "25.0 %");
   await page.locator('[data-tab="connections"]').click(); await assertText(page, "Test Discord"); await assertText(page, "Test TS3");
+  await page.getByRole("button", { name: /Bearbeiten/ }).first().click();
   await page.getByRole("button", { name: /Guilds laden/ }).click(); await assertText(page, "Test Guild");
   await page.getByRole("button", { name: /Voice-Kanäle laden/ }).click(); await assertText(page, "Music");
   await page.locator('[data-tab="admin"]').click(); await assertText(page, "Admin");
