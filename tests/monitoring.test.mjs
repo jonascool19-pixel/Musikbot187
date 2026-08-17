@@ -25,9 +25,13 @@ test("network monitoring exposes aggregate traffic and per-second counters", asy
 test("dashboard contains one-second live monitoring and Discord controls", async () => {
   const app = await readFile(new URL("../frontend/app.js", import.meta.url), "utf8");
   assert.match(app, /setInterval\(pollMonitor,\s*1000\)/);
-  assert.match(app, /Bot zu Discord hinzufügen/);
-  assert.match(app, /Einladungslink erstellen/);
-  assert.match(app, /Neu verbinden/);
-  assert.match(app, /Discord-Server/);
-  assert.match(app, /Voice-Kanal/);
+  for (const marker of ["id=\"topCpu\"", "id=\"topRam\"", "id=\"topNetRx\"", "id=\"topNetTx\"", "id=\"topNetTotal\""]) {
+    assert.ok(app.includes(marker), `Dashboard missing ${marker}`);
+  }
+  for (const marker of ["id=\"dadd\"", "id=\"dlink\"", "id=\"ds\"", "id=\"dconnect\"", "id=\"dreconnect\"", "id=\"dg\"", "id=\"dgrefresh\"", "id=\"dv\"", "id=\"dvrefresh\""]) {
+    assert.ok(app.includes(marker), `Discord UI missing ${marker}`);
+  }
+  assert.match(app, /function inviteUrl\(/);
+  assert.match(app, /function loadGuilds\(/);
+  assert.match(app, /function loadChannels\(/);
 });
