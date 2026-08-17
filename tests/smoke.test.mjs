@@ -1,10 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { EventEmitter } from "node:events";
 import { Player } from "../backend/src/player.js";
-import { systemInfo, storageInfo } from "../backend/src/system.js";
+import { calculateCpuPercent, selectNetworkInterfaces, systemInfo, storageInfo } from "../backend/src/system.js";
+import { loginRateKey } from "../backend/src/store.js";
 
 function settings(overrides = {}) { return { volume: 80, mode: "queue", ...overrides }; }
+
+async function waitFor(predicate, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  throw new Error("Test condition was not reached in time");
+}
 
 test("Player clamps volume and accepts supported modes", () => {
   const p = new Player(settings());
@@ -39,6 +50,31 @@ test("Player skip cancels an in-flight resolver without leaving a phantom curren
   assert.equal(p.generation > 1, true);
 });
 
+test("Player ignores stale FFmpeg output after skip", async () => {
+  const processes = [];
+  const spawnFn = (_command, _args, options) => {
+    const p = new EventEmitter();
+    p.stdout = new EventEmitter();
+    p.stderr = new EventEmitter();
+    p.kill = () => { p.killed = true; };
+    processes.push({ p, options });
+    return p;
+  };
+  const player = new Player(settings(), { spawnFn });
+  const item = { id: "r", title: "Radio", url: "http://example/r", source: "radio" };
+  const run = ++player.generation;
+  const audio = [];
+  player.on("audio", data => audio.push(data));
+  const playback = player.playSource(item, run);
+  await waitFor(() => processes.length === 1);
+  player.skip();
+  processes[0].p.stdout.emit("data", Buffer.from("stale-audio"));
+  processes[0].p.emit("close", 0);
+  const result = await playback;
+  assert.equal(result, "cancelled");
+  assert.equal(audio.length, 0);
+});
+
 test("Player recovery retries a failed audio source with backoff and emits diagnostics", async () => {
   const p = new Player(settings());
   const delays = [];
@@ -62,6 +98,28 @@ test("Player recovery stops when playback is cancelled", async () => {
   const ok = await promise;
   assert.equal(ok, false);
   assert.equal(attempts, 0);
+});
+
+test("CPU calculation converts process CPU seconds to percent correctly", () => {
+  assert.equal(calculateCpuPercent(4, 2, 4), 50);
+  assert.equal(calculateCpuPercent(2, 2, 1), 100);
+  assert.equal(calculateCpuPercent(1, 2, 4), 12.5);
+});
+
+test("Network interface selection returns only the configured interface", () => {
+  const interfaces = [
+    { name: "lo", addresses: [{ address: "127.0.0.1", family: "IPv4", internal: true }] },
+    { name: "eth0", addresses: [{ address: "192.0.2.10", family: "IPv4", internal: false }] }
+  ];
+  assert.deepEqual(selectNetworkInterfaces(interfaces, "eth0"), [interfaces[1]]);
+  assert.deepEqual(selectNetworkInterfaces(interfaces, "missing"), []);
+  assert.deepEqual(selectNetworkInterfaces(interfaces, ""), interfaces);
+});
+
+test("Login rate-limit keys separate clients while keeping usernames case-insensitive", () => {
+  assert.equal(loginRateKey("Admin", "10.0.0.1"), "10.0.0.1:admin");
+  assert.equal(loginRateKey("admin", "10.0.0.2"), "10.0.0.2:admin");
+  assert.notEqual(loginRateKey("admin", "10.0.0.1"), loginRateKey("admin", "10.0.0.2"));
 });
 
 test("System metrics expose CPU, memory and uptime values", () => {

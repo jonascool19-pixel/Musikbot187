@@ -16,7 +16,8 @@ export class Player extends EventEmitter {
   ff = null;
   resolver = null;
   generation = 0;
-  constructor(settings) { super(); this.volume = clampVolume(settings.volume ?? 80); this.mode = ["queue", "repeat", "shuffle"].includes(settings.mode) ? settings.mode : "queue"; }
+  spawnFn;
+  constructor(settings, { spawnFn = spawn } = {}) { super(); this.volume = clampVolume(settings.volume ?? 80); this.mode = ["queue", "repeat", "shuffle"].includes(settings.mode) ? settings.mode : "queue"; this.spawnFn = spawnFn; }
   snapshot() { return { queue: this.queue, current: this.current, paused: this.paused, volume: this.volume, mode: this.mode }; }
   setVolume(value) {
     const next = clampVolume(value);
@@ -48,7 +49,7 @@ export class Player extends EventEmitter {
     const args = ["-g", "-f", "bestaudio/best", "--no-playlist"];
     if (item.source === "spotify" || input.startsWith("ytsearch")) args.push("--default-search", "ytsearch1");
     args.push(input);
-    const p = spawn(YTDLP, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const p = this.spawnFn(YTDLP, args, { stdio: ["ignore", "pipe", "pipe"] });
     this.resolver = p;
     let out = "", err = "", settled = false;
     await new Promise((resolve, reject) => {
@@ -67,11 +68,11 @@ export class Player extends EventEmitter {
   async playSource(item, run) {
     const source = await this.resolve(item);
     if (run !== this.generation) return "cancelled";
-    const ff = spawn(FFMPEG, ["-hide_banner", "-loglevel", "error", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_at_eof", "1", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "4xx,5xx", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "-af", `volume=${this.volume / 100}`, "pipe:1"], { stdio: ["ignore", "pipe", "pipe"] });
+    const ff = this.spawnFn(FFMPEG, ["-hide_banner", "-loglevel", "error", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_at_eof", "1", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "4xx,5xx", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "-af", `volume=${this.volume / 100}`, "pipe:1"], { stdio: ["ignore", "pipe", "pipe"] });
     this.ff = ff;
     if (this.paused) { try { ff.kill("SIGSTOP"); } catch {} }
-    ff.stdout.on("data", d => this.emit("audio", Buffer.from(d)));
-    ff.stderr.on("data", d => { const message = String(d).trim(); if (message) this.emit("diagnostic", message); });
+    ff.stdout.on("data", d => { if (run === this.generation && this.ff === ff) this.emit("audio", Buffer.from(d)); });
+    ff.stderr.on("data", d => { if (run !== this.generation || this.ff !== ff) return; const message = String(d).trim(); if (message) this.emit("diagnostic", message); });
     const code = await new Promise(resolve => { ff.on("error", () => resolve(-1)); ff.on("close", code => resolve(code)); });
     if (this.ff === ff) this.ff = null;
     if (run !== this.generation) return "cancelled";

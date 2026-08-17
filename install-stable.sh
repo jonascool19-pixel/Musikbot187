@@ -10,10 +10,6 @@ if ! command -v apt-get >/dev/null 2>&1; then
   echo "Unterstützt werden derzeit Debian/Ubuntu-Systeme mit apt-get."
   exit 1
 fi
-
-# MusikBot187 is designed for systemd-based Proxmox CTs and normal Ubuntu/Debian hosts.
-# Fail early with a useful message instead of partially installing into a container
-# where systemd/cgroups are unavailable.
 if [[ "$(ps -p 1 -o comm= 2>/dev/null || true)" != "systemd" ]]; then
   echo "Fehler: MusikBot187 benötigt systemd als PID 1. Bei einem Proxmox-CT bitte einen Ubuntu 24.04 CT mit systemd verwenden." >&2
   exit 1
@@ -28,11 +24,7 @@ $SUDO apt-get upgrade -y
 $SUDO apt-get install -y curl git ffmpeg ca-certificates python3 sudo
 
 if ! command -v node >/dev/null 2>&1 || (( $(node -p 'Number(process.versions.node.split(".")[0])') < 22 )); then
-  if [[ -n "$SUDO" ]]; then
-    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-  else
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash
-  fi
+  if [[ -n "$SUDO" ]]; then curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -; else curl -fsSL https://deb.nodesource.com/setup_22.x | bash; fi
   $SUDO apt-get install -y nodejs
 fi
 
@@ -42,14 +34,12 @@ command -v yt-dlp >/dev/null
 command -v ffmpeg >/dev/null
 command -v node >/dev/null
 
-# Stop an existing installation before replacing its application files.
+SETUP_TOKEN="$(node -e 'const {randomBytes}=require("node:crypto");process.stdout.write(randomBytes(32).toString("hex"))')"
+
 $SUDO systemctl stop musikbot187.service 2>/dev/null || true
 $SUDO rm -rf "$APP"
 
-# Create a dedicated unprivileged service account. Existing data is preserved.
-if ! $SUDO getent passwd "$SERVICE_USER" >/dev/null; then
-  $SUDO useradd --system --home /nonexistent --shell /usr/sbin/nologin "$SERVICE_USER"
-fi
+if ! $SUDO getent passwd "$SERVICE_USER" >/dev/null; then $SUDO useradd --system --home /nonexistent --shell /usr/sbin/nologin "$SERVICE_USER"; fi
 $SUDO install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA" "$DATA/music"
 $SUDO install -d -m 0755 /usr/local/sbin
 
@@ -61,6 +51,7 @@ $SUDO chown -R "$SERVICE_USER":"$SERVICE_USER" "$APP"
 $SUDO install -o root -g root -m 0755 "$APP/install/control.sh" /usr/local/sbin/musikbot187-control
 cat >/tmp/musikbot187.env <<ENV
 MUSIKBOT187_DATA_DIR=$DATA
+MUSIKBOT187_SETUP_TOKEN=$SETUP_TOKEN
 NODE_ENV=production
 HOST=0.0.0.0
 PORT=3000
@@ -68,7 +59,6 @@ ENV
 $SUDO install -o root -g "$SERVICE_USER" -m 0640 /tmp/musikbot187.env /etc/musikbot187.env
 rm -f /tmp/musikbot187.env
 
-# The web service may invoke only the four explicit control actions, without a password.
 cat >/tmp/musikbot187.sudoers <<SUDOERS
 Cmnd_Alias MUSIKBOT187_CONTROL = /usr/bin/systemctl restart musikbot187, /usr/bin/systemctl stop musikbot187, /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
 $SERVICE_USER ALL=(root) NOPASSWD: MUSIKBOT187_CONTROL
@@ -114,4 +104,6 @@ else
 fi
 
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-printf '\nMusikBot187 läuft: http://%s:3000/\n' "${IP:-SERVER-IP}"
+BASE_URL="http://${IP:-SERVER-IP}:3000"
+printf '\nMusikBot187 läuft: %s/\n' "$BASE_URL"
+printf 'Einrichtungslink: %s/#setup=%s\n' "$BASE_URL" "$SETUP_TOKEN"

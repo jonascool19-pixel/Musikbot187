@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {"node": ">=22"},
-  "scripts": {"start":"node src/server.js","test":"node --test ../tests/smoke.test.mjs","test:browser":"node ../tests/dashboard.browser.test.mjs"},
+  "scripts": {"start":"node src/server.js","test":"node --test ../tests/smoke.test.mjs ../tests/security.regression.test.mjs","test:browser":"node ../tests/dashboard.browser.test.mjs && node ../tests/setup.security.test.mjs"},
   "dependencies": {
     "@discordjs/voice":"^0.19.2",
     "@fastify/cors":"^11.3.0",
