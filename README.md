@@ -99,6 +99,8 @@ Dieser Einzeiler ist der bevorzugte aktuelle Installationsweg. Der eigentliche S
 - begrenzte sudo-Regel für Bot-Start/Stop/Restart sowie explizit die beiden Ubuntu-Power-Aktionen
 - automatisierten Start des Bots
 
+Für die Dashboard-Power-Control ist `NoNewPrivileges=false` bewusst gesetzt, damit der Service-Benutzer ausschließlich über die eng begrenzte `sudoers`-Regel die freigegebenen systemd-Control-Kommandos ausführen kann. Alle anderen Root-Kommandos bleiben verboten.
+
 Nach erfolgreicher Installation zeigt der Installer die Dashboard-Adresse und einen **einmaligen Einrichtungslink mit Installer-Token** an. Der Einrichtungslink wird nur für die Ersteinrichtung benötigt.
 
 Das Dashboard ist danach unter folgender Adresse erreichbar:
@@ -137,23 +139,24 @@ Der aktuelle Stand enthält unter anderem:
 - rollenbasierte Admin-Prüfung
 - Login-Rate-Limit pro Client und Benutzer
 - automatisch bereinigten Session-/Rate-Limit-State
+- begrenzte Session-Lebensdauer
 - individuelle zufällige Salt-Werte für Passwort-Hashes
 - Migration älterer Passwort-Hashes beim erfolgreichen Login
 - separaten systemd-Service-User
-- restriktive systemd-Sandbox inklusive `NoNewPrivileges=true`
+- restriktive systemd-Sandbox; `NoNewPrivileges` bleibt für die begrenzte Power-Control-Kompatibilität deaktiviert
 - eng begrenzte sudo-Regel nur für definierte Bot-/Ubuntu-Control-Kommandos
 - Validierung von Audioquellen
 - Schutz lokaler Audiopfade inklusive Symlink-Prüfung
 - Uploads ausschließlich in das konfigurierte Musikverzeichnis
 - Whitelist für erlaubte Audio-Dateiendungen beim Upload
 - Streaming-Upload ohne komplettes Einlesen großer Audiodateien in den RAM
-- Schutz vor privaten/unsicheren Netzwerkzielen bei direkten Audioquellen
+- Schutz vor privaten, reservierten und unsicheren Netzwerkzielen bei direkten Audioquellen
 - Guild-Begrenzung für Discord-Befehle
 - Audio-Race-Schutz bei Wechsel/Skip
-- containerbewusste CPU-Auslastungsberechnung
+- containerbewusste CPU- und Speicher-Auslastungsberechnung
 - Netzwerkverkehrs-Monitoring mit RX/TX-Zählern und ehrlichen Auslastungswerten
 - saubere Setup-Übernahme
-- TS3-Fehlerlogging
+- TS3-Verbindungs-Timeouts und Fehlerlogging
 
 ## Teststatus
 
@@ -166,7 +169,7 @@ Der aktuelle `main`-Stand enthält die vollständige CI-Kette mit:
 - Ubuntu-24.04-systemd-Testimage
 - echter Installerlauf in isolierter Ubuntu-24.04-Umgebung
 - Ubuntu-24.04-CT-Style-Preflight
-- Regressionstest für individuelle Passwort-Salts
-- Regressionstests für 1-Sekunden-Monitoring, Discord-Verwaltungsoberfläche, Power-/Instanzkontrollen, Theme-System und Musikbibliothek
+- Regressionstests für Passwort-Salts, private Netzwerkbereiche, Discord-Intents und Admin-/Power-Control
+- Regressionstests für 1-Sekunden-Monitoring, Discord-Verwaltungsoberfläche, Instanzkontrollen, Theme-System und Musikbibliothek
 
-Die aktuelle Fix-Runde ist damit für den nächsten vollständigen GitHub-Actions-Lauf vorbereitet.
+Die aktuelle Fix-Runde ist für den nächsten vollständigen GitHub-Actions-Lauf vorbereitet.
