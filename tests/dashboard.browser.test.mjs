@@ -20,7 +20,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
   if (url.pathname.startsWith("/api/")) {
     seen.push(`${req.method} ${url.pathname}`);
-    if (url.pathname === "/api/setup/status") return json(res, { setup: false });
+    if (url.pathname === "/api/setup" && req.method === "GET") return json(res, { initialized: true });
     if (url.pathname === "/api/login") return json(res, { token: "browser-test-token", user: { name: "Browser Test", role: "admin" } });
     if (url.pathname === "/api/state") return json(res, state);
     if (url.pathname === "/api/search") return json(res, { youtube: [{ id: "y1", title: "YouTube Result", url: "https://youtube.com/watch?v=test", source: "youtube", duration: "3:00" }], radio: [{ id: "r1", title: "Radio Result", url: "http://example.test/radio", source: "radio" }], spotify: [{ id: "s1", title: "Spotify Result", url: "https://youtube.com/watch?v=spotify", source: "spotify", artist: "Artist" }] });
@@ -28,16 +28,18 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/discord") return json(res, discord);
     if (url.pathname === "/api/ts3") return json(res, ts3);
     if (url.pathname === "/api/discord/d1/guilds") return json(res, [{ id: "g1", name: "Test Guild" }]);
-    if (url.pathname === "/api/discord/d1/channels") return json(res, [{ id: "v1", name: "Music", type: 2 }]);
-    if (url.pathname === "/api/system") return json(res, { hostname: "browser-test", platform: "linux", arch: "x64", node: "v22", uptime: 123, cpus: 4, cpuPercent: 25, loadavg: [1, 0.5, 0.2], memory: { total: 1000, free: 400, used: 600, percent: 60 } });
-    if (url.pathname === "/api/storage") return json(res, { exists: true, directory: true, disk: { total: 10000, used: 3000, free: 7000, percent: 30 } });
+    if (url.pathname === "/api/discord/d1/guilds/g1/channels") return json(res, [{ id: "v1", name: "Music", type: 2 }]);
+    if (url.pathname === "/api/system") return json(res, { hostname: "browser-test", platform: "linux", arch: "x64", node: "v22", uptime: 123, cpus: 4, cpuPercent: 25, load: [1, 0.5, 0.2], memory: { total: 1000, free: 400, used: 600, percent: 60 } });
+    if (url.pathname === "/api/storage") return json(res, { exists: true, directory: true, path: "/music", disk: { total: 10000, used: 3000, free: 7000, percent: 30 } });
     if (url.pathname === "/api/network") return json(res, { interfaces: {} });
     if (url.pathname === "/api/files") return json(res, [{ name: "test.mp3", path: "test.mp3", size: 1234 }]);
+    if (url.pathname === "/api/health") return json(res, { ok: true });
     if (url.pathname === "/api/settings") return json(res, { volume: 80, mode: "queue", outputType: "discord", outputId: "d1", theme: "dark", musicDir: "/music", networkInterface: "" });
     if (url.pathname === "/api/users") return json(res, [{ id: "u1", name: "admin", role: "admin" }]);
     if (url.pathname === "/api/diagnostics") return json(res, [{ time: new Date().toISOString(), level: "error", source: "browser-test", message: "Smoke test diagnostic" }]);
     if (url.pathname === "/api/control") return json(res, { ok: true });
     if (url.pathname === "/api/spotify") return json(res, { configured: false });
+    if (url.pathname === "/api/play/clear") return json(res, { ok: true });
     return json(res, {});
   }
   const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
@@ -55,9 +57,9 @@ try {
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
   const inputs = page.locator("input");
   assert.equal(await inputs.count(), 2, "Login should render username and password inputs");
-  await inputs.nth(0).fill("admin"); await inputs.nth(1).fill("password"); await page.locator("button").first().click();
+  await inputs.nth(0).fill("admin"); await inputs.nth(1).fill("password"); await page.getByRole("button", { name: "Anmelden" }).click();
   await page.locator('[data-tab="playlists"]').click(); await assertText(page, "Test Playlist");
-  await page.locator('[data-tab="system"]').click(); await assertText(page, "System"); await assertText(page, "25%");
+  await page.locator('[data-tab="system"]').click(); await assertText(page, "System"); await assertText(page, "25.0 %");
   await page.locator('[data-tab="connections"]').click(); await assertText(page, "Test Discord"); await assertText(page, "Test TS3");
   await page.getByRole("button", { name: /Guilds laden/ }).click(); await assertText(page, "Test Guild");
   await page.getByRole("button", { name: /Voice-Kanäle laden/ }).click(); await assertText(page, "Music");
@@ -66,7 +68,7 @@ try {
   await page.getByRole("button", { name: /Alles kopieren/ }).click();
   await page.locator('[data-tab="player"]').click(); await page.getByPlaceholder(/Titel, Interpret/).fill("test track"); await page.getByRole("button", { name: /Suchen/ }).click(); await assertText(page, "YouTube Result");
   await page.getByRole("button", { name: /Queue leeren/ }).click(); await page.getByRole("button", { name: /Abmelden/ }).click();
-  for (const required of ["POST /api/login", "GET /api/state", "GET /api/playlists", "GET /api/system", "GET /api/discord", "GET /api/ts3", "GET /api/discord/d1/guilds", "GET /api/discord/d1/channels", "GET /api/diagnostics", "GET /api/search", "POST /api/play/clear"]) assert.ok(seen.includes(required), `Missing browser API path: ${required}`);
+  for (const required of ["GET /api/setup", "POST /api/login", "GET /api/state", "GET /api/playlists", "GET /api/system", "GET /api/discord", "GET /api/ts3", "GET /api/discord/d1/guilds", "GET /api/discord/d1/guilds/g1/channels", "GET /api/diagnostics", "GET /api/search", "POST /api/play/clear"]) assert.ok(seen.includes(required), `Missing browser API path: ${required}`);
   assert.equal(consoleErrors.length, 0, `Browser console errors: ${consoleErrors.join(" | ")}`); assert.equal(pageErrors.length, 0, `Browser page errors: ${pageErrors.join(" | ")}`);
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 async function assertText(page, text) { await page.getByText(text, { exact: false }).first().waitFor({ state: "visible" }); }
