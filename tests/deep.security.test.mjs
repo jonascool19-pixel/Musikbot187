@@ -5,17 +5,17 @@ import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { Player } from "../backend/src/player.js";
 import { validatePlaybackItem } from "../backend/src/source-policy.js";
 import { discordCommandAllowed, discordIntents } from "../backend/src/discord.js";
-import { login, createAdmin, load } from "../backend/src/store.js";
+import { login, logout, createAdmin, load } from "../backend/src/store.js";
 
 const dataDirectory = path.resolve("/tmp/musikbot187-test-music");
-
 await mkdir(dataDirectory, { recursive: true });
 await writeFile(path.join(dataDirectory, "safe.mp3"), "test");
 
-test("playback policy rejects path traversal and private direct targets", async () => {
+test("playback policy rejects path traversal and private/reserved direct targets", async () => {
   await assert.rejects(() => validatePlaybackItem({ source: "file", url: "../../etc/passwd" }, dataDirectory), /Datei liegt außerhalb|ENOENT/);
-  await assert.rejects(() => validatePlaybackItem({ source: "direct", url: "http://127.0.0.1:3000/audio" }, dataDirectory), /nicht erlaubtes Netzwerkziel/);
-  await assert.rejects(() => validatePlaybackItem({ source: "direct", url: "http://localhost/audio" }, dataDirectory), /nicht erlaubtes Netzwerkziel/);
+  for (const host of ["127.0.0.1", "localhost", "192.168.1.10", "10.0.0.2", "100.64.0.1", "169.254.10.10", "[::1]", "[::ffff:192.168.1.10]"]) {
+    await assert.rejects(() => validatePlaybackItem({ source: "direct", url: `http://${host}:3000/audio` }, dataDirectory), /nicht erlaubtes Netzwerkziel/);
+  }
 });
 
 test("playback policy rejects symlinks escaping the music directory", async () => {
@@ -52,7 +52,7 @@ test("Player follows the live settings directory", async () => {
   player.stop();
 });
 
-test("Discord command scope is tied to configured guild and message-content intent is explicit", () => {
+test("Discord command scope and Message Content Intent are explicit", () => {
   assert.equal(discordCommandAllowed({ guildId: "guild-1" }, "guild-1"), true);
   assert.equal(discordCommandAllowed({ guildId: "guild-2" }, "guild-1"), false);
   assert.equal(discordCommandAllowed({ guildId: null }, "guild-1"), false);
@@ -61,10 +61,18 @@ test("Discord command scope is tied to configured guild and message-content inte
   assert.equal(discordIntents("!", true).includes(32768), true);
 });
 
-test("login rate state remains bounded and distinguishes client identities", async () => {
+test("sessions can be explicitly revoked and usernames are case-insensitive", async () => {
   process.env.MUSIKBOT187_DATA_DIR = path.resolve("/tmp/musikbot187-auth-test");
   await load();
-  createAdmin("audit-admin", "correct-password");
+  createAdmin("Audit-Admin", "correct-password");
+  const session = login("audit-admin", "correct-password", "client-good");
+  assert.equal(session.user.name, "Audit-Admin");
+  assert.equal(logout(session.token), true);
+  assert.equal(logout(session.token), false);
+  assert.equal(login("AUDIT-ADMIN", "correct-password", "client-good").user.name, "Audit-Admin");
+});
+
+test("login rate state remains bounded and distinguishes client identities", async () => {
   for (let i = 0; i < 100; i++) login(`unknown-${i}`, "bad", `client-${i}`);
-  assert.equal(login("audit-admin", "correct-password", "client-good").user.name, "audit-admin");
+  assert.equal(login("audit-admin", "correct-password", "client-good").user.name, "Audit-Admin");
 });
