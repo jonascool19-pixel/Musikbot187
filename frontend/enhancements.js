@@ -10,97 +10,59 @@
   async function snapshot() {
     if (!auth()) return null;
     try {
-      const state = await api('/api/state');
-      const health = await api('/api/health');
+      const state = await api('/api/state'); const health = await api('/api/health');
       const needsConnections = ['connections', 'admin'].includes(document.body.dataset.currentTab || '') || Boolean(q('#enhancedOutput'));
       const [discord, ts3] = needsConnections ? await Promise.all([api('/api/discord'), api('/api/ts3')]) : [[], []];
       return { state, health, discord, ts3 };
     } catch { return null; }
   }
-  function applyTheme(name, accent = '') {
-    const theme = window.MusikBotThemes?.apply(name || 'dark', accent) || {};
-    document.body.dataset.theme = theme.mode || 'dark'; document.body.dataset.themeName = name || 'dark';
-    if ((name === 'dark' || name === 'light') && accent && window.MusikBotThemes) window.MusikBotThemes.saveCustomAccent(accent);
-  }
+  function applyTheme(name, accent = '') { const theme = window.MusikBotThemes?.apply(name || 'dark', accent) || {}; document.body.dataset.theme = theme.mode || 'dark'; document.body.dataset.themeName = name || 'dark'; if ((name === 'dark' || name === 'light') && accent && window.MusikBotThemes) window.MusikBotThemes.saveCustomAccent(accent); }
   async function saveTheme(name, accent) { try { await put('/api/settings', { theme: name, accentColor: accent || '' }); applyTheme(name, accent); note('Design gespeichert.'); } catch (e) { note(e.message); } }
   function renderThemePanel(stateData) {
-    const admin = document.querySelector('#view section h2')?.textContent === 'Allgemeine Einstellungen'; if (!admin || q('#themePanel')) return;
-    const host = document.querySelector('#view section'); if (!host) return;
-    const saved = stateData?.settings || {}; const theme = saved.theme || document.body.dataset.themeName || 'dark'; const accent = saved.accentColor || window.MusikBotThemes?.customAccent?.() || '#0b69b3';
-    const panel = document.createElement('section'); panel.id = 'themePanel';
+    const admin = document.querySelector('#view section h2')?.textContent === 'Allgemeine Einstellungen'; if (!admin || q('#themePanel')) return; const host = document.querySelector('#view section'); if (!host) return;
+    const saved = stateData?.settings || {}; const theme = saved.theme || document.body.dataset.themeName || 'dark'; const accent = saved.accentColor || window.MusikBotThemes?.customAccent?.() || '#0b69b3'; const panel = document.createElement('section'); panel.id = 'themePanel';
     panel.innerHTML = `<div class="sectionhead"><div><h2>Design</h2><small>Farbschema, Hell/Dunkel-Modus und eigene Akzentfarbe</small></div></div><div class="theme-grid"><label>Theme<select id="themeSelect">${window.MusikBotThemes?.options?.() || ''}</select></label><label>Eigene Akzentfarbe<input id="accentColor" type="color" value="${esc(accent)}"></label><button id="themeReset">Akzentfarbe zurücksetzen</button><button id="themeSave">Design speichern</button></div>`;
-    host.parentElement.insertBefore(panel, host.nextSibling); q('#themeSelect').value = theme;
-    q('#themeSave').onclick = () => saveTheme(q('#themeSelect').value, q('#accentColor').value);
-    q('#themeReset').onclick = () => { const value = '#0b69b3'; q('#accentColor').value = value; applyTheme(q('#themeSelect').value, value); note('Akzentfarbe zurückgesetzt.'); };
-    q('#themeSelect').onchange = () => applyTheme(q('#themeSelect').value, q('#accentColor').value); q('#accentColor').oninput = e => applyTheme(q('#themeSelect').value, e.target.value);
+    host.parentElement.insertBefore(panel, host.nextSibling); q('#themeSelect').value = theme; q('#themeSave').onclick = () => saveTheme(q('#themeSelect').value, q('#accentColor').value); q('#themeReset').onclick = () => { const value = '#0b69b3'; q('#accentColor').value = value; applyTheme(q('#themeSelect').value, value); note('Akzentfarbe zurückgesetzt.'); }; q('#themeSelect').onchange = () => applyTheme(q('#themeSelect').value, q('#accentColor').value); q('#accentColor').oninput = e => applyTheme(q('#themeSelect').value, e.target.value);
   }
   function preserveGeneralThemeSave() {
-    const button = q('#as'); if (!button || button.dataset.themeGuard) return;
-    button.dataset.themeGuard = '1';
+    const button = q('#as'); if (!button || button.dataset.themeGuard) return; button.dataset.themeGuard = '1';
     button.addEventListener('click', async event => {
-      const saved = window.__musikbotLastSnapshot?.state?.settings;
-      if (!saved || saved.theme === 'dark' || saved.theme === 'light') return;
+      const saved = window.__musikbotLastSnapshot?.state?.settings; if (!saved || saved.theme === 'dark' || saved.theme === 'light') return;
       event.preventDefault(); event.stopImmediatePropagation();
       try { await put('/api/settings', { volume: Number(q('#av').value), mode: q('#am').value, outputType: q('#ao').value, outputId: q('#ai').value, networkInterface: q('#an').value, filesDirectory: q('#ad').value, theme: saved.theme, accentColor: saved.accentColor || '' }); note('Einstellungen gespeichert.'); await window.__musikbotRefreshDashboard?.(); } catch (error) { note(error.message); }
     }, true);
   }
-  function ensureHeader() {
-    const top = q('.top'); if (!top || q('#enhancedControls')) return;
-    const right = top.querySelector('.clock')?.parentElement || top; const box = document.createElement('div'); box.id = 'enhancedControls'; box.className = 'enhanced-controls'; right.insertBefore(box, right.querySelector('.clock'));
-  }
+  function ensureHeader() { const top = q('.top'); if (!top || q('#enhancedControls')) return; const right = top.querySelector('.clock')?.parentElement || top; const box = document.createElement('div'); box.id = 'enhancedControls'; box.className = 'enhanced-controls'; right.insertBefore(box, right.querySelector('.clock')); }
   function renderControls(data) {
-    ensureHeader(); const box = q('#enhancedControls'); if (!box || !data) return;
-    const items = [...data.discord.map(x => ({ type:'discord', id:x.id, name:x.name, connected:x.connected })), ...data.ts3.map(x => ({ type:'ts3', id:x.id, name:x.name, connected:x.connected }))];
-    const selected = `${data.state.settings.outputType}:${data.state.settings.outputId}`; const isAdmin = Boolean(q('[data-tab="admin"]'));
+    ensureHeader(); const box = q('#enhancedControls'); if (!box || !data) return; const items = [...data.discord.map(x => ({ type:'discord', id:x.id, name:x.name, connected:x.connected })), ...data.ts3.map(x => ({ type:'ts3', id:x.id, name:x.name, connected:x.connected }))]; const selected = `${data.state.settings.outputType}:${data.state.settings.outputId}`; const isAdmin = Boolean(q('[data-tab="admin"]'));
     box.innerHTML = `<label class="instance-control">Ausgabe<select id="enhancedOutput"><option value="none:">Keine</option>${items.map(x => `<option value="${esc(x.type)}:${esc(x.id)}" ${selected === `${x.type}:${x.id}` ? 'selected' : ''}>${x.connected ? '🟢' : '🔴'} ${esc(x.name)}</option>`).join('')}</select></label>${isAdmin ? '<button id="enhancedBotStart" class="mini-power">▶ Bot Ein / Neu starten</button><button id="enhancedStopBot" class="mini-power danger">⏹ Bot stoppen</button><button id="enhancedRestart" class="mini-power">↻ Ubuntu</button><button id="enhancedShutdown" class="mini-power danger">⏻ Ubuntu</button>' : ''}`;
     q('#enhancedOutput').onchange = async e => { const [type,id] = String(e.target.value).split(':'); try { await put('/api/settings', { outputType:type, outputId:id || '' }); note('Ausgabeinstanz gespeichert.'); await refresh(); } catch (e) { note(e.message); } };
     const wire = (id, action, message, confirmText) => q(id)?.addEventListener('click', async () => { if (confirmText && !confirm(confirmText)) return; try { await post('/api/control', { action }); note(message); } catch (e) { note(e.message); } });
-    wire('#enhancedBotStart', 'start-bot', 'Bot wird gestartet bzw. aktiviert.');
-    wire('#enhancedStopBot', 'stop-bot', 'Bot wird gestoppt.', 'Bot wirklich stoppen? Das Dashboard ist danach nicht mehr erreichbar, bis der Dienst wieder gestartet wird.');
-    wire('#enhancedRestart', 'restart-system', 'System wird neu gestartet.', 'Ubuntu jetzt neu starten?');
-    wire('#enhancedShutdown', 'shutdown-system', 'System wird heruntergefahren.', 'Ubuntu jetzt herunterfahren?');
+    wire('#enhancedBotStart', 'start-bot', 'Bot wird gestartet bzw. aktiviert.'); wire('#enhancedStopBot', 'stop-bot', 'Bot wird gestoppt.', 'Bot wirklich stoppen? Das Dashboard ist danach nicht mehr erreichbar, bis der Dienst wieder gestartet wird.'); wire('#enhancedRestart', 'restart-system', 'System wird neu gestartet.', 'Ubuntu jetzt neu starten?'); wire('#enhancedShutdown', 'shutdown-system', 'System wird heruntergefahren.', 'Ubuntu jetzt herunterfahren?');
   }
-  function renderDiscordDots(data) {
-    const heading = [...document.querySelectorAll('h2')].find(x => x.textContent.trim() === 'Discord'); if (!heading) return;
-    const section = heading.closest('section'); if (!section) return; const cards = [...section.querySelectorAll('article.card')];
-    data.discord.forEach((item, index) => { const card = cards[index]; if (!card) return; const head = card.querySelector('.sectionhead'); if (!head) return; let dot = head.querySelector('.instance-status-dot'); if (!dot) { dot = document.createElement('span'); dot.className = 'instance-status-dot'; head.querySelector('b')?.appendChild(dot); } dot.textContent = item.voiceConnected ? ' 🟢' : item.connected ? ' 🟡' : ' 🔴'; dot.title = item.voiceConnected ? 'Discord verbunden und im Voice-Kanal' : item.connected ? 'Discord verbunden, Voice getrennt' : 'Discord getrennt'; });
-  }
+  function renderDiscordDots(data) { const heading = [...document.querySelectorAll('h2')].find(x => x.textContent.trim() === 'Discord'); if (!heading) return; const section = heading.closest('section'); if (!section) return; const cards = [...section.querySelectorAll('article.card')]; data.discord.forEach((item, index) => { const card = cards[index]; if (!card) return; const head = card.querySelector('.sectionhead'); if (!head) return; let dot = head.querySelector('.instance-status-dot'); if (!dot) { dot = document.createElement('span'); dot.className = 'instance-status-dot'; head.querySelector('b')?.appendChild(dot); } dot.textContent = item.voiceConnected ? ' 🟢' : item.connected ? ' 🟡' : ' 🔴'; dot.title = item.voiceConnected ? 'Discord verbunden und im Voice-Kanal' : item.connected ? 'Discord verbunden, Voice getrennt' : 'Discord getrennt'; }); }
+  const formatBytes = value => { if (!Number.isFinite(value) || value < 0) return '-'; const units=['B','KB','MB','GB','TB']; let n=value,i=0; while(n>=1024&&i<units.length-1){n/=1024;i++;} return `${n.toFixed(i?1:0)} ${units[i]}`; };
+  const formatRate = value => `${formatBytes(value)}/s`;
   function renderNetworkPercent() {
-    const network = window.__musikbotLastSnapshot?.state ? window.__musikbotLastNetwork : null;
-    if (!network) return;
-    const percent = value => Number.isFinite(value) ? `${value.toFixed(2)} %` : 'n/a';
+    const network = window.__musikbotLastNetwork; if (!network) return; const percent = value => Number.isFinite(value) ? `${value.toFixed(2)} %` : 'n/a';
     if (q('#topNetRx')) q('#topNetRx').textContent = `RX ${percent(network.rxUtilizationPercent)} · ${formatRate(network.rxBytesPerSecond)}`;
     if (q('#topNetTx')) q('#topNetTx').textContent = `TX ${percent(network.txUtilizationPercent)} · ${formatRate(network.txBytesPerSecond)}`;
     if (q('#topNetTotal')) q('#topNetTotal').textContent = `${percent(network.totalUtilizationPercent)} · ${formatBytes(network.totalRxBytes + network.totalTxBytes)}`;
     if (q('#sysNetRx')) q('#sysNetRx').textContent = `${percent(network.rxUtilizationPercent)} · ${formatRate(network.rxBytesPerSecond)}`;
     if (q('#sysNetTx')) q('#sysNetTx').textContent = `${percent(network.txUtilizationPercent)} · ${formatRate(network.txBytesPerSecond)}`;
     if (q('#sysNetTotal')) q('#sysNetTotal').textContent = `${percent(network.totalUtilizationPercent)} · ${formatBytes(network.totalRxBytes)} RX · ${formatBytes(network.totalTxBytes)} TX`;
+    if (q('#sysLoad')) q('#sysLoad').textContent = `${q('#sysLoad').textContent.replace(/\s*·?\s*Host-Load$/, '')} · Host-Load`;
   }
-  const formatBytes = value => { if (!Number.isFinite(value) || value < 0) return '-'; const units=['B','KB','MB','GB','TB']; let n=value,i=0; while(n>=1024&&i<units.length-1){n/=1024;i++;} return `${n.toFixed(i?1:0)} ${units[i]}`; };
-  const formatRate = value => `${formatBytes(value)}/s`;
   async function refresh() {
-    const data = await snapshot(); if (!data) return;
-    window.__musikbotLastSnapshot = data;
+    const data = await snapshot(); if (!data) return; window.__musikbotLastSnapshot = data; window.__musikbotDiscord = data.discord;
     try { window.__musikbotLastNetwork = await api('/api/network'); } catch {}
     document.body.dataset.currentTab = document.querySelector('nav .navbtn.active')?.dataset.tab || document.body.dataset.currentTab || '';
-    renderControls(data); renderDiscordDots(data); renderThemePanel(data.state); preserveGeneralThemeSave(); renderNetworkPercent();
-    if (data.state?.settings) applyTheme(data.state.settings.theme || 'dark', data.state.settings.accentColor || window.MusikBotThemes?.customAccent?.() || '');
+    renderControls(data); renderDiscordDots(data); renderThemePanel(data.state); preserveGeneralThemeSave(); renderDiscordIntentToggle(); renderNetworkPercent(); if (data.state?.settings) applyTheme(data.state.settings.theme || 'dark', data.state.settings.accentColor || window.MusikBotThemes?.customAccent?.() || '');
   }
-  window.__musikbotRefreshDashboard = refresh;
-  const observer = new MutationObserver(() => { renderDiscordIntentToggle(); preserveGeneralThemeSave(); });
-  function renderDiscordIntentToggle() {
-    const form = q('#dp')?.closest('.grid'); if (!form) return;
-    let label = q('#dintent')?.closest('label'); if (!label) { label = document.createElement('label'); label.className = 'checklabel'; label.innerHTML = '<input id="dintent" type="checkbox"> Message Content Intent für Prefix Commands'; form.appendChild(label); }
-    const id = q('#did')?.value; const current = (window.__musikbotDiscord || []).find?.(x => x.id === id); if (current && q('#dintent')) q('#dintent').checked = current.messageContentIntent === true;
-  }
-  async function saveDiscordWithIntent() {
-    const id = q('#did')?.value || ''; const body = { id, name:q('#dn')?.value || '', token:q('#dt')?.value || '', clientId:q('#dc')?.value || '', guildId:q('#dg')?.value || '', channelId:q('#dv')?.value || '', prefix:q('#dp')?.value || '', enabled:q('#de')?.checked !== false, messageContentIntent:q('#dintent')?.checked === true };
-    await api('/api/discord', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }); note('Discord gespeichert.'); q('[data-tab="connections"]')?.click();
-  }
+  function renderDiscordIntentToggle() { const form = q('#dp')?.closest('.grid'); if (!form) return; let label = q('#dintent')?.closest('label'); if (!label) { label = document.createElement('label'); label.className = 'checklabel'; label.innerHTML = '<input id="dintent" type="checkbox"> Message Content Intent für Prefix Commands'; form.appendChild(label); } const id = q('#did')?.value; const current = (window.__musikbotDiscord || []).find?.(x => x.id === id); if (current && q('#dintent')) q('#dintent').checked = current.messageContentIntent === true; }
+  async function saveDiscordWithIntent() { const id = q('#did')?.value || ''; const body = { id, name:q('#dn')?.value || '', token:q('#dt')?.value || '', clientId:q('#dc')?.value || '', guildId:q('#dg')?.value || '', channelId:q('#dv')?.value || '', prefix:q('#dp')?.value || '', enabled:q('#de')?.checked !== false, messageContentIntent:q('#dintent')?.checked === true }; await api('/api/discord', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }); note('Discord gespeichert.'); q('[data-tab="connections"]')?.click(); }
   document.addEventListener('click', event => { const button = event.target.closest?.('#ds'); if (!button) return; renderDiscordIntentToggle(); event.preventDefault(); event.stopImmediatePropagation(); saveDiscordWithIntent().catch(error => note(error.message)); }, true);
-  observer.observe(document.documentElement, { childList:true, subtree:true });
-  window.__musikbotRegisterCleanup?.(() => observer.disconnect());
+  const observer = new MutationObserver(() => { renderDiscordIntentToggle(); preserveGeneralThemeSave(); renderNetworkPercent(); }); observer.observe(document.documentElement, { childList:true, subtree:true }); window.__musikbotRegisterCleanup?.(() => observer.disconnect());
   const timer = setInterval(refresh, 10000); window.__musikbotRegisterCleanup?.(() => clearInterval(timer));
-  const start = () => { if (!q('#app')) return setTimeout(start, 250); void refresh(); };
-  start();
+  const start = () => { if (!q('#app')) return setTimeout(start, 250); void refresh(); }; start();
 })();
