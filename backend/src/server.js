@@ -3,7 +3,9 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import statik from "@fastify/static";
 import path from "node:path";
-import { mkdir, writeFile, readdir, stat, unlink } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdir, readdir, stat, unlink } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { db, load, save, createAdmin, createUser, login, user, publicDiscord, publicTS3, setDiscord } from "./store.js";
@@ -61,7 +63,26 @@ app.get("/api/network", async (request, reply) => { if (!auth(request, reply)) r
 app.get("/api/system", async (request, reply) => { if (!auth(request, reply)) return; return systemInfo(); });
 app.get("/api/storage", async (request, reply) => { if (!auth(request, reply)) return; return storageInfo(db().settings.filesDirectory); });
 app.get("/api/files", async (request, reply) => { if (!auth(request, reply)) return; const dir = safeMusicDir(); await mkdir(dir, { recursive: true }); return readdir(dir, { withFileTypes: true }).then(items => items.filter(x => x.isFile()).map(x => ({ name: x.name, directory: false, path: path.join(dir, x.name) }))); });
-app.post("/api/music/upload", async (request, reply) => { const u = admin(request, reply); if (!u) return; try { const data = await request.file(); if (!data) return reply.code(400).send({ error: "Keine Datei hochgeladen" }); const target = safeMusicPath(data.filename); const buffer = await data.toBuffer(); if (!buffer.length) return reply.code(400).send({ error: "Datei ist leer" }); await mkdir(safeMusicDir(), { recursive: true }); await writeFile(target, buffer, { flag: "wx", mode: 0o640 }); const info = await stat(target); return { ok: true, file: { name: path.basename(target), path: target, size: info.size } }; } catch (error) { return reply.code(error?.code === "EEXIST" ? 409 : error?.code === "FST_REQ_FILE_TOO_LARGE" ? 413 : 400).send({ error: error instanceof Error ? error.message : String(error) }); } });
+app.post("/api/music/upload", async (request, reply) => {
+  const u = admin(request, reply); if (!u) return;
+  let target = null;
+  try {
+    const data = await request.file();
+    if (!data) return reply.code(400).send({ error: "Keine Datei hochgeladen" });
+    target = safeMusicPath(data.filename);
+    await mkdir(safeMusicDir(), { recursive: true });
+    const output = createWriteStream(target, { flags: "wx", mode: 0o640 });
+    try { await pipeline(data.file, output); }
+    catch (error) { try { await unlink(target); } catch {} throw error; }
+    if (data.file.truncated) { try { await unlink(target); } catch {} return reply.code(413).send({ error: "Datei ist zu groß" }); }
+    const info = await stat(target);
+    if (!info.size) { await unlink(target); return reply.code(400).send({ error: "Datei ist leer" }); }
+    return { ok: true, file: { name: path.basename(target), path: target, size: info.size } };
+  } catch (error) {
+    if (target) { try { await unlink(target); } catch {} }
+    return reply.code(error?.code === "EEXIST" ? 409 : error?.code === "FST_REQ_FILE_TOO_LARGE" ? 413 : 400).send({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
 app.delete("/api/music/:name", async (request, reply) => { const u = admin(request, reply); if (!u) return; try { await unlink(safeMusicPath(request.params.name)); return { ok: true }; } catch (error) { return reply.code(error?.code === "ENOENT" ? 404 : 400).send({ error: error instanceof Error ? error.message : String(error) }); } });
 app.put("/api/settings", async (request, reply) => { if (!admin(request, reply)) return; const b = request.body || {}; if (typeof b.volume === "number") player.setVolume(b.volume); if (typeof b.mode === "string") { if (!["queue", "repeat", "shuffle"].includes(b.mode)) return reply.code(400).send({ error: "Ungültiger Modus" }); player.setMode(b.mode); } if (typeof b.outputType === "string") { if (!["discord", "ts3", "none"].includes(b.outputType)) return reply.code(400).send({ error: "Ungültiges Ausgabeziel" }); db().settings.outputType = b.outputType; } if (typeof b.outputId === "string") db().settings.outputId = b.outputId; if (typeof b.networkInterface === "string") db().settings.networkInterface = b.networkInterface; if (typeof b.filesDirectory === "string" && b.filesDirectory.trim()) { db().settings.filesDirectory = path.resolve(b.filesDirectory.trim()); await mkdir(db().settings.filesDirectory, { recursive: true }); } if (typeof b.theme === "string") { if (!THEMES.has(b.theme)) return reply.code(400).send({ error: "Ungültiges Theme" }); db().settings.theme = b.theme; } if (typeof b.accentColor === "string") db().settings.accentColor = safeAccentColor(b.accentColor); db().settings.volume = player.volume; db().settings.mode = player.mode; await save(); return db().settings; });
 app.put("/api/integration/spotify", async (request, reply) => { if (!admin(request, reply)) return; db().integration.spotifyClientId = String(request.body?.clientId || ""); db().integration.spotifyClientSecret = String(request.body?.clientSecret || ""); await save(); return { ok: true }; });
