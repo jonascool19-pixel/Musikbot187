@@ -52,12 +52,13 @@ test("Player follows the live settings directory", async () => {
   player.stop();
 });
 
-test("Discord command scope is tied to configured guild and prefix intent is optional", () => {
+test("Discord command scope is tied to configured guild and message-content intent is explicit", () => {
   assert.equal(discordCommandAllowed({ guildId: "guild-1" }, "guild-1"), true);
   assert.equal(discordCommandAllowed({ guildId: "guild-2" }, "guild-1"), false);
   assert.equal(discordCommandAllowed({ guildId: null }, "guild-1"), false);
   assert.equal(discordIntents("").includes(32768), false);
-  assert.equal(discordIntents("!").includes(32768), true);
+  assert.equal(discordIntents("!", false).includes(32768), false);
+  assert.equal(discordIntents("!", true).includes(32768), true);
 });
 
 test("login rate state remains bounded and distinguishes client identities", async () => {
