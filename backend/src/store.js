@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 
 const DATA_DIR = process.env.MUSIKBOT187_DATA_DIR || path.resolve(process.cwd(), "../data");
 const FILE = path.join(DATA_DIR, "data.json");
@@ -45,8 +45,29 @@ export function save() {
   return saveChain;
 }
 
-function hash(password) { return scryptSync(password, "musikbot187", 32); }
-function check(password, hex) { try { return timingSafeEqual(hash(password), Buffer.from(hex, "hex")); } catch { return false; } }
+const SCRYPT_KEYLEN = 32;
+const SCRYPT_SALT_BYTES = 16;
+const LEGACY_SALT = "musikbot187";
+function hash(password) {
+  const salt = randomBytes(SCRYPT_SALT_BYTES);
+  const derived = scryptSync(password, salt, SCRYPT_KEYLEN);
+  return `scrypt$${salt.toString("hex")}$${derived.toString("hex")}`;
+}
+function check(password, encoded) {
+  try {
+    const value = String(encoded || "");
+    if (value.startsWith("scrypt$")) {
+      const [, saltHex, hashHex] = value.split("$");
+      if (!/^[0-9a-f]{32}$/.test(saltHex) || !/^[0-9a-f]{64}$/.test(hashHex)) return false;
+      const derived = scryptSync(password, Buffer.from(saltHex, "hex"), SCRYPT_KEYLEN);
+      return timingSafeEqual(derived, Buffer.from(hashHex, "hex"));
+    }
+    const legacy = scryptSync(password, LEGACY_SALT, SCRYPT_KEYLEN);
+    const stored = Buffer.from(value, "hex");
+    return stored.length === legacy.length && timingSafeEqual(legacy, stored);
+  } catch { return false; }
+}
+function isLegacyHash(encoded) { return /^[0-9a-f]{64}$/i.test(String(encoded || "")); }
 function publicUser(u) { return { id: u.id, name: u.name, role: u.role }; }
 export function loginRateKey(name, clientKey='unknown') { return `${String(clientKey || "unknown").trim() || "unknown"}:${String(name || "").toLowerCase()}`; }
 
@@ -63,7 +84,7 @@ const authStateSweep = setInterval(() => {
 authStateSweep.unref?.();
 
 export function createAdmin(name, password) {
-  const u = { id: randomUUID(), name, hash: hash(password).toString("hex"), role: "admin" };
+  const u = { id: randomUUID(), name, hash: hash(password), role: "admin" };
   db().users.push(u);
   return publicUser(u);
 }
@@ -80,6 +101,10 @@ export function login(name, password, clientKey='unknown') {
     if (attempt.count >= 5) attempt.blockedUntil = now + 15 * 60 * 1000;
     loginAttempts.set(key, attempt);
     return null;
+  }
+  if (isLegacyHash(u.hash)) {
+    u.hash = hash(password);
+    void save();
   }
   loginAttempts.delete(key);
   const token = `${randomUUID()}${randomUUID()}`;
