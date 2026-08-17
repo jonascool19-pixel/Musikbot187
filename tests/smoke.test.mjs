@@ -6,7 +6,7 @@ import { Player } from "../backend/src/player.js";
 import { calculateCpuPercent, selectNetworkInterfaces, systemInfo, storageInfo } from "../backend/src/system.js";
 import { loginRateKey } from "../backend/src/store.js";
 
-function settings(overrides = {}) { return { volume: 80, mode: "queue", ...overrides }; }
+function settings(overrides = {}) { return { volume: 80, mode: "queue", filesDirectory: "/tmp/musikbot187-test-music", ...overrides }; }
 
 async function waitFor(predicate, timeoutMs = 1000) {
   const deadline = Date.now() + timeoutMs;
@@ -37,14 +37,16 @@ test("Player removes queue entries safely", async () => {
 
 test("Player filters malformed queue items", async () => {
   const p = new Player(settings());
+  p.next = async () => {};
   await p.enqueue([{ title: "missing url" }, null, { id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }]);
-  assert.ok(p.current || p.queue.length === 0);
+  assert.equal(p.queue.length, 1);
+  assert.equal(p.queue[0].id, "r");
 });
 
 test("Player skip cancels an in-flight resolver without leaving a phantom current item", async () => {
   const p = new Player(settings());
   p.resolve = async function () { await new Promise((resolve) => setTimeout(resolve, 100)); return "unused"; };
-  const run = p.enqueue([{ id: "1", title: "A", url: "ytsearch1:A", source: "youtube" }, { id: "2", title: "B", url: "https://example.com/b", source: "radio" }]);
+  const run = p.enqueue([{ id: "1", title: "A", url: "ytsearch1:A", source: "youtube" }, { id: "2", title: "B", url: "ytsearch1:B", source: "youtube" }]);
   p.skip();
   await run;
   assert.equal(p.generation > 1, true);
@@ -60,7 +62,7 @@ test("Player ignores stale FFmpeg output after skip", async () => {
     processes.push({ p, options });
     return p;
   };
-  const player = new Player({ volume: 80, mode: "queue", filesDirectory: "/tmp/musikbot187-test-music" }, { spawnFn });
+  const player = new Player(settings(), { spawnFn });
   const item = { id: "r", title: "Radio", url: "https://example.com/r", source: "radio" };
   const run = ++player.generation;
   const audio = [];
