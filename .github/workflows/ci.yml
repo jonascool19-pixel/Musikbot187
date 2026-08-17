@@ -28,3 +28,32 @@ jobs:
       - run: grep -F 'errorlog.js' frontend/index.html
       - run: grep -F 'releases/latest/download/yt-dlp' install-stable.sh
       - run: grep -F 'ExecStart=/usr/bin/node $APP/backend/src/server.js' install-stable.sh
+      - name: Validate installer security configuration
+        run: |
+          grep -F 'SERVICE_USER="musikbot187"' install-stable.sh
+          grep -F 'User=$SERVICE_USER' install-stable.sh
+          grep -F 'ProtectSystem=full' install-stable.sh
+          grep -F 'ProtectHome=true' install-stable.sh
+          grep -F 'ReadWritePaths=$DATA' install-stable.sh
+          grep -F 'visudo -cf /etc/sudoers.d/musikbot187' install-stable.sh
+          grep -F 'MUSIKBOT187_CONTROL' install-stable.sh
+      - name: Run installer in isolated Debian container
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" debian:bookworm-slim bash -lc '
+            set -euo pipefail
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y bash ca-certificates curl git sudo systemd systemd-sysv ffmpeg python3
+            # Exercise the installer logic without modifying the host runner.
+            cp /repo/install-stable.sh /tmp/install-stable.sh
+            sed -i "s#REPO=\"https://github.com/jonascool19-pixel/radiobot.git\"#REPO=\"file:///repo\"#" /tmp/install-stable.sh
+            bash -n /tmp/install-stable.sh
+            /tmp/install-stable.sh
+            id musikbot187
+            test "$(stat -c %U /var/lib/musikbot187)" = musikbot187
+            test "$(stat -c %U /opt/musikbot187)" = musikbot187
+            grep -F "User=musikbot187" /etc/systemd/system/musikbot187.service
+            grep -F "ProtectSystem=full" /etc/systemd/system/musikbot187.service
+            grep -F "ProtectHome=true" /etc/systemd/system/musikbot187.service
+            visudo -cf /etc/sudoers.d/musikbot187
+            grep -F "musikbot187 ALL=(root) NOPASSWD" /etc/sudoers.d/musikbot187
+          '
