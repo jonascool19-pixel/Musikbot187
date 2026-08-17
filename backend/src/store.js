@@ -7,7 +7,6 @@ const FILE = path.join(DATA_DIR, "data.json");
 let state = null;
 const sessions = new Map();
 const loginAttempts = new Map();
-let creatingAdmin = false;
 let saveChain = Promise.resolve();
 
 const defaults = () => ({
@@ -21,21 +20,12 @@ const defaults = () => ({
   integration: { spotifyClientId: "", spotifyClientSecret: "" }
 });
 
-function protectUserRoles(users) {
-  return new Proxy(users, {
-    get(target, prop, receiver) {
-      if (prop === "push") return (...items) => Reflect.apply(Array.prototype.push, target, items.map((u) => ({ ...u, role: creatingAdmin ? "admin" : "user" })));
-      return Reflect.get(target, prop, receiver);
-    }
-  });
-}
-
 export async function load() {
   await mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
   try { state = JSON.parse(await readFile(FILE, "utf8")); }
   catch { state = defaults(); await save(); }
   state = { ...defaults(), ...state, settings: { ...defaults().settings, ...(state.settings || {}) }, integration: { ...defaults().integration, ...(state.integration || {}) } };
-  state.users = protectUserRoles(state.users || []);
+  state.users = (state.users || []).map((u) => ({ ...u, role: u.role === "admin" ? "admin" : "user" }));
   state.settings.filesDirectory = path.resolve(state.settings.filesDirectory || path.join(DATA_DIR, "music"));
   return state;
 }
@@ -61,8 +51,7 @@ function publicUser(u) { return { id: u.id, name: u.name, role: u.role }; }
 
 export function createAdmin(name, password) {
   const u = { id: randomUUID(), name, hash: hash(password).toString("hex"), role: "admin" };
-  creatingAdmin = true;
-  try { db().users.push(u); } finally { creatingAdmin = false; }
+  db().users.push(u);
   return publicUser(u);
 }
 export function login(name, password) {
