@@ -1,11 +1,23 @@
 import os from 'node:os';
-import { readFile, stat, statfs } from 'node:fs/promises';
+import { readFile, readFileSync, stat, statfs } from 'node:fs/promises';
 import path from 'node:path';
 
 export function calculateCpuPercent(usedSeconds, elapsedSeconds, cpuCount) {
   const cores = Math.max(1, Number(cpuCount) || 1);
   if (!(elapsedSeconds > 0) || !(usedSeconds >= 0) || !Number.isFinite(elapsedSeconds) || !Number.isFinite(usedSeconds)) return 0;
   return Math.min(100, Math.max(0, (usedSeconds / elapsedSeconds / cores) * 100));
+}
+
+function effectiveCpuCount() {
+  try {
+    const raw = readFileSync('/sys/fs/cgroup/cpu.max', 'utf8').trim().split(/\s+/);
+    if (raw[0] !== 'max') {
+      const quota = Number(raw[0]);
+      const period = Number(raw[1]);
+      if (quota > 0 && period > 0) return Math.max(1, Math.ceil(quota / period));
+    }
+  } catch {}
+  return Math.max(1, os.cpus().length);
 }
 
 export function selectNetworkInterfaces(interfaces, selectedName = '') {
@@ -33,7 +45,7 @@ export function systemInfo() {
   const cpu = process.cpuUsage();
   const elapsed = Number(now - lastTime) / 1e9;
   const used = (cpu.user - lastCpu.user + cpu.system - lastCpu.system) / 1e6;
-  const cpuPercent = calculateCpuPercent(used, elapsed, os.cpus().length);
+  const cpuPercent = calculateCpuPercent(used, elapsed, effectiveCpuCount());
   lastCpu = cpu;
   lastTime = now;
   const total = os.totalmem();
@@ -45,7 +57,8 @@ export function systemInfo() {
     arch: process.arch,
     node: process.version,
     uptime: os.uptime(),
-    cpus: os.cpus().length,
+    cpus: effectiveCpuCount(),
+    hostCpus: os.cpus().length,
     cpuPercent: Number(cpuPercent.toFixed(1)),
     memory: { total, free, used: usedMem, percent: Number((usedMem / total * 100).toFixed(1)) },
     load: os.loadavg()
@@ -86,9 +99,9 @@ export async function networkInfo(selectedName = '') {
   }
 
   const capacityBps = totalLinkMbps * 1000000 / 8;
-  const rxUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((rxBytesPerSecond / capacityBps * 100).toFixed(2))) : 0;
-  const txUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((txBytesPerSecond / capacityBps * 100).toFixed(2))) : 0;
-  const totalUtilizationPercent = Math.min(100, Number((rxUtilizationPercent + txUtilizationPercent).toFixed(2)));
+  const rxUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((rxBytesPerSecond / capacityBps * 100).toFixed(2))) : null;
+  const txUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((txBytesPerSecond / capacityBps * 100).toFixed(2))) : null;
+  const totalUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((rxUtilizationPercent + txUtilizationPercent).toFixed(2))) : null;
 
   return {
     hostname: os.hostname(),
@@ -100,7 +113,7 @@ export async function networkInfo(selectedName = '') {
     rxUtilizationPercent,
     txUtilizationPercent,
     totalUtilizationPercent,
-    linkSpeedMbps: totalLinkMbps,
+    linkSpeedMbps: totalLinkMbps || null,
     measuredSeconds: elapsed
   };
 }
