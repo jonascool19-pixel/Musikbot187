@@ -62,8 +62,16 @@ try {
   await page.locator('[data-tab="system"]').click(); await assertText(page, "System"); await assertText(page, "25.0 %");
   await page.locator('[data-tab="connections"]').click(); await assertText(page, "Test Discord"); await assertText(page, "Test TS3");
   await page.getByRole("button", { name: /Bearbeiten/ }).first().click();
-  await page.getByRole("button", { name: /Guilds laden/ }).click(); await assertText(page, "Test Guild");
-  await page.getByRole("button", { name: /Voice-Kanäle laden/ }).click(); await assertText(page, "Music");
+  await page.getByRole("button", { name: /Guilds laden/ }).click();
+  const guildSelect = page.locator('select option[value="g1"]').locator("..");
+  await guildSelect.waitFor({ state: "visible" });
+  await guildSelect.selectOption("g1");
+  await assertSelectValue(guildSelect, "g1");
+  await page.getByRole("button", { name: /Voice-Kanäle laden/ }).click();
+  const channelSelect = page.locator('select option[value="v1"]').locator("..");
+  await channelSelect.waitFor({ state: "visible" });
+  await channelSelect.selectOption("v1");
+  await assertSelectValue(channelSelect, "v1");
   await page.locator('[data-tab="admin"]').click(); await assertText(page, "Admin");
   await page.getByRole("button", { name: /Fehlerlog/ }).click(); await assertText(page, "Fehlerlog"); await assertText(page, "Smoke test diagnostic");
   await page.getByRole("button", { name: /Alles kopieren/ }).click();
@@ -73,3 +81,4 @@ try {
   assert.equal(consoleErrors.length, 0, `Browser console errors: ${consoleErrors.join(" | ")}`); assert.equal(pageErrors.length, 0, `Browser page errors: ${pageErrors.join(" | ")}`);
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 async function assertText(page, text) { await page.getByText(text, { exact: false }).first().waitFor({ state: "visible" }); }
+async function assertSelectValue(locator, value) { await locator.waitFor({ state: "visible" }); assert.equal(await locator.inputValue(), value, `Expected select value ${value}`); }
