@@ -11,6 +11,8 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 - Spotify-Suche mit bis zu 20 Tracks
 - unterstützte direkte HTTP(S)-Quellen und Radio-Streams
 - lokale Audiodateien innerhalb des vorgesehenen Musik-Datenverzeichnisses
+- Browser-Upload eigener Musikdateien
+- eigene Musikbibliothek direkt im Dashboard
 - FFmpeg-/PCM-Audiokette
 - Play, Pause, Resume, Stop und Skip
 - Queue verwalten und einzelne Einträge entfernen
@@ -22,6 +24,7 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 
 - Playlists erstellen und verwalten
 - Titel hinzufügen und entfernen
+- Suchergebnisse, Radiosender und hochgeladene Musik direkt per **＋ Playlist** hinzufügen
 - Playlists abspielen
 
 ### Discord
@@ -50,6 +53,9 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 - Player-Steuerung
 - Queue-Verwaltung
 - Playlist-Bereich
+- eigene Musikbibliothek als Seitenleisten-Bereich
+- Musikdateien per Browser auswählen und hochladen
+- hochgeladene Musik abspielen, in Playlists übernehmen und entfernen
 - Verbindungs- und Instanzverwaltung
 - Dashboard-Live-Monitoring für CPU, RAM und Netzwerk-Auslastung
 - RX-/TX-Auslastung als Prozentwerte im Kopfbereich
@@ -106,7 +112,8 @@ http://SERVER-IP:3000/
 3. Im Dashboard unter **Verbindungen → Discord** eine Discord-Instanz konfigurieren.
 4. Bot hinzufügen, Server und Voice-Kanal auswählen und die Instanz speichern/verbinden.
 5. Falls Prefix Commands benötigt werden, Message Content Intent für die Discord-App ausdrücklich freigeben und die entsprechende Intent-Konfiguration verwenden.
-6. Anschließend Player, Netzwerk-Monitoring und Systemdaten testen.
+6. Unter **Musik** eigene Audiodateien direkt aus dem Browser hochladen und anschließend abspielen oder einer Playlist hinzufügen.
+7. Anschließend Player, Netzwerk-Monitoring und Systemdaten testen.
 
 ## Zielplattform
 
@@ -134,6 +141,8 @@ Der aktuelle Stand enthält unter anderem:
 - eng begrenzte sudo-Regel nur für definierte Bot-/Ubuntu-Control-Kommandos
 - Validierung von Audioquellen
 - Schutz lokaler Audiopfade inklusive Symlink-Prüfung
+- Uploads ausschließlich in das konfigurierte Musikverzeichnis
+- Whitelist für erlaubte Audio-Dateiendungen beim Upload
 - Schutz vor privaten/unsicheren Netzwerkzielen bei direkten Audioquellen
 - Guild-Begrenzung für Discord-Befehle
 - Audio-Race-Schutz bei Wechsel/Skip
@@ -154,6 +163,6 @@ Der aktuelle `main`-Stand enthält die vollständige CI-Kette mit:
 - echter Installerlauf in isolierter Ubuntu-24.04-Umgebung
 - Ubuntu-24.04-CT-Style-Preflight
 - Regressionstest für individuelle Passwort-Salts
-- Regressionstests für 1-Sekunden-Monitoring, Discord-Verwaltungsoberfläche und neue Power-/Instanzkontrollen
+- Regressionstests für 1-Sekunden-Monitoring, Discord-Verwaltungsoberfläche, Power-/Instanzkontrollen und Browser-Musikbibliothek
 
 Die Erweiterungen werden durch den nächsten vollständigen GitHub-Actions-Lauf erneut verifiziert.
