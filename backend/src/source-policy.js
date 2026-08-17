@@ -29,39 +29,61 @@ function blockedAddress(address) {
   return normalized === '::' || normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || /^fe[89ab]/.test(normalized) || normalized.startsWith('ff');
 }
 
+async function resolvePublicHost(hostname, label) {
+  const records = await dns.lookup(hostname, { all: true, verbatim: true });
+  if (!records.length || records.some(record => blockedAddress(record.address))) throw new Error(`${label}-URL zeigt auf ein nicht erlaubtes Netzwerkziel`);
+  const second = await dns.lookup(hostname, { all: true, verbatim: true });
+  if (!second.length || second.some(record => blockedAddress(record.address))) throw new Error(`${label}-URL zeigt auf ein nicht erlaubtes Netzwerkziel`);
+  const firstSet = new Set(records.map(record => record.address));
+  const secondSet = new Set(second.map(record => record.address));
+  if (firstSet.size !== secondSet.size || [...firstSet].some(address => !secondSet.has(address))) throw new Error(`${label}-URL hat eine instabile DNS-Auflösung`);
+  return [...firstSet];
+}
+
+async function rejectRedirect(value, label) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2500);
+  try {
+    const response = await fetch(value, { method: "HEAD", redirect: "manual", signal: controller.signal });
+    if (response.status >= 300 && response.status < 400) throw new Error(`${label}-URL darf nicht umleiten`);
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("darf nicht umleiten") || error.name === "AbortError")) {
+      if (error.message.includes("darf nicht umleiten")) throw error;
+      return;
+    }
+    return;
+  } finally { clearTimeout(timer); }
+}
+
 async function validateHttpTarget(value, label) {
   let parsed;
   try { parsed = new URL(value); } catch { throw new Error(`Ungültige ${label}-URL`); }
   if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error(`${label}-URL muss HTTP(S) ohne Zugangsdaten sein`);
   const hostname = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
   if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || (net.isIP(hostname) && blockedAddress(hostname))) throw new Error(`${label}-URL zeigt auf ein nicht erlaubtes Netzwerkziel`);
-  try {
-    const records = await dns.lookup(hostname, { all: true, verbatim: true });
-    if (!records.length || records.some(record => blockedAddress(record.address))) throw new Error(`${label}-URL zeigt auf ein nicht erlaubtes Netzwerkziel`);
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("nicht erlaubtes Netzwerkziel")) throw error;
-    throw new Error(`${label}-URL konnte nicht sicher geprüft werden`);
-  }
+  if (!net.isIP(hostname)) await resolvePublicHost(hostname, label);
+  await rejectRedirect(parsed.toString(), label);
 }
 
 export async function validatePlaybackItem(item, dataDirectory) {
   if (!item || typeof item.url !== "string" || !item.url.trim()) throw new Error("Ungültige Audioquelle");
   const source = String(item.source || "youtube").toLowerCase();
   const value = item.url.trim();
+  if (value.length > 4096) throw new Error("Audioquelle ist zu lang");
   if (!["youtube", "radio", "spotify", "direct", "file"].includes(source)) throw new Error("Nicht unterstützte Audioquelle");
   if (source === "file") {
     const root = await realpath(path.resolve(dataDirectory));
     const target = await realpath(path.resolve(root, value));
     const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
     if (target !== root && !target.startsWith(prefix)) throw new Error("Datei liegt außerhalb des Musikverzeichnisses");
-    return { ...item, source, url: target };
+    return { ...item, source, url: path.relative(root, target) || path.basename(target) };
   }
   if (source === "direct" || source === "radio") {
     await validateHttpTarget(value, source === "radio" ? "Radio" : "Direkte Audio");
     return { ...item, source, url: value };
   }
   if (source === "youtube") {
-    if (/^ytsearch\d*:/i.test(value)) return { ...item, source, url: value };
+    if (/^ytsearch\d*:/i.test(value)) return { ...item, source, url: value.slice(0, 512) };
     let parsed;
     try { parsed = new URL(value); } catch { throw new Error("Ungültige YouTube-URL"); }
     const hostname = parsed.hostname.toLowerCase().replace(/^www\./, "");
@@ -69,10 +91,15 @@ export async function validatePlaybackItem(item, dataDirectory) {
     return { ...item, source, url: value };
   }
   if (!/^ytsearch\d*:/i.test(value) && !/^spotify:/i.test(value)) throw new Error("Nicht erlaubte Spotify-Quelle");
-  return { ...item, source, url: value };
+  return { ...item, source, url: value.slice(0, 512) };
 }
 
 export async function revalidatePlaybackTarget(item, dataDirectory) {
   if (item?.source === "direct" || item?.source === "radio") await validateHttpTarget(String(item.url), item.source === "radio" ? "Radio" : "Direkte Audio");
   if (item?.source === "file") await validatePlaybackItem(item, dataDirectory);
+}
+
+export async function validateResolvedMediaUrl(value) {
+  await validateHttpTarget(value, "Aufgelöste Medienquelle");
+  return value;
 }
