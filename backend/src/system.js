@@ -55,7 +55,6 @@ export function systemInfo() {
 export async function networkInfo(selectedName = '') {
   let traffic = [];
   try { traffic = parseProcNetDev(await readFile('/proc/net/dev', 'utf8')); } catch {}
-
   const now = process.hrtime.bigint();
   const addresses = Object.entries(os.networkInterfaces()).map(([name, values]) => ({
     name,
@@ -73,10 +72,23 @@ export async function networkInfo(selectedName = '') {
   const txBytesPerSecond = previous ? Math.max(0, (totalTxBytes - previous.txBytes) / elapsed) : 0;
   lastNetwork.set(key, { time: now, rxBytes: totalRxBytes, txBytes: totalTxBytes });
 
-  const interfaces = selectedAddresses.map(item => {
+  let totalLinkMbps = 0;
+  const interfaces = [];
+  for (const item of selectedAddresses) {
     const stat = traffic.find(x => x.name === item.name);
-    return { ...item, rxBytes: stat?.rxBytes || 0, txBytes: stat?.txBytes || 0 };
-  });
+    let linkMbps = 0;
+    try {
+      linkMbps = Number((await readFile(`/sys/class/net/${item.name}/speed`, 'utf8')).trim());
+      if (!Number.isFinite(linkMbps) || linkMbps <= 0) linkMbps = 0;
+    } catch {}
+    totalLinkMbps += linkMbps;
+    interfaces.push({ ...item, rxBytes: stat?.rxBytes || 0, txBytes: stat?.txBytes || 0, linkSpeedMbps: linkMbps });
+  }
+
+  const capacityBps = totalLinkMbps * 1000000 / 8;
+  const rxUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((rxBytesPerSecond / capacityBps * 100).toFixed(2))) : 0;
+  const txUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((txBytesPerSecond / capacityBps * 100).toFixed(2))) : 0;
+  const totalUtilizationPercent = Math.min(100, Number((rxUtilizationPercent + txUtilizationPercent).toFixed(2)));
 
   return {
     hostname: os.hostname(),
@@ -85,6 +97,10 @@ export async function networkInfo(selectedName = '') {
     totalTxBytes,
     rxBytesPerSecond,
     txBytesPerSecond,
+    rxUtilizationPercent,
+    txUtilizationPercent,
+    totalUtilizationPercent,
+    linkSpeedMbps: totalLinkMbps,
     measuredSeconds: elapsed
   };
 }
