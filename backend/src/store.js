@@ -83,11 +83,12 @@ const authStateSweep = setInterval(() => {
 }, AUTH_STATE_SWEEP_MS);
 authStateSweep.unref?.();
 
-export function createAdmin(name, password) {
-  const u = { id: randomUUID(), name, hash: hash(password), role: "admin" };
+export function createUser(name, password, role = "user") {
+  const u = { id: randomUUID(), name, hash: hash(password), role: role === "admin" ? "admin" : "user" };
   db().users.push(u);
   return publicUser(u);
 }
+export function createAdmin(name, password) { return createUser(name, password, "admin"); }
 export function login(name, password, clientKey='unknown') {
   const key = loginRateKey(name, clientKey);
   const now = Date.now();
@@ -102,10 +103,7 @@ export function login(name, password, clientKey='unknown') {
     loginAttempts.set(key, attempt);
     return null;
   }
-  if (isLegacyHash(u.hash)) {
-    u.hash = hash(password);
-    void save();
-  }
+  if (isLegacyHash(u.hash)) { u.hash = hash(password); void save(); }
   loginAttempts.delete(key);
   const token = `${randomUUID()}${randomUUID()}`;
   sessions.set(token, { userId: u.id, expires: Date.now() + 7 * 24 * 60 * 60 * 1000 });
