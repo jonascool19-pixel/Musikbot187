@@ -38,7 +38,7 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 - konfigurierten Discord-Server auswählen und aktualisieren
 - Voice-Kanal auswählen und aktualisieren
 - Verbinden, neu verbinden, trennen und entfernen
-- sichtbarer Online-/Offline-Status pro Instanz
+- sichtbarer Online-/Offline- sowie Voice-Verbindungsstatus pro Instanz
 - konfigurierte Guild-/Voice-Channel-Zuordnung
 - Befehle werden auf die konfigurierte Guild-Umgebung begrenzt
 
@@ -58,12 +58,14 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 - hochgeladene Musik abspielen, in Playlists übernehmen und entfernen
 - Verbindungs- und Instanzverwaltung
 - Dashboard-Live-Monitoring für CPU, RAM und Netzwerk-Auslastung
-- RX-/TX-Auslastung als Prozentwerte im Kopfbereich
+- RX-/TX-Auslastung als Prozentwerte im Kopfbereich; bei virtuellen Interfaces ohne bekannte Linkrate wird keine erfundene Prozentzahl angezeigt
 - Auswahl der aktiven Discord-/TS3-Ausgabeinstanz direkt im Dashboard
-- Bot Start/Stop im Kopfbereich
+- Bot-Neustart und administratives Stoppen des Bot-Dienstes im Kopfbereich
 - administrativer Ubuntu-Neustart und Shutdown im Kopfbereich
 - System-Live-Monitoring für CPU, RAM, RX/TX und Gesamtverkehr
 - Live-Aktualisierung der Monitoring-Werte im 1-Sekunden-Takt
+- mehrere Design-Themes inklusive Hell-/Dunkel-Modus
+- frei wählbare Akzentfarbe mit serverseitiger Speicherung
 - System-, Netzwerk-, Speicher- und Dateiinformationen
 - Diagnosebereich
 - Admin-Bereich
@@ -111,9 +113,10 @@ http://SERVER-IP:3000/
 2. Den ersten Admin-Benutzer anlegen.
 3. Im Dashboard unter **Verbindungen → Discord** eine Discord-Instanz konfigurieren.
 4. Bot hinzufügen, Server und Voice-Kanal auswählen und die Instanz speichern/verbinden.
-5. Falls Prefix Commands benötigt werden, Message Content Intent für die Discord-App ausdrücklich freigeben und die entsprechende Intent-Konfiguration verwenden.
+5. Falls Prefix Commands benötigt werden, Message Content Intent für die Discord-App ausdrücklich freigeben und im Dashboard aktivieren.
 6. Unter **Musik** eigene Audiodateien direkt aus dem Browser hochladen und anschließend abspielen oder einer Playlist hinzufügen.
-7. Anschließend Player, Netzwerk-Monitoring und Systemdaten testen.
+7. Unter **Admin → Design** Theme und Akzentfarbe auswählen.
+8. Anschließend Player, Netzwerk-Monitoring und Systemdaten testen.
 
 ## Zielplattform
 
@@ -137,17 +140,18 @@ Der aktuelle Stand enthält unter anderem:
 - individuelle zufällige Salt-Werte für Passwort-Hashes
 - Migration älterer Passwort-Hashes beim erfolgreichen Login
 - separaten systemd-Service-User
-- restriktive systemd-Sandbox
+- restriktive systemd-Sandbox inklusive `NoNewPrivileges=true`
 - eng begrenzte sudo-Regel nur für definierte Bot-/Ubuntu-Control-Kommandos
 - Validierung von Audioquellen
 - Schutz lokaler Audiopfade inklusive Symlink-Prüfung
 - Uploads ausschließlich in das konfigurierte Musikverzeichnis
 - Whitelist für erlaubte Audio-Dateiendungen beim Upload
+- Streaming-Upload ohne komplettes Einlesen großer Audiodateien in den RAM
 - Schutz vor privaten/unsicheren Netzwerkzielen bei direkten Audioquellen
 - Guild-Begrenzung für Discord-Befehle
 - Audio-Race-Schutz bei Wechsel/Skip
-- korrigierte CPU-Auslastungsberechnung
-- Netzwerkverkehrs-Monitoring mit RX/TX-Zählern und Auslastungsprozenten
+- containerbewusste CPU-Auslastungsberechnung
+- Netzwerkverkehrs-Monitoring mit RX/TX-Zählern und ehrlichen Auslastungswerten
 - saubere Setup-Übernahme
 - TS3-Fehlerlogging
 
@@ -156,13 +160,13 @@ Der aktuelle Stand enthält unter anderem:
 Der aktuelle `main`-Stand enthält die vollständige CI-Kette mit:
 
 - Backend-Regressionstests
-- Playwright-/Chromium-Browser-Test
-- Bash- und JavaScript-Syntaxprüfungen
+- Playwright-/Chromium-Browser-Test inklusive Musikbibliothek und Theme-Auswahl
+- Bash- und JavaScript-Syntaxprüfungen für alle Frontend-Module
 - Installer-Security-Prüfungen
 - Ubuntu-24.04-systemd-Testimage
 - echter Installerlauf in isolierter Ubuntu-24.04-Umgebung
 - Ubuntu-24.04-CT-Style-Preflight
 - Regressionstest für individuelle Passwort-Salts
-- Regressionstests für 1-Sekunden-Monitoring, Discord-Verwaltungsoberfläche, Power-/Instanzkontrollen und Browser-Musikbibliothek
+- Regressionstests für 1-Sekunden-Monitoring, Discord-Verwaltungsoberfläche, Power-/Instanzkontrollen, Theme-System und Musikbibliothek
 
-Die Erweiterungen werden durch den nächsten vollständigen GitHub-Actions-Lauf erneut verifiziert.
+Die aktuelle Fix-Runde ist damit für den nächsten vollständigen GitHub-Actions-Lauf vorbereitet.
