@@ -1,6 +1,15 @@
 import { Client, generateIdentity } from "@honeybbq/teamspeak-client";
 import OpusScript from "opusscript";
 
+function address(host, port) {
+  const h = String(host || "").trim();
+  const p = Number(port || 9987);
+  if (!h) return "";
+  if (/^\[[^\]]+\]:\d+$/.test(h) || /^[^:]+:\d+$/.test(h)) return h;
+  if (h.includes(":") && !h.startsWith("[")) return `[${h}]:${p}`;
+  return `${h}:${p}`;
+}
+
 export class TS3Manager {
   constructor() {
     this.map = new Map();
@@ -11,7 +20,7 @@ export class TS3Manager {
     await this.disconnect(config.id);
     if (!config.enabled) throw new Error("Instanz ist ausgeschaltet");
     if (!config.host) throw new Error("TS3-Server fehlt");
-    const client = new Client(generateIdentity(8), config.host, config.nickname || "MusikBot187", { serverPassword: config.password || undefined, defaultChannel: config.channel || undefined });
+    const client = new Client(generateIdentity(8), address(config.host, config.port), config.nickname || "MusikBot187", { serverPassword: config.password || undefined, defaultChannel: config.channel || undefined });
     await client.connect();
     await client.waitConnected(AbortSignal.timeout(15000));
     this.map.set(config.id, client);
