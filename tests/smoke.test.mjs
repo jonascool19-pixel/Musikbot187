@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import { Player } from "../backend/src/player.js";
-import { calculateCpuPercent, systemInfo, storageInfo } from "../backend/src/system.js";
+import { calculateCpuPercent, selectNetworkInterfaces, systemInfo, storageInfo } from "../backend/src/system.js";
+import { loginRateKey } from "../backend/src/store.js";
 
 function settings(overrides = {}) { return { volume: 80, mode: "queue", ...overrides }; }
 
@@ -103,6 +104,22 @@ test("CPU calculation converts process CPU seconds to percent correctly", () => 
   assert.equal(calculateCpuPercent(4, 2, 4), 50);
   assert.equal(calculateCpuPercent(2, 2, 1), 100);
   assert.equal(calculateCpuPercent(1, 2, 4), 12.5);
+});
+
+test("Network interface selection returns only the configured interface", () => {
+  const interfaces = [
+    { name: "lo", addresses: [{ address: "127.0.0.1", family: "IPv4", internal: true }] },
+    { name: "eth0", addresses: [{ address: "192.0.2.10", family: "IPv4", internal: false }] }
+  ];
+  assert.deepEqual(selectNetworkInterfaces(interfaces, "eth0"), [interfaces[1]]);
+  assert.deepEqual(selectNetworkInterfaces(interfaces, "missing"), []);
+  assert.deepEqual(selectNetworkInterfaces(interfaces, ""), interfaces);
+});
+
+test("Login rate-limit keys separate clients while keeping usernames case-insensitive", () => {
+  assert.equal(loginRateKey("Admin", "10.0.0.1"), "10.0.0.1:admin");
+  assert.equal(loginRateKey("admin", "10.0.0.2"), "10.0.0.2:admin");
+  assert.notEqual(loginRateKey("admin", "10.0.0.1"), loginRateKey("admin", "10.0.0.2"));
 });
 
 test("System metrics expose CPU, memory and uptime values", () => {
