@@ -13,7 +13,6 @@ export class Player extends EventEmitter {
   mode;
   ff = null;
   resolver = null;
-  stopping = false;
   generation = 0;
   constructor(settings) { super(); this.volume = clampVolume(settings.volume ?? 80); this.mode = ["queue", "repeat", "shuffle"].includes(settings.mode) ? settings.mode : "queue"; }
   snapshot() { return { queue: this.queue, current: this.current, paused: this.paused, volume: this.volume, mode: this.mode }; }
@@ -21,8 +20,8 @@ export class Player extends EventEmitter {
   setMode(mode) { if (["queue", "repeat", "shuffle"].includes(mode)) this.mode = mode; }
   pause() { this.paused = true; if (this.ff) try { this.ff.kill("SIGSTOP"); } catch {} }
   resume() { this.paused = false; if (this.ff) try { this.ff.kill("SIGCONT"); } catch {} }
-  stop() { this.stopping = true; this.generation++; if (this.resolver) this.resolver.kill("SIGTERM"); if (this.ff) this.ff.kill("SIGTERM"); this.resolver = null; this.ff = null; this.queue = []; this.current = null; this.paused = false; this.emit("state"); }
-  skip() { this.generation++; if (this.resolver) { this.resolver.kill("SIGTERM"); this.resolver = null; void this.next(); } else if (this.ff) this.ff.kill("SIGTERM"); else if (this.current) void this.next(); }
+  stop() { this.generation++; if (this.resolver) this.resolver.kill("SIGTERM"); if (this.ff) this.ff.kill("SIGTERM"); this.resolver = null; this.ff = null; this.queue = []; this.current = null; this.paused = false; this.emit("state"); }
+  skip() { this.generation++; if (this.resolver) { this.resolver.kill("SIGTERM"); this.resolver = null; void this.next(); } else if (this.ff) { const old = this.ff; this.ff = null; old.kill("SIGTERM"); void this.next(); } else if (this.current) void this.next(); }
   clear() { this.queue = []; this.emit("state"); }
   async remove(index) { if (Number.isInteger(index) && index >= 0 && index < this.queue.length) this.queue.splice(index, 1); this.emit("state"); }
   async enqueue(items) { const clean = Array.isArray(items) ? items.filter(x => x && typeof x.url === "string" && x.url.trim()) : []; this.queue.push(...clean); if (!this.current) await this.next(); else this.emit("state"); }
@@ -44,7 +43,6 @@ export class Player extends EventEmitter {
     return url;
   }
   async next() {
-    if (this.stopping) { this.stopping = false; return; }
     if (!this.queue.length) { this.current = null; this.emit("state"); return; }
     let item = this.queue.shift();
     if (this.mode === "shuffle" && this.queue.length) { const index = Math.floor(Math.random() * (this.queue.length + 1)); if (index < this.queue.length) { const randomItem = this.queue.splice(index, 1)[0]; this.queue.unshift(item); item = randomItem; } }
@@ -52,19 +50,20 @@ export class Player extends EventEmitter {
     const run = ++this.generation;
     try {
       const source = await this.resolve(item);
-      if (run !== this.generation || this.stopping) return;
-      this.ff = spawn(FFMPEG, ["-hide_banner", "-loglevel", "error", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "-af", `volume=${this.volume / 100}`, "pipe:1"], { stdio: ["ignore", "pipe", "pipe"] });
-      this.ff.stdout.on("data", d => this.emit("audio", Buffer.from(d)));
-      this.ff.stderr.on("data", d => { const message = String(d).trim(); if (message) this.emit("diagnostic", message); });
-      await new Promise(resolve => { this.ff.on("error", () => resolve()); this.ff.on("close", () => resolve()); });
-      this.ff = null;
+      if (run !== this.generation) return;
+      const ff = spawn(FFMPEG, ["-hide_banner", "-loglevel", "error", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "-af", `volume=${this.volume / 100}`, "pipe:1"], { stdio: ["ignore", "pipe", "pipe"] });
+      this.ff = ff;
+      ff.stdout.on("data", d => this.emit("audio", Buffer.from(d)));
+      ff.stderr.on("data", d => { const message = String(d).trim(); if (message) this.emit("diagnostic", message); });
+      await new Promise(resolve => { ff.on("error", () => resolve()); ff.on("close", () => resolve()); });
+      if (this.ff === ff) this.ff = null;
       if (run !== this.generation) return;
       if (this.mode === "repeat") this.queue.unshift(item);
       await this.next();
     } catch (error) {
       if (this.resolver) this.resolver = null;
-      this.ff = null;
-      if (run === this.generation && !this.stopping) { this.emit("diagnostic", error instanceof Error ? error.message : String(error)); await this.next(); }
+      if (this.ff && this.ff === this.ff) this.ff = null;
+      if (run === this.generation) { this.emit("diagnostic", error instanceof Error ? error.message : String(error)); await this.next(); }
     }
   }
 }
