@@ -59,7 +59,7 @@ $SUDO install -o root -g "$SERVICE_USER" -m 0640 /tmp/musikbot187.env /etc/musik
 rm -f /tmp/musikbot187.env
 
 cat >/tmp/musikbot187.sudoers <<SUDOERS
-Cmnd_Alias MUSIKBOT187_CONTROL = /usr/bin/systemctl restart musikbot187, /usr/bin/systemctl stop musikbot187
+Cmnd_Alias MUSIKBOT187_CONTROL = /usr/bin/systemctl start musikbot187, /usr/bin/systemctl restart musikbot187, /usr/bin/systemctl stop musikbot187, /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
 $SERVICE_USER ALL=(root) NOPASSWD: MUSIKBOT187_CONTROL
 SUDOERS
 $SUDO install -o root -g root -m 0440 /tmp/musikbot187.sudoers /etc/sudoers.d/musikbot187
