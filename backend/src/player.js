@@ -22,12 +22,13 @@ export class Player extends EventEmitter {
     this.volume = next;
     if (this.ff && this.current) {
       const current = this.current;
+      const wasPaused = this.paused;
       this.generation++;
       try { this.ff.kill("SIGTERM"); } catch {}
       this.ff = null;
       this.queue.unshift(current);
       this.current = null;
-      this.paused = false;
+      this.paused = wasPaused;
       void this.next();
     }
   }
@@ -69,7 +70,7 @@ export class Player extends EventEmitter {
     if (!this.queue.length) { this.current = null; this.paused = false; this.emit("state"); return; }
     let item = this.queue.shift();
     if (this.mode === "shuffle" && this.queue.length) { const index = Math.floor(Math.random() * (this.queue.length + 1)); if (index < this.queue.length) { const randomItem = this.queue.splice(index, 1)[0]; this.queue.unshift(item); item = randomItem; } }
-    this.current = item; this.paused = false; this.emit("state");
+    this.current = item; this.emit("state");
     const run = ++this.generation;
     try {
       const source = await this.resolve(item);
