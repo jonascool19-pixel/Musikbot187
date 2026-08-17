@@ -1,18 +1,90 @@
-import {EventEmitter} from 'node:events';
-import {spawn} from 'node:child_process';
-const YTDLP=process.env.YTDLP_PATH||'yt-dlp'; const FFMPEG=process.env.FFMPEG_PATH||'ffmpeg';
-export class Player extends EventEmitter{
- constructor(settings){super();this.queue=[];this.current=null;this.paused=false;this.volume=settings.volume;this.mode=settings.mode;this.ff=null;this.stopping=false;this.generation=0;}
- snapshot(){return{queue:[...this.queue],current:this.current,paused:this.paused,volume:this.volume,mode:this.mode};}
- setVolume(v){this.volume=Math.max(0,Math.min(100,Number.isFinite(Number(v))?Number(v):0));if(this.ff){this.generation++;if(this.current)this.queue.unshift(this.current);this.ff.kill('SIGTERM');this.ff=null;this.current=null;}this.emit('state');if(!this.ff&&!this.current&&this.queue.length)this.next();}
- setMode(m){this.mode=m;this.emit('state');}
- pause(){if(this.ff&&!this.paused){this.paused=true;try{this.ff.kill('SIGSTOP');}catch{}this.emit('state');}}
- resume(){if(this.ff&&this.paused){this.paused=false;try{this.ff.kill('SIGCONT');}catch{}this.emit('state');}}
- stop(){this.stopping=true;this.generation++;if(this.ff)this.ff.kill('SIGTERM');this.ff=null;this.queue=[];this.current=null;this.paused=false;this.emit('state');}
- skip(){this.generation++;if(this.ff){this.ff.kill('SIGTERM');this.ff=null;}this.current=null;this.paused=false;this.emit('state');this.next();}
- clear(){this.queue=[];this.emit('state');}
- remove(i){if(Number.isInteger(i)&&i>=0&&i<this.queue.length)this.queue.splice(i,1);this.emit('state');}
- async enqueue(items){this.queue.push(...(Array.isArray(items)?items.filter(Boolean):[]));if(!this.current)await this.next();this.emit('state');}
- async resolve(item){if(['radio','file','url'].includes(item.source))return item.url;const input=item.url;const query=input.startsWith('ytsearch')?input:`ytsearch1:${input}`;return new Promise((resolve,reject)=>{const p=spawn(YTDLP,['-g','-f','bestaudio/best','--no-playlist',query],{stdio:['ignore','pipe','pipe']});let out='',err='';p.stdout.on('data',d=>out+=d);p.stderr.on('data',d=>err+=d);p.on('error',reject);p.on('close',code=>{if(code!==0)return reject(new Error(err||'Quelle konnte nicht aufgelöst werden'));const src=out.trim().split(/\r?\n/)[0];src?resolve(src):reject(new Error('Keine abspielbare Quelle gefunden'));});});}
- async next(){if(this.stopping){this.stopping=false;return;}if(!this.queue.length){this.current=null;this.emit('state');return;}let idx=this.mode==='shuffle'?Math.floor(Math.random()*this.queue.length):0;const item=this.queue.splice(idx,1)[0];this.current=item;this.paused=false;this.emit('state');const gen=++this.generation;try{const src=await this.resolve(item);if(gen!==this.generation)return;this.ff=spawn(FFMPEG,['-hide_banner','-loglevel','error','-reconnect','1','-reconnect_streamed','1','-reconnect_delay_max','5','-i',src,'-vn','-f','s16le','-ar','48000','-ac','2','-af',`volume=${this.volume/100}`,'pipe:1'],{stdio:['ignore','pipe','pipe']});this.ff.stdout.on('data',d=>this.emit('audio',Buffer.from(d)));this.ff.stderr.on('data',d=>{const m=String(d).trim();if(m)this.emit('diagnostic',m);});await new Promise(res=>this.ff?.once('close',res));this.ff=null;if(gen!==this.generation)return;if(this.mode==='repeat')this.queue.unshift(item);await this.next();}catch(e){if(gen!==this.generation)return;this.ff=null;this.emit('diagnostic',e instanceof Error?e.message:String(e));await this.next();}}
+import { EventEmitter } from "node:events";
+import { spawn } from "node:child_process";
+
+function clampVolume(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0;
+}
+
+export class Player extends EventEmitter {
+  queue = [];
+  current = null;
+  paused = false;
+  volume;
+  mode;
+  ff = null;
+  stopping = false;
+  generation = 0;
+
+  constructor(settings) {
+    super();
+    this.volume = clampVolume(settings.volume ?? 80);
+    this.mode = ["queue", "repeat", "shuffle"].includes(settings.mode) ? settings.mode : "queue";
+  }
+
+  snapshot() { return { queue: this.queue, current: this.current, paused: this.paused, volume: this.volume, mode: this.mode }; }
+  setVolume(value) { this.volume = clampVolume(value); if (this.ff) this.ff.kill("SIGTERM"); }
+  setMode(mode) { if (["queue", "repeat", "shuffle"].includes(mode)) this.mode = mode; }
+  pause() { this.paused = true; if (this.ff) try { this.ff.kill("SIGSTOP"); } catch {} }
+  resume() { this.paused = false; if (this.ff) try { this.ff.kill("SIGCONT"); } catch {} }
+  stop() { this.stopping = true; this.generation++; if (this.ff) this.ff.kill("SIGTERM"); this.ff = null; this.queue = []; this.current = null; this.paused = false; this.emit("state"); }
+  skip() { if (this.ff) this.ff.kill("SIGTERM"); else if (this.current) void this.next(); }
+  clear() { this.queue = []; this.emit("state"); }
+  async remove(index) { if (Number.isInteger(index) && index >= 0 && index < this.queue.length) this.queue.splice(index, 1); this.emit("state"); }
+
+  async enqueue(items) {
+    const clean = Array.isArray(items) ? items.filter((x) => x && typeof x.url === "string" && x.url.trim()) : [];
+    this.queue.push(...clean);
+    if (!this.current) await this.next();
+    else this.emit("state");
+  }
+
+  async resolve(item) {
+    const input = String(item.url);
+    if (item.source === "radio" || item.source === "file") return input;
+    const args = ["-g", "-f", "bestaudio/best", "--no-playlist"];
+    if (item.source === "spotify" || input.startsWith("ytsearch")) args.push("--default-search", "ytsearch1");
+    args.push(input);
+    const p = spawn("yt-dlp", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "", err = "";
+    p.stdout.on("data", (d) => { out += d; });
+    p.stderr.on("data", (d) => { err += d; });
+    await new Promise((resolve, reject) => {
+      p.on("error", reject);
+      p.on("close", (code) => code === 0 ? resolve() : reject(new Error(err.trim() || "yt-dlp konnte die Quelle nicht öffnen")));
+    });
+    const url = out.trim().split(/\r?\n/)[0];
+    if (!url) throw new Error("yt-dlp hat keine abspielbare URL geliefert");
+    return url;
+  }
+
+  async next() {
+    if (this.stopping) { this.stopping = false; return; }
+    if (!this.queue.length) { this.current = null; this.emit("state"); return; }
+    let item = this.queue.shift();
+    if (this.mode === "shuffle" && this.queue.length) {
+      const index = Math.floor(Math.random() * (this.queue.length + 1));
+      if (index < this.queue.length) { const randomItem = this.queue.splice(index, 1)[0]; this.queue.unshift(item); item = randomItem; }
+    }
+    this.current = item;
+    this.paused = false;
+    this.emit("state");
+    const run = ++this.generation;
+    try {
+      const source = await this.resolve(item);
+      if (run !== this.generation || this.stopping) return;
+      this.ff = spawn("ffmpeg", ["-hide_banner", "-loglevel", "error", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "-af", `volume=${this.volume / 100}`, "pipe:1"], { stdio: ["ignore", "pipe", "pipe"] });
+      this.ff.stdout.on("data", (d) => this.emit("audio", Buffer.from(d)));
+      this.ff.stderr.on("data", (d) => { const message = String(d).trim(); if (message) this.emit("diagnostic", message); });
+      await new Promise((resolve) => this.ff.on("close", resolve));
+      this.ff = null;
+      if (run !== this.generation) return;
+      if (this.mode === "repeat") this.queue.unshift(item);
+      await this.next();
+    } catch (error) {
+      this.ff = null;
+      this.emit("diagnostic", error instanceof Error ? error.message : String(error));
+      if (run === this.generation) await this.next();
+    }
+  }
 }
