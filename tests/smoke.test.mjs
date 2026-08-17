@@ -39,6 +39,31 @@ test("Player skip cancels an in-flight resolver without leaving a phantom curren
   assert.equal(p.generation > 1, true);
 });
 
+test("Player recovery retries a failed audio source with backoff and emits diagnostics", async () => {
+  const p = new Player(settings());
+  const delays = [];
+  p.emit = ((original) => (event, ...args) => { if (event === "diagnostic") delays.push(String(args[0])); return original.call(p, event, ...args); })(p.emit);
+  let attempts = 0;
+  p.playSource = async function () { attempts += 1; if (attempts < 3) return "failed"; return "ended"; };
+  const run = ++p.generation;
+  const ok = await p.recover({ id: "r", title: "Radio", url: "http://example/r", source: "radio" }, run, "network");
+  assert.equal(ok, true);
+  assert.equal(attempts, 3);
+  assert.equal(delays.length >= 2, true);
+});
+
+test("Player recovery stops when playback is cancelled", async () => {
+  const p = new Player(settings());
+  let attempts = 0;
+  p.playSource = async function () { attempts += 1; return "failed"; };
+  const run = ++p.generation;
+  const promise = p.recover({ id: "r", title: "Radio", url: "http://example/r", source: "radio" }, run, "network");
+  setTimeout(() => { p.generation++; }, 20);
+  const ok = await promise;
+  assert.equal(ok, false);
+  assert.equal(attempts, 0);
+});
+
 test("System metrics expose CPU, memory and uptime values", () => {
   const a = systemInfo();
   assert.equal(typeof a.cpuPercent, "number");
