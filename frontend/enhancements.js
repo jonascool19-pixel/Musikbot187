@@ -64,26 +64,58 @@
     ensureHeader(); const box = q('#enhancedControls'); if (!box || !data) return;
     const items = [...data.discord.map(x => ({ type:'discord', id:x.id, name:x.name, connected:x.connected })), ...data.ts3.map(x => ({ type:'ts3', id:x.id, name:x.name, connected:x.connected }))];
     const selected = `${data.state.settings.outputType}:${data.state.settings.outputId}`;
-    box.innerHTML = `<label class="instance-control">Ausgabe<select id="enhancedOutput"><option value="none:">Keine</option>${items.map(x => `<option value="${esc(x.type)}:${esc(x.id)}" ${selected === `${x.type}:${x.id}` ? 'selected' : ''}>${x.connected ? '🟢' : '🔴'} ${esc(x.name)}</option>`).join('')}</select></label><button id="enhancedBot" class="mini-power">⏻ Bot ${data.health.ok ? 'Ein' : 'Aus'}</button><button id="enhancedRestart" class="mini-power">↻ Ubuntu</button><button id="enhancedShutdown" class="mini-power danger">⏻ Ubuntu</button>`;
+    box.innerHTML = `<label class="instance-control">Ausgabe<select id="enhancedOutput"><option value="none:">Keine</option>${items.map(x => `<option value="${esc(x.type)}:${esc(x.id)}" ${selected === `${x.type}:${x.id}` ? 'selected' : ''}>${x.connected ? '🟢' : '🔴'} ${esc(x.name)}</option>`).join('')}</select></label><button id="enhancedBot" class="mini-power">↻ Bot neu starten</button><button id="enhancedStopBot" class="mini-power danger">⏹ Bot stoppen</button><button id="enhancedRestart" class="mini-power">↻ Ubuntu</button><button id="enhancedShutdown" class="mini-power danger">⏻ Ubuntu</button>`;
     q('#enhancedOutput').onchange = async e => { const [type,id] = String(e.target.value).split(':'); try { await put('/api/settings', { outputType:type, outputId:id || '' }); note('Ausgabeinstanz gespeichert.'); await refresh(); } catch (e) { note(e.message); } };
-    q('#enhancedBot').onclick = async () => { const action = data.health.ok ? 'stop-bot' : 'start-bot'; try { await post('/api/control', { action }); note(action === 'stop-bot' ? 'Bot wird gestoppt.' : 'Bot wird gestartet.'); setTimeout(refresh, 1000); } catch (e) { note(e.message); } };
+    q('#enhancedBot').onclick = async () => { try { await post('/api/control', { action:'restart-bot' }); note('Bot wird neu gestartet.'); } catch (e) { note(e.message); } };
+    q('#enhancedStopBot').onclick = async () => { if (!confirm('Bot wirklich stoppen? Das Dashboard ist danach nicht mehr erreichbar, bis der Dienst wieder gestartet wird.')) return; try { await post('/api/control', { action:'stop-bot' }); } catch (e) { note(e.message); } };
     q('#enhancedRestart').onclick = async () => { if (!confirm('Ubuntu jetzt neu starten?')) return; try { await post('/api/control', { action:'restart-system' }); } catch (e) { note(e.message); } };
     q('#enhancedShutdown').onclick = async () => { if (!confirm('Ubuntu jetzt herunterfahren?')) return; try { await post('/api/control', { action:'shutdown-system' }); } catch (e) { note(e.message); } };
   }
   function renderMetrics(data) {
     const set = (id, value) => { const n = q(id); if (n) n.textContent = value; };
-    set('#topCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`); set('#topRam', `${Number(data.system.memory.percent).toFixed(1)} %`); set('#topNetRx', `↓ ${data.network.rxUtilizationPercent ?? 0}%`); set('#topNetTx', `↑ ${data.network.txUtilizationPercent ?? 0}%`); set('#topNetTotal', `${((data.network.totalRxBytes + data.network.totalTxBytes) / 1024).toFixed(1)} KB`);
-    set('#sysCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`); set('#sysRam', `${Number(data.system.memory.percent).toFixed(1)} %`); set('#sysRamDetail', `${data.system.memory.used} / ${data.system.memory.total}`); set('#sysNetRx', `${data.network.rxUtilizationPercent ?? 0}%`); set('#sysNetTx', `${data.network.txUtilizationPercent ?? 0}%`); set('#sysNetTotal', `${((data.network.totalRxBytes + data.network.totalTxBytes) / 1024).toFixed(1)} KB`);
+    const rx = data.network.rxUtilizationPercent == null ? '—' : `↓ ${data.network.rxUtilizationPercent}%`;
+    const tx = data.network.txUtilizationPercent == null ? '—' : `↑ ${data.network.txUtilizationPercent}%`;
+    const sysRx = data.network.rxUtilizationPercent == null ? '—' : `${data.network.rxUtilizationPercent}%`;
+    const sysTx = data.network.txUtilizationPercent == null ? '—' : `${data.network.txUtilizationPercent}%`;
+    set('#topCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`); set('#topRam', `${Number(data.system.memory.percent).toFixed(1)} %`); set('#topNetRx', rx); set('#topNetTx', tx); set('#topNetTotal', `${((data.network.totalRxBytes + data.network.totalTxBytes) / 1024).toFixed(1)} KB`);
+    set('#sysCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`); set('#sysRam', `${Number(data.system.memory.percent).toFixed(1)} %`); set('#sysRamDetail', `${data.system.memory.used} / ${data.system.memory.total}`); set('#sysNetRx', sysRx); set('#sysNetTx', sysTx); set('#sysNetTotal', `${((data.network.totalRxBytes + data.network.totalTxBytes) / 1024).toFixed(1)} KB`);
   }
   function renderDiscordDots(data) {
     const heading = [...document.querySelectorAll('h2')].find(x => x.textContent.trim() === 'Discord'); if (!heading) return;
     const section = heading.closest('section'); if (!section) return;
     const cards = [...section.querySelectorAll('article.card')];
-    data.discord.forEach((item, index) => { const card = cards[index]; if (!card) return; const head = card.querySelector('.sectionhead'); if (!head) return; let dot = head.querySelector('.instance-status-dot'); if (!dot) { dot = document.createElement('span'); dot.className = 'instance-status-dot'; head.querySelector('b')?.appendChild(dot); } dot.textContent = item.connected ? ' 🟢' : ' 🔴'; dot.title = item.connected ? 'Discord verbunden' : 'Discord getrennt'; });
+    data.discord.forEach((item, index) => { const card = cards[index]; if (!card) return; const head = card.querySelector('.sectionhead'); if (!head) return; let dot = head.querySelector('.instance-status-dot'); if (!dot) { dot = document.createElement('span'); dot.className = 'instance-status-dot'; head.querySelector('b')?.appendChild(dot); } dot.textContent = item.voiceConnected ? ' 🟢' : item.connected ? ' 🟡' : ' 🔴'; dot.title = item.voiceConnected ? 'Discord verbunden und im Voice-Kanal' : item.connected ? 'Discord verbunden, Voice getrennt' : 'Discord getrennt'; });
   }
+  function renderDiscordIntentToggle() {
+    const form = q('#dp')?.closest('.grid');
+    if (!form || q('#dintent')) return;
+    const label = document.createElement('label');
+    label.className = 'checklabel';
+    label.innerHTML = '<input id="dintent" type="checkbox"> Message Content Intent für Prefix Commands';
+    form.appendChild(label);
+    const id = q('#did')?.value;
+    const current = window.__musikbotDiscord?.find?.(x => x.id === id);
+    if (current) q('#dintent').checked = current.messageContentIntent === true;
+  }
+  async function saveDiscordWithIntent() {
+    const id = q('#did')?.value || '';
+    const body = { id, name:q('#dn')?.value || '', token:q('#dt')?.value || '', clientId:q('#dc')?.value || '', guildId:q('#dg')?.value || '', channelId:q('#dv')?.value || '', prefix:q('#dp')?.value || '', enabled:q('#de')?.checked !== false, messageContentIntent:q('#dintent')?.checked === true };
+    await api('/api/discord', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    note('Discord gespeichert.');
+    q('[data-tab="connections"]')?.click();
+  }
+  document.addEventListener('click', event => {
+    const button = event.target.closest?.('#ds');
+    if (!button) return;
+    renderDiscordIntentToggle();
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    saveDiscordWithIntent().catch(error => note(error.message));
+  }, true);
   async function refresh() {
     const data = await snapshot(); if (!data) return;
-    renderControls(data); renderMetrics(data); renderDiscordDots(data); renderThemePanel(data.state);
+    window.__musikbotDiscord = data.discord;
+    renderControls(data); renderMetrics(data); renderDiscordDots(data); renderThemePanel(data.state); renderDiscordIntentToggle();
     if (data.state?.settings) applyTheme(data.state.settings.theme || 'dark', data.state.settings.accentColor || window.MusikBotThemes?.customAccent?.() || '');
   }
   const start = () => { if (!q('#app')) return setTimeout(start, 250); void refresh(); setInterval(refresh, 1000); };
