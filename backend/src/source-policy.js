@@ -1,6 +1,7 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 import path from "node:path";
+import { realpath } from "node:fs/promises";
 
 const BLOCKED_IPV4 = [/^0\./, /^10\./, /^127\./, /^169\.254\./, /^172\.(1[6-9]|2\d|3[0-1])\./, /^192\.0\.0\./, /^192\.0\.2\./, /^198\.(18|19)\./, /^198\.51\.100\./, /^203\.0\.113\./, /^224\./, /^240\./];
 
@@ -33,8 +34,8 @@ export async function validatePlaybackItem(item, dataDirectory) {
   const value = item.url.trim();
   if (!["youtube", "radio", "spotify", "direct", "file"].includes(source)) throw new Error("Nicht unterstützte Audioquelle");
   if (source === "file") {
-    const root = path.resolve(dataDirectory);
-    const target = path.resolve(root, value);
+    const root = await realpath(path.resolve(dataDirectory));
+    const target = await realpath(path.resolve(root, value));
     const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
     if (target !== root && !target.startsWith(prefix)) throw new Error("Datei liegt außerhalb des Musikverzeichnisses");
     return { ...item, source, url: target };
@@ -53,4 +54,9 @@ export async function validatePlaybackItem(item, dataDirectory) {
   }
   if (!/^ytsearch\d*:/i.test(value) && !/^spotify:/i.test(value)) throw new Error("Nicht erlaubte Spotify-Quelle");
   return { ...item, source, url: value };
+}
+
+export async function revalidatePlaybackTarget(item, dataDirectory) {
+  if (item?.source === "direct" || item?.source === "radio") await validateHttpTarget(String(item.url), item.source === "radio" ? "Radio" : "Direkte Audio");
+  if (item?.source === "file") await validatePlaybackItem(item, dataDirectory);
 }
