@@ -23,7 +23,6 @@ export class Player extends EventEmitter {
     if (this.ff && this.current) {
       const current = this.current;
       this.generation++;
-      try { this.ff.kill("SIGCONT"); } catch {}
       try { this.ff.kill("SIGTERM"); } catch {}
       this.ff = null;
       this.queue.unshift(current);
@@ -48,10 +47,19 @@ export class Player extends EventEmitter {
     args.push(input);
     const p = spawn(YTDLP, args, { stdio: ["ignore", "pipe", "pipe"] });
     this.resolver = p;
-    let out = "", err = "";
-    p.stdout.on("data", d => { out += d; });
-    p.stderr.on("data", d => { err += d; });
-    await new Promise((resolve, reject) => { p.on("error", reject); p.on("close", code => code === 0 ? resolve() : reject(new Error(err.trim() || "yt-dlp konnte die Quelle nicht öffnen"))); });
+    let out = "", err = "", settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      try { p.kill("SIGTERM"); } catch {}
+      if (this.resolver === p) this.resolver = null;
+    }, 30000);
+    await new Promise((resolve, reject) => {
+      const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); fn(value); };
+      p.stdout.on("data", d => { out += d; });
+      p.stderr.on("data", d => { err += d; });
+      p.on("error", e => finish(reject, e));
+      p.on("close", code => code === 0 ? finish(resolve) : finish(reject, new Error(err.trim() || "yt-dlp konnte die Quelle nicht öffnen")));
+    });
     if (this.resolver === p) this.resolver = null;
     const url = out.trim().split(/\r?\n/)[0];
     if (!url) throw new Error("yt-dlp hat keine abspielbare URL geliefert");
