@@ -29,6 +29,12 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 - Slash Commands
 - optionale Prefix Commands
 - mehrere Discord-Instanzen
+- Bot-ID/Client-ID-Verwaltung
+- Bot direkt zu Discord hinzufügen
+- Einladungslink erzeugen und kopieren
+- konfigurierten Discord-Server auswählen und aktualisieren
+- Voice-Kanal auswählen und aktualisieren
+- Verbinden, neu verbinden, trennen und entfernen
 - konfigurierte Guild-/Voice-Channel-Zuordnung
 - Befehle werden auf die konfigurierte Guild-Umgebung begrenzt
 - privilegierter Message-Content-Intent wird nur benötigt, wenn Prefix Commands aktiviert sind
@@ -45,6 +51,9 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 - Queue-Verwaltung
 - Playlist-Bereich
 - Verbindungs- und Instanzverwaltung
+- Dashboard-Live-Monitoring für CPU, RAM und Netzwerkverkehr
+- System-Live-Monitoring für CPU, RAM, RX/TX und Gesamtverkehr
+- Live-Aktualisierung der Monitoring-Werte im 1-Sekunden-Takt
 - System-, Netzwerk-, Speicher- und Dateiinformationen
 - Diagnosebereich
 - Admin-Bereich
@@ -55,7 +64,11 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 
 ## Installation und Betrieb
 
-Der Stable-Installer ist für Debian/Ubuntu mit `apt-get` ausgelegt. Er installiert nur die benötigten Pakete und führt **kein ungefragtes vollständiges System-Upgrade** durch:
+Der Stable-Installer ist für Debian/Ubuntu mit `apt-get` ausgelegt. Er installiert nur die benötigten Pakete und führt **kein ungefragtes vollständiges System-Upgrade** durch. Voraussetzung ist ein systemd-basiertes Debian/Ubuntu-System; für Proxmox wird ein **Ubuntu-24.04-LXC/CT mit systemd und verfügbaren cgroups** verwendet. fileciteturn68file0L2-L6
+
+### Stable-Installation
+
+Auf dem frisch erstellten Container als Root oder mit einem Benutzer mit `sudo`-Rechten:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-stable.sh | sudo bash
@@ -67,17 +80,28 @@ Der Installer richtet unter anderem ein:
 - FFmpeg
 - aktuelle `yt-dlp`-Linux-Binary
 - MusikBot187 unter `/opt/musikbot187`
+- Daten und Musikverzeichnis unter `/var/lib/musikbot187`
 - eigenen Systemdienst-Benutzer statt dauerhaftem Root-Betrieb
 - systemd-Service `musikbot187`
 - restriktive systemd-Sandbox für den Dienst
 - begrenzte sudo-Regel nur für Bot-Start/Stop/Restart
 - automatisierten Start des Bots
 
-Nach der Installation ist das Dashboard unter folgender Adresse erreichbar:
+Nach erfolgreicher Installation zeigt der Installer die Dashboard-Adresse und einen **einmaligen Einrichtungslink mit Installer-Token** an. Der Einrichtungslink wird nur für die Ersteinrichtung benötigt.
+
+Das Dashboard ist danach unter folgender Adresse erreichbar:
 
 ```text
 http://SERVER-IP:3000/
 ```
+
+### Nach der Installation
+
+1. Den vom Installer ausgegebenen Einrichtungslink im Browser öffnen.
+2. Den ersten Admin-Benutzer anlegen.
+3. Im Dashboard unter **Verbindungen → Discord** eine Discord-Instanz konfigurieren.
+4. Bot hinzufügen, Server und Voice-Kanal auswählen und die Instanz speichern/verbinden.
+5. Anschließend Player, Netzwerk-Monitoring und Systemdaten testen.
 
 ## Zielplattform
 
@@ -109,6 +133,7 @@ Der aktuelle Stand enthält unter anderem:
 - Guild-Begrenzung für Discord-Befehle
 - Audio-Race-Schutz bei Wechsel/Skip
 - korrigierte CPU-Auslastungsberechnung
+- Netzwerkverkehrs-Monitoring mit RX/TX- und Gesamtzählern
 - saubere Setup-Übernahme
 - TS3-Fehlerlogging
 
@@ -124,5 +149,6 @@ Der aktuelle `main`-Stand enthält die vollständige CI-Kette mit:
 - echter Installerlauf in isolierter Ubuntu-24.04-Umgebung
 - Ubuntu-24.04-CT-Style-Preflight
 - Regressionstest für individuelle Passwort-Salts
+- Regressionstests für 1-Sekunden-Monitoring und Discord-Verwaltungsoberfläche
 
-**Wichtig:** Die Änderungen in diesem Audit wurden gerade auf `main` eingespielt. Der neue vollständige CI-Lauf für den aktuellen Stand muss noch von GitHub Actions ausgeführt werden. Erst wenn dieser Lauf komplett grün ist, behandeln wir den Stand als verifiziertes Installations-Release.
+**Verifiziert:** Der aktuelle GitHub-Actions-Lauf wurde vollständig grün abgeschlossen. Damit ist der aktuelle Stand für den nächsten praktischen Neuinstallations- und Funktionstest auf einem frischen Ubuntu-24.04-Proxmox-CT vorbereitet.
