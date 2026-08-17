@@ -13,7 +13,7 @@ const frontend = join(root, "frontend");
 const seen = [];
 const state = { settings: { theme: "dark", outputType: "discord" }, current: { title: "Browser Test Track" }, paused: false, volume: 80, mode: "queue", queue: [{ id: "q1", title: "Queued Track", url: "http://example.test/audio.mp3", source: "radio" }] };
 const playlists = [{ id: "p1", name: "Test Playlist", items: [{ id: "pitem1", title: "Playlist Track", url: "http://example.test/p.mp3", source: "radio" }] }];
-const discord = [{ id: "d1", name: "Test Discord", enabled: true, guildId: "g1", channelId: "v1", clientId: "c1" }];
+const discord = [{ id: "d1", name: "Test Discord", enabled: true, guildId: "g1", channelId: "v1", clientId: "123456789012345678" }];
 const ts3 = [{ id: "t1", name: "Test TS3", host: "127.0.0.1", port: 9987, channel: "Music", connected: false }];
 function json(res, body, status = 200) { const data = JSON.stringify(body); res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(data) }); res.end(data); }
 const server = http.createServer(async (req, res) => {
@@ -31,7 +31,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/discord/d1/guilds/g1/channels") return json(res, [{ id: "v1", name: "Music", type: 2 }]);
     if (url.pathname === "/api/system") return json(res, { hostname: "browser-test", platform: "linux", arch: "x64", node: "v22", uptime: 123, cpus: 4, cpuPercent: 25, load: [1, 0.5, 0.2], memory: { total: 1000, free: 400, used: 600, percent: 60 } });
     if (url.pathname === "/api/storage") return json(res, { exists: true, directory: true, path: "/music", disk: { total: 10000, used: 3000, free: 7000, percent: 30 } });
-    if (url.pathname === "/api/network") return json(res, { interfaces: {} });
+    if (url.pathname === "/api/network") return json(res, { interfaces: [], totalRxBytes: 0, totalTxBytes: 0, rxBytesPerSecond: 0, txBytesPerSecond: 0, measuredSeconds: 0 });
     if (url.pathname === "/api/files") return json(res, [{ name: "test.mp3", path: "test.mp3", size: 1234 }]);
     if (url.pathname === "/api/health") return json(res, { ok: true });
     if (url.pathname === "/api/settings") return json(res, { volume: 80, mode: "queue", outputType: "discord", outputId: "d1", theme: "dark", musicDir: "/music", networkInterface: "" });
@@ -59,25 +59,26 @@ try {
   assert.equal(await inputs.count(), 2, "Login should render username and password inputs");
   await inputs.nth(0).fill("admin"); await inputs.nth(1).fill("password"); await page.getByRole("button", { name: "Anmelden" }).click();
   await page.locator('[data-tab="playlists"]').click(); await assertText(page, "Test Playlist");
-  await page.locator('[data-tab="system"]').click(); await assertText(page, "System"); await assertText(page, "25.0 %");
+  await page.locator('[data-tab="system"]').click(); await assertText(page, "System"); await assertText(page, "25.0 %"); await assertText(page, "Netzwerk RX");
   await page.locator('[data-tab="connections"]').click(); await assertText(page, "Test Discord"); await assertText(page, "Test TS3");
   await page.getByRole("button", { name: /Bearbeiten/ }).first().click();
-  await page.getByRole("button", { name: /Guilds laden/ }).click();
-  const guildSelect = page.locator('select option[value="g1"]').locator("..");
-  await guildSelect.waitFor({ state: "visible" });
+  await page.locator("#dgrefresh").click();
+  const guildSelect = page.locator("#dg");
+  await guildSelect.locator('option[value="g1"]').waitFor({ state: "attached" });
   await guildSelect.selectOption("g1");
   await assertSelectValue(guildSelect, "g1");
-  await page.getByRole("button", { name: /Voice-Kanäle laden/ }).click();
-  const channelSelect = page.locator('select option[value="v1"]').locator("..");
-  await channelSelect.waitFor({ state: "visible" });
+  await page.locator("#dvrefresh").click();
+  const channelSelect = page.locator("#dv");
+  await channelSelect.locator('option[value="v1"]').waitFor({ state: "attached" });
   await channelSelect.selectOption("v1");
   await assertSelectValue(channelSelect, "v1");
-  await page.locator('[data-tab="admin"]').click(); await assertText(page, "Admin");
-  await page.getByRole("button", { name: /Fehlerlog/ }).click(); await assertText(page, "Fehlerlog"); await assertText(page, "Smoke test diagnostic");
-  await page.getByRole("button", { name: /Alles kopieren/ }).click();
+  await assertText(page, "Bot zum Discord hinzufügen");
+  await assertText(page, "Einladungslink erstellen");
+  await assertText(page, "Neu verbinden");
+  await page.locator('[data-tab="admin"]').click(); await assertText(page, "Allgemeine Einstellungen"); await assertText(page, "Diagnose"); await assertText(page, "Smoke test diagnostic");
   await page.locator('[data-tab="player"]').click(); await page.getByPlaceholder(/Titel, Interpret/).fill("test track"); await page.getByRole("button", { name: /Suchen/ }).click(); await assertText(page, "YouTube Result");
   await page.getByRole("button", { name: /Queue leeren/ }).click(); await page.getByRole("button", { name: /Abmelden/ }).click();
-  for (const required of ["GET /api/setup", "POST /api/login", "GET /api/state", "GET /api/playlists", "GET /api/system", "GET /api/discord", "GET /api/ts3", "GET /api/discord/d1/guilds", "GET /api/discord/d1/guilds/g1/channels", "GET /api/diagnostics", "GET /api/search", "POST /api/play/clear"]) assert.ok(seen.includes(required), `Missing browser API path: ${required}`);
+  for (const required of ["GET /api/setup", "POST /api/login", "GET /api/state", "GET /api/playlists", "GET /api/system", "GET /api/network", "GET /api/discord", "GET /api/ts3", "GET /api/discord/d1/guilds", "GET /api/discord/d1/guilds/g1/channels", "GET /api/diagnostics", "GET /api/search", "POST /api/play/clear"]) assert.ok(seen.includes(required), `Missing browser API path: ${required}`);
   assert.equal(consoleErrors.length, 0, `Browser console errors: ${consoleErrors.join(" | ")}`); assert.equal(pageErrors.length, 0, `Browser page errors: ${pageErrors.join(" | ")}`);
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 async function assertText(page, text) { await page.getByText(text, { exact: false }).first().waitFor({ state: "visible" }); }
