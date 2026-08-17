@@ -63,7 +63,7 @@ app.post("/api/setup", async (request, reply) => {
 });
 app.post("/api/login", async (request, reply) => { const session = login(String(request.body?.name || "").trim(), String(request.body?.password || ""), request.ip); return session || reply.code(401).send({ error: "Ungültige Anmeldung" }); });
 
-app.get("/api/state", async (request, reply) => { if (!auth(request, reply)) return; return { ...player.snapshot(), settings: db().settings, dashboard: db().dashboard, discord: publicDiscord(), ts3: publicTS3() }; });
+app.get("/api/state", async (request, reply) => { if (!auth(request, reply)) return; const runtime = new Map(discord.status().map(x => [x.id, x])); return { ...player.snapshot(), settings: db().settings, dashboard: db().dashboard, discord: publicDiscord().map(x => ({ ...x, connected: runtime.has(x.id), voiceConnected: runtime.get(x.id)?.voiceConnected === true })), ts3: publicTS3() }; });
 app.get("/api/search", async (request, reply) => {
   if (!auth(request, reply)) return;
   const q = String(request.query?.q || "").trim();
@@ -140,12 +140,12 @@ app.post("/api/users", async (request, reply) => {
 });
 app.get("/api/diagnostics", async (request, reply) => { if (!admin(request, reply)) return; return db().diagnostics; });
 
-app.get("/api/discord", async (request, reply) => { if (!auth(request, reply)) return; return publicDiscord(); });
+app.get("/api/discord", async (request, reply) => { if (!auth(request, reply)) return; const runtime = new Map(discord.status().map(x => [x.id, x])); return publicDiscord().map(x => ({ ...x, connected: runtime.has(x.id), voiceConnected: runtime.get(x.id)?.voiceConnected === true })); });
 app.post("/api/discord", async (request, reply) => {
   if (!admin(request, reply)) return;
   const b = request.body || {};
   const old = db().discord.find(x => x.id === b.id);
-  const x = { id: String(b.id || randomUUID()), name: String(b.name || old?.name || "Discord"), enabled: b.enabled !== false, token: b.token ? String(b.token) : String(old?.token || ""), clientId: String(b.clientId || old?.clientId || ""), guildId: String(b.guildId || old?.guildId || ""), channelId: String(b.channelId || old?.channelId || ""), prefix: String(b.prefix || old?.prefix || "!") };
+  const x = { id: String(b.id || randomUUID()), name: String(b.name || old?.name || "Discord"), enabled: b.enabled !== false, token: b.token ? String(b.token) : String(old?.token || ""), clientId: String(b.clientId || old?.clientId || ""), guildId: String(b.guildId || old?.guildId || ""), channelId: String(b.channelId || old?.channelId || ""), prefix: String(b.prefix ?? old?.prefix ?? ""), messageContentIntent: b.messageContentIntent === true };
   if (x.clientId && !/^\d{17,20}$/.test(x.clientId)) return reply.code(400).send({ error: "Discord Client-ID muss aus 17–20 Ziffern bestehen" });
   setDiscord(x); await save(); return publicDiscord();
 });
@@ -164,7 +164,7 @@ app.post("/api/ts3/:id/disconnect", async (request, reply) => { if (!admin(reque
 app.post("/api/control", async (request, reply) => {
   if (!admin(request, reply)) return;
   const action = String(request.body?.action || "");
-  if (!["restart-bot", "stop-bot"].includes(action)) return reply.code(400).send({ error: "Nur Bot-Neustart und Bot-Stopp werden unterstützt" });
+  if (!["start-bot", "restart-bot", "stop-bot", "restart-system", "shutdown-system"].includes(action)) return reply.code(400).send({ error: "Ungültige Control-Aktion" });
   const { execFile } = await import("node:child_process");
   await new Promise((resolve, reject) => execFile("/usr/bin/sudo", ["/usr/local/sbin/musikbot187-control", action], error => error ? reject(error) : resolve()));
   return { ok: true };
