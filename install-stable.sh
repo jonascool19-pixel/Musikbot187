@@ -20,7 +20,6 @@ if [[ ! -d /sys/fs/cgroup ]]; then
 fi
 
 $SUDO apt-get update
-$SUDO apt-get upgrade -y
 $SUDO apt-get install -y curl git ffmpeg ca-certificates python3 sudo
 
 if ! command -v node >/dev/null 2>&1 || (( $(node -p 'Number(process.versions.node.split(".")[0])') < 22 )); then
@@ -82,9 +81,19 @@ Restart=on-failure
 RestartSec=3
 User=$SERVICE_USER
 Group=$SERVICE_USER
+UMask=0077
+NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
+PrivateDevices=true
+ProtectSystem=strict
 ProtectHome=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+SystemCallArchitectures=native
 ReadWritePaths=$DATA
 
 [Install]
