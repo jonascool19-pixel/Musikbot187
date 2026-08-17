@@ -7,6 +7,15 @@ import { calculateCpuPercent, systemInfo, storageInfo } from "../backend/src/sys
 
 function settings(overrides = {}) { return { volume: 80, mode: "queue", ...overrides }; }
 
+async function waitFor(predicate, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  throw new Error("Test condition was not reached in time");
+}
+
 test("Player clamps volume and accepts supported modes", () => {
   const p = new Player(settings());
   p.setVolume(140); assert.equal(p.volume, 100);
@@ -56,7 +65,7 @@ test("Player ignores stale FFmpeg output after skip", async () => {
   const audio = [];
   player.on("audio", data => audio.push(data));
   const playback = player.playSource(item, run);
-  assert.equal(processes.length, 1);
+  await waitFor(() => processes.length === 1);
   player.skip();
   processes[0].p.stdout.emit("data", Buffer.from("stale-audio"));
   processes[0].p.emit("close", 0);
