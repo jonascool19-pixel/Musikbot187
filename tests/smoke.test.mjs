@@ -27,7 +27,7 @@ test("Player clamps volume and accepts supported modes", () => {
 
 test("Player removes queue entries safely", async () => {
   const p = new Player(settings());
-  p.queue.push({ id: "1", title: "A", url: "http://example/a", source: "radio" }, { id: "2", title: "B", url: "http://example/b", source: "radio" });
+  p.queue.push({ id: "1", title: "A", url: "https://example.com/a", source: "radio" }, { id: "2", title: "B", url: "https://example.com/b", source: "radio" });
   await p.remove(0);
   assert.equal(p.queue.length, 1);
   assert.equal(p.queue[0].id, "2");
@@ -37,14 +37,14 @@ test("Player removes queue entries safely", async () => {
 
 test("Player filters malformed queue items", async () => {
   const p = new Player(settings());
-  await p.enqueue([{ title: "missing url" }, null, { id: "r", title: "Radio", url: "http://example/r", source: "radio" }]);
+  await p.enqueue([{ title: "missing url" }, null, { id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }]);
   assert.ok(p.current || p.queue.length === 0);
 });
 
 test("Player skip cancels an in-flight resolver without leaving a phantom current item", async () => {
   const p = new Player(settings());
   p.resolve = async function () { await new Promise((resolve) => setTimeout(resolve, 100)); return "unused"; };
-  const run = p.enqueue([{ id: "1", title: "A", url: "ytsearch1:A", source: "youtube" }, { id: "2", title: "B", url: "http://example/b", source: "radio" }]);
+  const run = p.enqueue([{ id: "1", title: "A", url: "ytsearch1:A", source: "youtube" }, { id: "2", title: "B", url: "https://example.com/b", source: "radio" }]);
   p.skip();
   await run;
   assert.equal(p.generation > 1, true);
@@ -60,8 +60,8 @@ test("Player ignores stale FFmpeg output after skip", async () => {
     processes.push({ p, options });
     return p;
   };
-  const player = new Player(settings(), { spawnFn });
-  const item = { id: "r", title: "Radio", url: "http://example/r", source: "radio" };
+  const player = new Player({ volume: 80, mode: "queue", filesDirectory: "/tmp/musikbot187-test-music" }, { spawnFn });
+  const item = { id: "r", title: "Radio", url: "https://example.com/r", source: "radio" };
   const run = ++player.generation;
   const audio = [];
   player.on("audio", data => audio.push(data));
@@ -82,7 +82,7 @@ test("Player recovery retries a failed audio source with backoff and emits diagn
   let attempts = 0;
   p.playSource = async function () { attempts += 1; if (attempts < 3) return "failed"; return "ended"; };
   const run = ++p.generation;
-  const ok = await p.recover({ id: "r", title: "Radio", url: "http://example/r", source: "radio" }, run, "network");
+  const ok = await p.recover({ id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }, run, "network");
   assert.equal(ok, true);
   assert.equal(attempts, 3);
   assert.equal(delays.length >= 2, true);
@@ -93,7 +93,7 @@ test("Player recovery stops when playback is cancelled", async () => {
   let attempts = 0;
   p.playSource = async function () { attempts += 1; return "failed"; };
   const run = ++p.generation;
-  const promise = p.recover({ id: "r", title: "Radio", url: "http://example/r", source: "radio" }, run, "network");
+  const promise = p.recover({ id: "r", title: "Radio", url: "https://example.com/r", source: "radio" }, run, "network");
   setTimeout(() => { p.generation++; }, 20);
   const ok = await promise;
   assert.equal(ok, false);
