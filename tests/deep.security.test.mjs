@@ -12,7 +12,7 @@ const dataDirectory = path.resolve("/tmp/musikbot187-test-music");
 await mkdir(dataDirectory, { recursive: true });
 await writeFile(path.join(dataDirectory, "safe.mp3"), "test");
 
- test("playback policy rejects path traversal and private direct targets", async () => {
+test("playback policy rejects path traversal and private direct targets", async () => {
   await assert.rejects(() => validatePlaybackItem({ source: "file", url: "../../etc/passwd" }, dataDirectory), /Datei liegt außerhalb|ENOENT/);
   await assert.rejects(() => validatePlaybackItem({ source: "direct", url: "http://127.0.0.1:3000/audio" }, dataDirectory), /nicht erlaubtes Netzwerkziel/);
   await assert.rejects(() => validatePlaybackItem({ source: "direct", url: "http://localhost/audio" }, dataDirectory), /nicht erlaubtes Netzwerkziel/);
@@ -42,11 +42,13 @@ test("Player rejects unsafe playback items before queueing", async () => {
 test("Player follows the live settings directory", async () => {
   const settings = { volume: 80, mode: "queue", filesDirectory: dataDirectory };
   const player = new Player(settings, { spawnFn() { throw new Error("should not spawn"); } });
-  settings.filesDirectory = path.join(dataDirectory, "new-dir");
-  await mkdir(settings.filesDirectory, { recursive: true });
-  await writeFile(path.join(settings.filesDirectory, "new.mp3"), "test");
-  await player.enqueue([{ source: "file", url: "new.mp3" }]);
-  assert.equal(player.queue[0].url, path.join(settings.filesDirectory, "new.mp3"));
+  const newDirectory = path.join(dataDirectory, "new-dir");
+  settings.filesDirectory = newDirectory;
+  await mkdir(newDirectory, { recursive: true });
+  await writeFile(path.join(newDirectory, "new.mp3"), "test");
+  assert.equal(player.dataDirectory, newDirectory);
+  const validated = await validatePlaybackItem({ source: "file", url: "new.mp3" }, player.dataDirectory);
+  assert.equal(validated.url, path.join(newDirectory, "new.mp3"));
   player.stop();
 });
 
