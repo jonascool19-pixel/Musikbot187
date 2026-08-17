@@ -69,10 +69,12 @@ function check(password, encoded) {
 }
 function isLegacyHash(encoded) { return /^[0-9a-f]{64}$/i.test(String(encoded || "")); }
 function publicUser(u) { return { id: u.id, name: u.name, role: u.role }; }
-export function loginRateKey(name, clientKey='unknown') { return `${String(clientKey || "unknown").trim() || "unknown"}:${String(name || "").toLowerCase()}`; }
+function normalizeName(name) { return String(name || "").trim().toLowerCase(); }
+export function loginRateKey(name, clientKey='unknown') { return `${String(clientKey || "unknown").trim() || "unknown"}:${normalizeName(name)}`; }
 
-const AUTH_STATE_SWEEP_MS = 60 * 60 * 1000;
+const AUTH_STATE_SWEEP_MS = 10 * 60 * 1000;
 const AUTH_STATE_MAX_AGE_MS = 30 * 60 * 1000;
+const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const authStateSweep = setInterval(() => {
   const now = Date.now();
   for (const [token, session] of sessions) if (session.expires <= now) sessions.delete(token);
@@ -84,19 +86,23 @@ const authStateSweep = setInterval(() => {
 authStateSweep.unref?.();
 
 export function createUser(name, password, role = "user") {
-  const u = { id: randomUUID(), name, hash: hash(password), role: role === "admin" ? "admin" : "user" };
+  const normalized = String(name || "").trim();
+  if (!normalized) throw new Error("Benutzername fehlt");
+  if (db().users.some((u) => normalizeName(u.name) === normalizeName(normalized))) throw new Error("Benutzername bereits vorhanden");
+  const u = { id: randomUUID(), name: normalized, hash: hash(password), role: role === "admin" ? "admin" : "user" };
   db().users.push(u);
   return publicUser(u);
 }
 export function createAdmin(name, password) { return createUser(name, password, "admin"); }
 export function login(name, password, clientKey='unknown') {
-  const key = loginRateKey(name, clientKey);
+  const normalizedName = normalizeName(name);
+  const key = loginRateKey(normalizedName, clientKey);
   const now = Date.now();
   const attempt = loginAttempts.get(key) || { count: 0, first: now, last: now, blockedUntil: 0 };
   if (attempt.first + 15 * 60 * 1000 <= now) { attempt.count = 0; attempt.first = now; attempt.blockedUntil = 0; }
   attempt.last = now;
   if (attempt.blockedUntil > now) { loginAttempts.set(key, attempt); return null; }
-  const u = db().users.find((x) => x.name === name);
+  const u = db().users.find((x) => normalizeName(x.name) === normalizedName);
   if (!u || !check(password, u.hash)) {
     attempt.count += 1;
     if (attempt.count >= 5) attempt.blockedUntil = now + 15 * 60 * 1000;
@@ -106,8 +112,18 @@ export function login(name, password, clientKey='unknown') {
   if (isLegacyHash(u.hash)) { u.hash = hash(password); void save(); }
   loginAttempts.delete(key);
   const token = `${randomUUID()}${randomUUID()}`;
-  sessions.set(token, { userId: u.id, expires: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+  sessions.set(token, { userId: u.id, expires: Date.now() + SESSION_MAX_AGE_MS });
   return { token, user: publicUser(u) };
+}
+export function logout(header) {
+  if (!header) return false;
+  const token = String(header).replace(/^Bearer\s+/i, "");
+  return sessions.delete(token);
+}
+export function logoutUser(userId) {
+  let removed = 0;
+  for (const [token, session] of sessions) if (session.userId === userId) { sessions.delete(token); removed += 1; }
+  return removed;
 }
 export function user(header) { if (!header) return null; const token = String(header).replace(/^Bearer\s+/i, ""); const s = sessions.get(token); if (!s || s.expires < Date.now()) { sessions.delete(token); return null; } return db().users.find((x) => x.id === s.userId) || null; }
 export function publicDiscord() { return db().discord.map(({ token, ...x }) => x); }
