@@ -6,7 +6,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -15,7 +15,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: cd backend && npm install --no-fund
+      - name: Generate lockfile when missing
+        run: |
+          if [[ ! -f backend/package-lock.json ]]; then
+            cd backend
+            npm install --package-lock-only --ignore-scripts --no-fund --no-audit
+            cd ..
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add backend/package-lock.json
+            git commit -m "chore: add npm lockfile"
+            git push
+          fi
+      - run: cd backend && npm ci --no-fund
       - run: cd backend && npm audit --omit=dev --audit-level=high
       - run: cd backend && npm test
       - run: cd backend && npx playwright install --with-deps chromium
