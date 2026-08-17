@@ -1,3 +1,29 @@
-import {Client,generateIdentity} from '@honeybbq/teamspeak-client';
-import OpusScript from 'opusscript';
-export class TS3Manager{constructor(){this.map=new Map();this.pcm=new Map();this.enc=new OpusScript(48000,2,OpusScript.Application.AUDIO);}async connect(c){await this.disconnect(c.id);if(!c.enabled)throw new Error('Instanz ist ausgeschaltet');if(!c.host)throw new Error('TS3-Host fehlt');const cli=new Client(generateIdentity(8),c.host,c.nickname||'MusikBot187',{serverPassword:c.password,defaultChannel:c.channel});await cli.connect();await cli.waitConnected(AbortSignal.timeout(15000));this.map.set(c.id,cli);this.pcm.set(c.id,Buffer.alloc(0));}async disconnect(id){const c=this.map.get(id);if(c){await c.disconnect();this.map.delete(id);this.pcm.delete(id);}}writeAudio(data,id){const c=this.map.get(id);if(!c)return;let b=Buffer.concat([this.pcm.get(id)||Buffer.alloc(0),data]);while(b.length>=3840){const frame=b.subarray(0,3840);b=b.subarray(3840);try{c.sendVoice(this.enc.encode(frame,960),4);}catch{}}this.pcm.set(id,b);}status(){return[...this.map.keys()];}}
+import { Client, generateIdentity } from "@honeybbq/teamspeak-client";
+import OpusScript from "opusscript";
+
+export class TS3Manager {
+  constructor() {
+    this.map = new Map();
+    this.pcm = new Map();
+    this.encoder = new OpusScript(48000, 2, OpusScript.Application.AUDIO);
+  }
+  async connect(config) {
+    await this.disconnect(config.id);
+    if (!config.enabled) throw new Error("Instanz ist ausgeschaltet");
+    if (!config.host) throw new Error("TS3-Server fehlt");
+    const client = new Client(generateIdentity(8), config.host, config.nickname || "MusikBot187", { serverPassword: config.password || undefined, defaultChannel: config.channel || undefined });
+    await client.connect();
+    await client.waitConnected(AbortSignal.timeout(15000));
+    this.map.set(config.id, client);
+    this.pcm.set(config.id, Buffer.alloc(0));
+  }
+  async disconnect(id) { const client = this.map.get(id); if (client) { try { await client.disconnect(); } finally { this.map.delete(id); this.pcm.delete(id); } } }
+  writeAudio(data, id) {
+    const client = this.map.get(id);
+    if (!client || !Buffer.isBuffer(data)) return;
+    let buffer = Buffer.concat([this.pcm.get(id) || Buffer.alloc(0), data]);
+    while (buffer.length >= 3840) { const frame = buffer.subarray(0, 3840); buffer = buffer.subarray(3840); try { client.sendVoice(this.encoder.encode(frame, 960), 4); } catch {} }
+    this.pcm.set(id, buffer);
+  }
+  status() { return [...this.map.keys()]; }
+}
