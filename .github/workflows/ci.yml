@@ -14,6 +14,8 @@ jobs:
           node-version: 22
       - run: cd backend && npm install --no-audit --no-fund
       - run: cd backend && npm test
+      - run: cd backend && npx playwright install --with-deps chromium
+      - run: cd backend && npm run test:browser
       - run: bash -n install-stable.sh
       - run: node --check backend/src/server.js
       - run: node --check backend/src/player.js
