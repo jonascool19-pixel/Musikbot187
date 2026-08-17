@@ -15,3 +15,10 @@ jobs:
       - run: cd backend && npm install --no-audit --no-fund
       - run: cd backend && npm test
       - run: bash -n install-stable.sh
+      - run: node --check backend/src/server.js
+      - run: node --check backend/src/player.js
+      - run: node --check backend/src/media.js
+      - run: node --check backend/src/discord.js
+      - run: node --check backend/src/ts3.js
+      - run: node --check backend/src/store.js
+      - run: node --check frontend/app.js
