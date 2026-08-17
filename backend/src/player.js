@@ -3,7 +3,9 @@ import { spawn } from "node:child_process";
 
 const YTDLP = process.env.MUSIKBOT187_YTDLP || "yt-dlp";
 const FFMPEG = process.env.MUSIKBOT187_FFMPEG || "ffmpeg";
+const RECOVERY_DELAYS = [2000, 5000, 10000, 20000, 30000, 60000];
 function clampVolume(value) { const n = Number(value); return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0; }
+function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 export class Player extends EventEmitter {
   queue = [];
@@ -49,13 +51,9 @@ export class Player extends EventEmitter {
     const p = spawn(YTDLP, args, { stdio: ["ignore", "pipe", "pipe"] });
     this.resolver = p;
     let out = "", err = "", settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      try { p.kill("SIGTERM"); } catch {}
-      if (this.resolver === p) this.resolver = null;
-    }, 30000);
     await new Promise((resolve, reject) => {
       const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); fn(value); };
+      const timer = setTimeout(() => { try { p.kill("SIGTERM"); } catch {} finish(reject, new Error("Zeitüberschreitung beim Auflösen der Audioquelle")); }, 30000);
       p.stdout.on("data", d => { out += d; });
       p.stderr.on("data", d => { err += d; });
       p.on("error", e => finish(reject, e));
@@ -66,6 +64,37 @@ export class Player extends EventEmitter {
     if (!url) throw new Error("yt-dlp hat keine abspielbare URL geliefert");
     return url;
   }
+  async playSource(item, run) {
+    const source = await this.resolve(item);
+    if (run !== this.generation) return "cancelled";
+    const ff = spawn(FFMPEG, ["-hide_banner", "-loglevel", "error", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "-af", `volume=${this.volume / 100}`, "pipe:1"], { stdio: ["ignore", "pipe", "pipe"] });
+    this.ff = ff;
+    if (this.paused) { try { ff.kill("SIGSTOP"); } catch {} }
+    ff.stdout.on("data", d => this.emit("audio", Buffer.from(d)));
+    ff.stderr.on("data", d => { const message = String(d).trim(); if (message) this.emit("diagnostic", message); });
+    const code = await new Promise(resolve => { ff.on("error", () => resolve(-1)); ff.on("close", code => resolve(code)); });
+    if (this.ff === ff) this.ff = null;
+    if (run !== this.generation) return "cancelled";
+    return code === 0 ? "ended" : "failed";
+  }
+  async recover(item, run, reason) {
+    for (let attempt = 0; attempt < RECOVERY_DELAYS.length; attempt++) {
+      if (run !== this.generation) return false;
+      const delay = RECOVERY_DELAYS[attempt];
+      this.emit("diagnostic", `Audio-Verbindung verloren (${reason}). Wiederverbindung in ${Math.round(delay / 1000)}s – Versuch ${attempt + 1}/${RECOVERY_DELAYS.length}.`);
+      await wait(delay);
+      if (run !== this.generation) return false;
+      try {
+        const result = await this.playSource(item, run);
+        if (result === "ended") return true;
+        if (result === "cancelled") return false;
+        this.emit("diagnostic", `Wiederverbindungsversuch ${attempt + 1} fehlgeschlagen.`);
+      } catch (error) {
+        this.emit("diagnostic", `Wiederverbindungsversuch ${attempt + 1} fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    return false;
+  }
   async next() {
     if (!this.queue.length) { this.current = null; this.paused = false; this.emit("state"); return; }
     let item = this.queue.shift();
@@ -73,15 +102,19 @@ export class Player extends EventEmitter {
     this.current = item; this.emit("state");
     const run = ++this.generation;
     try {
-      const source = await this.resolve(item);
+      let result;
+      try { result = await this.playSource(item, run); }
+      catch (error) {
+        if (run !== this.generation) return;
+        const recovered = await this.recover(item, run, error instanceof Error ? error.message : String(error));
+        if (!recovered) throw error;
+        result = "ended";
+      }
       if (run !== this.generation) return;
-      const ff = spawn(FFMPEG, ["-hide_banner", "-loglevel", "error", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "-af", `volume=${this.volume / 100}`, "pipe:1"], { stdio: ["ignore", "pipe", "pipe"] });
-      this.ff = ff;
-      if (this.paused) { try { ff.kill("SIGSTOP"); } catch {} }
-      ff.stdout.on("data", d => this.emit("audio", Buffer.from(d)));
-      ff.stderr.on("data", d => { const message = String(d).trim(); if (message) this.emit("diagnostic", message); });
-      await new Promise(resolve => { ff.on("error", () => resolve()); ff.on("close", () => resolve()); });
-      if (this.ff === ff) this.ff = null;
+      if (result === "failed") {
+        const recovered = await this.recover(item, run, "FFmpeg wurde unerwartet beendet");
+        if (!recovered) { this.emit("diagnostic", "Audio konnte nach mehreren Wiederverbindungsversuchen nicht wiederhergestellt werden."); }
+      }
       if (run !== this.generation) return;
       if (this.mode === "repeat") this.queue.unshift(item);
       await this.next();
