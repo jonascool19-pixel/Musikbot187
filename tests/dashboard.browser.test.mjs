@@ -7,13 +7,9 @@ import { chromium } from "playwright";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const frontend = join(root, "frontend");
-
 const state = {
   settings: { theme: "dark", outputType: "discord" },
-  current: { title: "Browser Test Track" },
-  paused: false,
-  volume: 80,
-  mode: "queue",
+  current: { title: "Browser Test Track" }, paused: false, volume: 80, mode: "queue",
   queue: [{ id: "q1", title: "Queued Track", url: "http://example.test/audio.mp3", source: "radio" }]
 };
 const playlists = [{ id: "p1", name: "Test Playlist", items: [{ id: "pitem1", title: "Playlist Track", url: "http://example.test/p.mp3", source: "radio" }] }];
@@ -29,12 +25,10 @@ function json(res, body, status = 200) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
   if (url.pathname.startsWith("/api/")) {
+    if (url.pathname === "/api/setup/status") return json(res, { setup: false });
+    if (url.pathname === "/api/login") return json(res, { token: "browser-test-token", user: { name: "Browser Test", role: "admin" } });
     if (url.pathname === "/api/state") return json(res, state);
-    if (url.pathname === "/api/search") return json(res, {
-      youtube: [{ id: "y1", title: "YouTube Result", url: "https://youtube.com/watch?v=test", source: "youtube", duration: "3:00" }],
-      radio: [{ id: "r1", title: "Radio Result", url: "http://example.test/radio", source: "radio" }],
-      spotify: [{ id: "s1", title: "Spotify Result", url: "https://youtube.com/watch?v=spotify", source: "spotify", artist: "Artist" }]
-    });
+    if (url.pathname === "/api/search") return json(res, { youtube: [{ id: "y1", title: "YouTube Result", url: "https://youtube.com/watch?v=test", source: "youtube", duration: "3:00" }], radio: [{ id: "r1", title: "Radio Result", url: "http://example.test/radio", source: "radio" }], spotify: [{ id: "s1", title: "Spotify Result", url: "https://youtube.com/watch?v=spotify", source: "spotify", artist: "Artist" }] });
     if (url.pathname === "/api/playlists") return json(res, playlists);
     if (url.pathname === "/api/discord") return json(res, discord);
     if (url.pathname === "/api/ts3") return json(res, ts3);
@@ -46,42 +40,34 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/files") return json(res, [{ name: "test.mp3", path: "test.mp3", size: 1234 }]);
     if (url.pathname === "/api/settings") return json(res, { volume: 80, mode: "queue", outputType: "discord", outputId: "d1", theme: "dark", musicDir: "/music", networkInterface: "" });
     if (url.pathname === "/api/users") return json(res, [{ id: "u1", name: "admin", role: "admin" }]);
-    if (url.pathname === "/api/diagnostics") return json(res, [{ time: new Date().toISOString(), level: "info", source: "browser-test", message: "Smoke test" }]);
+    if (url.pathname === "/api/diagnostics") return json(res, [{ time: new Date().toISOString(), level: "error", source: "browser-test", message: "Smoke test diagnostic" }]);
     if (url.pathname === "/api/control") return json(res, { ok: true });
     if (url.pathname === "/api/spotify") return json(res, { configured: false });
     return json(res, {});
   }
-
   const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
   const safe = join(frontend, file);
   if (!safe.startsWith(frontend)) return json(res, { error: "forbidden" }, 403);
   try {
     const data = await readFile(safe);
     const type = file.endsWith(".html") ? "text/html" : file.endsWith(".js") ? "text/javascript" : "text/css";
-    res.writeHead(200, { "content-type": `${type}; charset=utf-8` });
-    res.end(data);
-  } catch {
-    res.writeHead(404); res.end("not found");
-  }
+    res.writeHead(200, { "content-type": `${type}; charset=utf-8` }); res.end(data);
+  } catch { res.writeHead(404); res.end("not found"); }
 });
 
 const port = await new Promise(resolve => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
-const consoleErrors = [];
-const pageErrors = [];
+const consoleErrors = [], pageErrors = [];
 page.on("console", msg => { if (msg.type() === "error") consoleErrors.push(msg.text()); });
 page.on("pageerror", err => pageErrors.push(String(err)));
 
 try {
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
-  await page.evaluate(() => {
-    state.token = "browser-test-token";
-    state.user = { name: "Browser Test", role: "admin" };
-    state.data = null;
-  });
-  await page.evaluate(() => render());
-
+  const inputs = page.locator("input");
+  await inputs.nth(0).fill("admin");
+  await inputs.nth(1).fill("password");
+  await page.locator("button").filter({ hasText: /Anmelden|Login|Einloggen/ }).first().click();
   await page.getByRole("button", { name: /Playlists/ }).click();
   await assertText(page, "Test Playlist");
   await page.getByRole("button", { name: /System/ }).click();
@@ -94,13 +80,18 @@ try {
   await assertText(page, "Test Guild");
   await page.getByRole("button", { name: /Voice-Kanäle laden/ }).click();
   await assertText(page, "Music");
+  await page.getByRole("button", { name: /Admin/ }).click();
+  await assertText(page, "Admin");
+  await page.getByRole("button", { name: /Fehlerlog/ }).click();
+  await assertText(page, "Fehlerlog");
+  await assertText(page, "Smoke test diagnostic");
+  await page.getByRole("button", { name: /Alles kopieren/ }).click();
   await page.getByRole("button", { name: /Player/ }).click();
   await page.getByPlaceholder(/Titel, Interpret/).fill("test track");
   await page.getByRole("button", { name: /Suchen/ }).click();
   await assertText(page, "YouTube Result");
   await page.getByRole("button", { name: /Queue leeren/ }).click();
   await page.getByRole("button", { name: /Abmelden/ }).click();
-
   assert.equal(consoleErrors.length, 0, `Browser console errors: ${consoleErrors.join(" | ")}`);
   assert.equal(pageErrors.length, 0, `Browser page errors: ${pageErrors.join(" | ")}`);
 } finally {
