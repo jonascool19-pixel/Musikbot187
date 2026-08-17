@@ -6,13 +6,33 @@ async function json(url, init) {
   return response.json();
 }
 
+function runYtdlp(args, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const p = spawn("yt-dlp", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "", err = "", settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { p.kill("SIGTERM"); } catch {}
+      reject(new Error("yt-dlp Suche hat das Zeitlimit überschritten"));
+    }, timeoutMs);
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+    p.stdout.on("data", d => { out += d; });
+    p.stderr.on("data", d => { err += d; });
+    p.on("error", e => finish(reject, e));
+    p.on("close", c => c === 0 ? finish(resolve, out) : finish(reject, new Error(err.trim() || "yt-dlp Suche fehlgeschlagen")));
+  });
+}
+
 export async function youtubeSearch(q) {
-  const p = spawn("yt-dlp", ["--flat-playlist", "--dump-single-json", "--skip-download", `ytsearch20:${q}`], { stdio: ["ignore", "pipe", "pipe"] });
-  let out = "", err = "";
-  p.stdout.on("data", (d) => { out += d; });
-  p.stderr.on("data", (d) => { err += d; });
-  await new Promise((resolve, reject) => { p.on("error", reject); p.on("close", (c) => c === 0 ? resolve() : reject(new Error(err.trim() || "yt-dlp Suche fehlgeschlagen"))); });
-  const data = JSON.parse(out);
+  const out = await runYtdlp(["--flat-playlist", "--dump-single-json", "--skip-download", `ytsearch20:${q}`]);
+  let data;
+  try { data = JSON.parse(out); } catch { throw new Error("yt-dlp lieferte ungültige Suchdaten"); }
   return (data.entries || []).slice(0, 20).map((x) => ({ id: String(x.id), title: String(x.title), url: String(x.webpage_url || x.url || `https://www.youtube.com/watch?v=${x.id}`), source: "youtube", thumbnail: x.thumbnail, duration: x.duration }));
 }
 
