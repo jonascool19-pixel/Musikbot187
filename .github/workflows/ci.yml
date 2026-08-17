@@ -65,12 +65,8 @@ jobs:
           for i in {1..30}; do docker exec musikbot187-ci systemctl is-system-running >/dev/null 2>&1 && break; sleep 1; done
           docker exec musikbot187-ci bash -lc '
             set -euo pipefail
-            curl --fail --silent --show-error --max-time 10 http://host.docker.internal:3000/ >/dev/null 2>&1 || true
-            curl --fail --silent --show-error http://host.docker.internal:8765/install-stable.sh -o /tmp/install-stable.sh 2>/dev/null || true
-            if [[ ! -s /tmp/install-stable.sh ]]; then
-              git clone git://host.docker.internal:29418/radiobot.git /tmp/installer-repo
-              cp /tmp/installer-repo/install-stable.sh /tmp/install-stable.sh
-            fi
+            git clone git://host.docker.internal:29418/radiobot.git /tmp/installer-repo
+            cp /tmp/installer-repo/install-stable.sh /tmp/install-stable.sh
             sed -i "s#REPO=\"https://github.com/jonascool19-pixel/radiobot.git\"#REPO=\"git://host.docker.internal:29418/radiobot.git\"#" /tmp/install-stable.sh
             chmod 0755 /tmp/install-stable.sh
             bash -n /tmp/install-stable.sh
@@ -88,7 +84,21 @@ jobs:
             grep -F "musikbot187 ALL=(root) NOPASSWD" /etc/sudoers.d/musikbot187
             systemctl is-active --quiet musikbot187
             test "$(systemctl show -p User --value musikbot187)" = musikbot187
-            curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3000/ >/dev/null
+            ready=0
+            for i in {1..30}; do
+              if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3000/ >/dev/null; then
+                ready=1
+                break
+              fi
+              sleep 1
+            done
+            if [[ "$ready" -ne 1 ]]; then
+              echo "MusikBot187 HTTP readiness timeout"
+              systemctl status musikbot187 --no-pager || true
+              journalctl -u musikbot187 --no-pager -n 100 || true
+              ss -lntp || true
+              exit 1
+            fi
           '
       - name: Ubuntu 24.04 CT-style preflight
         run: |
