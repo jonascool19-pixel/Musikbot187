@@ -1,7 +1,117 @@
-import os from 'node:os';import {stat,statfs} from 'node:fs/promises';import path from 'node:path';
-export function calculateCpuPercent(usedSeconds, elapsedSeconds, cpuCount){const cores=Math.max(1,Number(cpuCount)||1);if(!(elapsedSeconds>0)||!(usedSeconds>=0)||!Number.isFinite(elapsedSeconds)||!Number.isFinite(usedSeconds))return 0;return Math.min(100,Math.max(0,(usedSeconds/elapsedSeconds/cores)*100));}
-export function selectNetworkInterfaces(interfaces, selectedName=''){if(!selectedName)return interfaces;const selected=interfaces.find(x=>x.name===selectedName);return selected?[selected]:[];}
-let lastCpu=process.cpuUsage();let lastTime=process.hrtime.bigint();
-export function systemInfo(){const now=process.hrtime.bigint();const cpu=process.cpuUsage();const elapsed=Number(now-lastTime)/1e9;const used=(cpu.user-lastCpu.user+cpu.system-lastCpu.system)/1e6;const cpuPercent=calculateCpuPercent(used,elapsed,os.cpus().length);lastCpu=cpu;lastTime=now;const total=os.totalmem();const free=os.freemem();const usedMem=total-free;return{hostname:os.hostname(),platform:process.platform,arch:process.arch,node:process.version,uptime:os.uptime(),cpus:os.cpus().length,cpuPercent:Number(cpuPercent.toFixed(1)),memory:{total,free,used:usedMem,percent:Number((usedMem/total*100).toFixed(1))},load:os.loadavg()};}
-export function networkInfo(selectedName=''){const interfaces=Object.entries(os.networkInterfaces()).map(([name,values])=>({name,addresses:(values||[]).map(v=>({address:v.address,family:v.family,internal:v.internal}))}));return{hostname:os.hostname(),interfaces:selectNetworkInterfaces(interfaces,selectedName)};}
-export async function storageInfo(dir){try{const resolved=path.resolve(dir);const s=await stat(resolved);const fs=await statfs(resolved);const total=Number(fs.blocks)*Number(fs.bsize);const free=Number(fs.bavail)*Number(fs.bsize);const used=Math.max(0,total-free);return{path:resolved,exists:true,directory:s.isDirectory(),disk:{total,free,used,percent:total?Number((used/total*100).toFixed(1)):0}};}catch{return{path:path.resolve(dir),exists:false,directory:false,disk:null};}}
+import os from 'node:os';
+import { readFile } from 'node:fs/promises';
+import { stat, statfs } from 'node:fs/promises';
+import path from 'node:path';
+
+export function calculateCpuPercent(usedSeconds, elapsedSeconds, cpuCount) {
+  const cores = Math.max(1, Number(cpuCount) || 1);
+  if (!(elapsedSeconds > 0) || !(usedSeconds >= 0) || !Number.isFinite(elapsedSeconds) || !Number.isFinite(usedSeconds)) return 0;
+  return Math.min(100, Math.max(0, (usedSeconds / elapsedSeconds / cores) * 100));
+}
+
+export function selectNetworkInterfaces(interfaces, selectedName = '') {
+  if (!selectedName) return interfaces;
+  const selected = interfaces.find(x => x.name === selectedName);
+  return selected ? [selected] : [];
+}
+
+function parseProcNetDev(text) {
+  const interfaces = [];
+  for (const line of String(text).split('\n')) {
+    const match = line.match(/^\s*([^:]+):\s+(\d+)\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+)/);
+    if (!match) continue;
+    interfaces.push({ name: match[1].trim(), rxBytes: Number(match[2]), txBytes: Number(match[3]) });
+  }
+  return interfaces;
+}
+
+let lastCpu = process.cpuUsage();
+let lastTime = process.hrtime.bigint();
+let lastNetwork = null;
+
+export function systemInfo() {
+  const now = process.hrtime.bigint();
+  const cpu = process.cpuUsage();
+  const elapsed = Number(now - lastTime) / 1e9;
+  const used = (cpu.user - lastCpu.user + cpu.system - lastCpu.system) / 1e6;
+  const cpuPercent = calculateCpuPercent(used, elapsed, os.cpus().length);
+  lastCpu = cpu;
+  lastTime = now;
+  const total = os.totalmem();
+  const free = os.freemem();
+  const usedMem = total - free;
+  return {
+    hostname: os.hostname(),
+    platform: process.platform,
+    arch: process.arch,
+    node: process.version,
+    uptime: os.uptime(),
+    cpus: os.cpus().length,
+    cpuPercent: Number(cpuPercent.toFixed(1)),
+    memory: {
+      total,
+      free,
+      used: usedMem,
+      percent: Number((usedMem / total * 100).toFixed(1))
+    },
+    load: os.loadavg()
+  };
+}
+
+export async function networkInfo(selectedName = '') {
+  let traffic = [];
+  try {
+    traffic = parseProcNetDev(await readFile('/proc/net/dev', 'utf8'));
+  } catch {}
+
+  const now = process.hrtime.bigint();
+  const totalRxBytes = traffic.reduce((sum, x) => sum + x.rxBytes, 0);
+  const totalTxBytes = traffic.reduce((sum, x) => sum + x.txBytes, 0);
+  const elapsed = lastNetwork ? Math.max(0.001, Number(now - lastNetwork.time) / 1e9) : 0;
+  const rxBytesPerSecond = lastNetwork ? Math.max(0, (totalRxBytes - lastNetwork.rxBytes) / elapsed) : 0;
+  const txBytesPerSecond = lastNetwork ? Math.max(0, (totalTxBytes - lastNetwork.txBytes) / elapsed) : 0;
+  lastNetwork = { time: now, rxBytes: totalRxBytes, txBytes: totalTxBytes };
+
+  const addresses = Object.entries(os.networkInterfaces()).map(([name, values]) => ({
+    name,
+    addresses: (values || []).map(v => ({ address: v.address, family: v.family, internal: v.internal }))
+  }));
+  const selectedAddresses = selectNetworkInterfaces(addresses, selectedName);
+  const selectedNames = new Set(selectedAddresses.map(x => x.name));
+  const selectedTraffic = selectedName ? traffic.filter(x => selectedNames.has(x.name)) : traffic;
+  const selectedRxBytes = selectedTraffic.reduce((sum, x) => sum + x.rxBytes, 0);
+  const selectedTxBytes = selectedTraffic.reduce((sum, x) => sum + x.txBytes, 0);
+
+  const interfaces = selectedAddresses.map(item => {
+    const stat = traffic.find(x => x.name === item.name);
+    return {
+      ...item,
+      rxBytes: stat?.rxBytes || 0,
+      txBytes: stat?.txBytes || 0
+    };
+  });
+
+  return {
+    hostname: os.hostname(),
+    interfaces,
+    totalRxBytes: selectedName ? selectedRxBytes : totalRxBytes,
+    totalTxBytes: selectedName ? selectedTxBytes : totalTxBytes,
+    rxBytesPerSecond: selectedName ? Math.max(0, (selectedRxBytes - (lastNetwork?.selectedRxBytes ?? selectedRxBytes)) / elapsed) : rxBytesPerSecond,
+    txBytesPerSecond: selectedName ? Math.max(0, (selectedTxBytes - (lastNetwork?.selectedTxBytes ?? selectedTxBytes)) / elapsed) : txBytesPerSecond,
+    measuredSeconds: elapsed
+  };
+}
+
+export async function storageInfo(dir) {
+  try {
+    const resolved = path.resolve(dir);
+    const s = await stat(resolved);
+    const fs = await statfs(resolved);
+    const total = Number(fs.blocks) * Number(fs.bsize);
+    const free = Number(fs.bavail) * Number(fs.bsize);
+    const used = Math.max(0, total - free);
+    return { path: resolved, exists: true, directory: s.isDirectory(), disk: { total, free, used, percent: total ? Number((used / total * 100).toFixed(1)) : 0 } };
+  } catch {
+    return { path: path.resolve(dir), exists: false, directory: false, disk: null };
+  }
+}
