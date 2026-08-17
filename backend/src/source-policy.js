@@ -12,6 +12,21 @@ function blockedAddress(address) {
   return normalized === "::" || normalized === "::1" || normalized.startsWith("fc") || normalized.startsWith("fd") || /^fe[89ab]/.test(normalized) || normalized.startsWith("ff");
 }
 
+async function validateHttpTarget(value, label) {
+  let parsed;
+  try { parsed = new URL(value); } catch { throw new Error(`Ungültige ${label}-URL`); }
+  if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error(`${label}-URL muss HTTP(S) ohne Zugangsdaten sein`);
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || (net.isIP(hostname) && blockedAddress(hostname))) throw new Error(`${label}-URL zeigt auf ein nicht erlaubtes Netzwerkziel`);
+  try {
+    const records = await dns.lookup(hostname, { all: true, verbatim: true });
+    if (!records.length || records.some(record => blockedAddress(record.address))) throw new Error(`${label}-URL zeigt auf ein nicht erlaubtes Netzwerkziel`);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("nicht erlaubtes Netzwerkziel")) throw error;
+    throw new Error(`${label}-URL konnte nicht sicher geprüft werden`);
+  }
+}
+
 export async function validatePlaybackItem(item, dataDirectory) {
   if (!item || typeof item.url !== "string" || !item.url.trim()) throw new Error("Ungültige Audioquelle");
   const source = String(item.source || "youtube").toLowerCase();
@@ -24,19 +39,18 @@ export async function validatePlaybackItem(item, dataDirectory) {
     if (target !== root && !target.startsWith(prefix)) throw new Error("Datei liegt außerhalb des Musikverzeichnisses");
     return { ...item, source, url: target };
   }
-  if (source === "direct") {
-    let parsed;
-    try { parsed = new URL(value); } catch { throw new Error("Ungültige direkte Audio-URL"); }
-    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.port) throw new Error("Direkte Audio-URL muss HTTP(S) ohne Zugangsdaten oder Sonderport sein");
-    const hostname = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-    if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || (net.isIP(hostname) && blockedAddress(hostname))) throw new Error("Direkte Audio-URL zeigt auf ein nicht erlaubtes Netzwerkziel");
-    try {
-      const records = await dns.lookup(hostname, { all: true, verbatim: true });
-      if (!records.length || records.some(record => blockedAddress(record.address))) throw new Error("Direkte Audio-URL zeigt auf ein nicht erlaubtes Netzwerkziel");
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("nicht erlaubtes Netzwerkziel")) throw error;
-      throw new Error("Direkte Audio-URL konnte nicht sicher geprüft werden");
-    }
+  if (source === "direct" || source === "radio") {
+    await validateHttpTarget(value, source === "radio" ? "Radio" : "Direkte Audio");
+    return { ...item, source, url: value };
   }
+  if (source === "youtube") {
+    if (/^ytsearch\d*:/i.test(value)) return { ...item, source, url: value };
+    let parsed;
+    try { parsed = new URL(value); } catch { throw new Error("Ungültige YouTube-URL"); }
+    const hostname = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (!["youtube.com", "youtu.be", "music.youtube.com"].includes(hostname) || parsed.username || parsed.password) throw new Error("Nicht erlaubte YouTube-Quelle");
+    return { ...item, source, url: value };
+  }
+  if (!/^ytsearch\d*:/i.test(value) && !/^spotify:/i.test(value)) throw new Error("Nicht erlaubte Spotify-Quelle");
   return { ...item, source, url: value };
 }
