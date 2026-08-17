@@ -6,18 +6,9 @@ DATA="/var/lib/musikbot187"
 SERVICE_USER="musikbot187"
 
 if [[ $EUID -ne 0 ]]; then SUDO=sudo; else SUDO=""; fi
-if ! command -v apt-get >/dev/null 2>&1; then
-  echo "Unterstützt werden derzeit Debian/Ubuntu-Systeme mit apt-get."
-  exit 1
-fi
-if [[ "$(ps -p 1 -o comm= 2>/dev/null || true)" != "systemd" ]]; then
-  echo "Fehler: MusikBot187 benötigt systemd als PID 1. Bei einem Proxmox-CT bitte einen Ubuntu 24.04 CT mit systemd verwenden." >&2
-  exit 1
-fi
-if [[ ! -d /sys/fs/cgroup ]]; then
-  echo "Fehler: cgroups sind nicht verfügbar. Der Proxmox-CT muss cgroups/systemd zulassen." >&2
-  exit 1
-fi
+if ! command -v apt-get >/dev/null 2>&1; then echo "Unterstützt werden derzeit Debian/Ubuntu-Systeme mit apt-get."; exit 1; fi
+if [[ "$(ps -p 1 -o comm= 2>/dev/null || true)" != "systemd" ]]; then echo "Fehler: MusikBot187 benötigt systemd als PID 1. Bei einem Proxmox-CT bitte einen Ubuntu 24.04 CT mit systemd verwenden." >&2; exit 1; fi
+if [[ ! -d /sys/fs/cgroup ]]; then echo "Fehler: cgroups sind nicht verfügbar. Der Proxmox-CT muss cgroups/systemd zulassen." >&2; exit 1; fi
 
 $SUDO apt-get update
 $SUDO apt-get install -y curl git ffmpeg ca-certificates python3 sudo
@@ -34,10 +25,8 @@ command -v ffmpeg >/dev/null
 command -v node >/dev/null
 
 SETUP_TOKEN="$(node -e 'const {randomBytes}=require("node:crypto");process.stdout.write(randomBytes(32).toString("hex"))')"
-
 $SUDO systemctl stop musikbot187.service 2>/dev/null || true
 $SUDO rm -rf "$APP"
-
 if ! $SUDO getent passwd "$SERVICE_USER" >/dev/null; then $SUDO useradd --system --home /nonexistent --shell /usr/sbin/nologin "$SERVICE_USER"; fi
 $SUDO install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA" "$DATA/music"
 $SUDO install -d -m 0755 /usr/local/sbin
@@ -46,8 +35,8 @@ $SUDO git clone --depth 1 "$REPO" "$APP"
 cd "$APP/backend"
 $SUDO npm install --omit=dev --no-audit --no-fund
 $SUDO chown -R "$SERVICE_USER":"$SERVICE_USER" "$APP"
-
 $SUDO install -o root -g root -m 0755 "$APP/install/control.sh" /usr/local/sbin/musikbot187-control
+
 cat >/tmp/musikbot187.env <<ENV
 MUSIKBOT187_DATA_DIR=$DATA
 MUSIKBOT187_SETUP_TOKEN=$SETUP_TOKEN
@@ -82,7 +71,6 @@ RestartSec=3
 User=$SERVICE_USER
 Group=$SERVICE_USER
 UMask=0077
-NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
@@ -104,14 +92,7 @@ rm -f /tmp/musikbot187.service
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable --now musikbot187
 
-if $SUDO systemctl is-active --quiet musikbot187; then
-  echo "MusikBot187 wurde erfolgreich gestartet."
-else
-  echo "MusikBot187 konnte nicht gestartet werden." >&2
-  $SUDO systemctl --no-pager --full status musikbot187 || true
-  exit 1
-fi
-
+if $SUDO systemctl is-active --quiet musikbot187; then echo "MusikBot187 wurde erfolgreich gestartet."; else echo "MusikBot187 konnte nicht gestartet werden." >&2; $SUDO systemctl --no-pager --full status musikbot187 || true; exit 1; fi
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 BASE_URL="http://${IP:-SERVER-IP}:3000"
 printf '\nMusikBot187 läuft: %s/\n' "$BASE_URL"
