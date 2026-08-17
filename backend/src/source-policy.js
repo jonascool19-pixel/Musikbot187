@@ -25,7 +25,7 @@ function blockedAddress(address) {
   if (family !== 6) return true;
   let normalized = String(address).toLowerCase();
   if (normalized.includes('%')) normalized = normalized.split('%')[0];
-  if (normalized.startsWith('::ffff:') && net.isIP(normalized.slice(7)) === 4) return blockedIpv4(normalized.slice(7));
+  if (normalized.startsWith('::ffff:')) return true;
   return normalized === '::' || normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || /^fe[89ab]/.test(normalized) || normalized.startsWith('ff');
 }
 
