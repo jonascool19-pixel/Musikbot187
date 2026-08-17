@@ -1,5 +1,6 @@
 (() => {
   let authHeader = '';
+  document.addEventListener('click', event => { if (event.target.closest?.('#logout')) authHeader = ''; }, true);
   const nativeFetch = window.fetch.bind(window);
   window.fetch = async (input, init = {}) => {
     try {
@@ -10,16 +11,12 @@
     return nativeFetch(input, init);
   };
   const q = selector => document.querySelector(selector);
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+  const esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[char]));
   const api = (path, options = {}) => {
     const headers = new Headers(options.headers || {});
     if (authHeader && !headers.has('Authorization')) headers.set('Authorization', authHeader);
     options.headers = headers;
-    return nativeFetch(path, options).then(async response => {
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw Error(body.error || `HTTP ${response.status}`);
-      return body;
-    });
+    return nativeFetch(path, options).then(async response => { const body = await response.json().catch(() => ({})); if (!response.ok) throw Error(body.error || `HTTP ${response.status}`); return body; });
   };
   const post = (path, body = {}) => api(path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   function note(text) { const node = q('#notice'); if (!node) return; node.textContent = text; node.classList.add('show'); setTimeout(() => node.classList.remove('show'), 3500); }
@@ -52,10 +49,8 @@
     } catch (error) { note(error.message); }
   }
   async function playFile(file) {
-    try {
-      await post('/api/play', { items: [{ id: crypto.randomUUID(), title: file.name, url: file.path, source: 'file' }] });
-      note(`„${file.name}“ zur Wiedergabe hinzugefügt.`);
-    } catch (error) { note(error.message); }
+    try { await post('/api/play', { items: [{ id: crypto.randomUUID(), title: file.name, url: file.path, source: 'file' }] }); note(`„${file.name}“ zur Wiedergabe hinzugefügt.`); }
+    catch (error) { note(error.message); }
   }
   async function renderMusic() {
     const view = q('#view');
@@ -63,50 +58,29 @@
     document.querySelectorAll('.navbtn').forEach(button => button.classList.toggle('active', button.dataset.tab === 'music'));
     try {
       const files = await api('/api/files');
-      view.innerHTML = `<section class="music-library"><div class="sectionhead"><div><h2>Musik</h2><small>Eigene Musikdateien im Musikverzeichnis</small></div><button id="musicRefresh">↻ Aktualisieren</button></div><div class="upload-row"><input id="musicUpload" type="file" accept=".mp3,.wav,.flac,.ogg,.opus,.m4a,.aac,.webm,audio/*"><button id="musicUploadButton">⬆ Datei hochladen</button></div><div id="musicList" class="list">${files.length ? files.map(file => `<div class="listrow"><span>🎵 <b>${esc(file.name)}</b><small>${esc(file.path)}</small></span><div class="controls"><button data-mplay="${esc(file.name)}">▶ Play</button><button data-mpl="${esc(file.name)}">＋ Playlist</button><button data-mdel="${esc(file.name)}" class="danger">Entfernen</button></div></div>`).join('') : '<p class="muted">Noch keine Musik hochgeladen.</p>'}</div></section>`;
+      view.innerHTML = `<section class="music-library"><div class="sectionhead"><div><h2>Musik</h2><small>Eigene Musikdateien im Musikverzeichnis</small></div><button id="musicRefresh">↻ Aktualisieren</button></div><div class="upload-row"><input id="musicUpload" type="file" accept=".mp3,.wav,.flac,.ogg,.opus,.m4a,.aac,.webm,audio/*"><button id="musicUploadButton">⬆ Datei hochladen</button></div><div id="musicList" class="list">${files.length ? files.map(file => `<div class="listrow"><span>🎵 <b>${esc(file.name)}</b><small>${esc(file.name)}</small></span><div class="controls"><button data-mplay="${esc(file.name)}">▶ Play</button><button data-mpl="${esc(file.name)}">＋ Playlist</button><button data-mdel="${esc(file.name)}" class="danger">Entfernen</button></div></div>`).join('') : '<p class="muted">Noch keine Musik hochgeladen.</p>'}</div></section>`;
       q('#musicRefresh').onclick = renderMusic;
       q('#musicUploadButton').onclick = async () => {
-        const input = q('#musicUpload');
-        const file = input.files?.[0];
+        const input = q('#musicUpload'); const file = input.files?.[0];
         if (!file) return note('Bitte zuerst eine Musikdatei auswählen.');
         const form = new FormData(); form.append('file', file, file.name);
-        try {
-          await api('/api/music/upload', { method:'POST', body:form });
-          note(`„${file.name}“ hochgeladen.`);
-          await renderMusic();
-        } catch (error) { note(error.message); }
-      };
-      document.querySelectorAll('[data-mplay]').forEach(button => button.onclick = async () => {
-        const file = files.find(item => item.name === button.dataset.mplay); if (file) await playFile(file);
-      });
-      document.querySelectorAll('[data-mpl]').forEach(button => button.onclick = async () => {
-        const file = files.find(item => item.name === button.dataset.mpl); if (file) await addToPlaylist({ title:file.name, url:file.path, source:'file' });
-      });
-      document.querySelectorAll('[data-mdel]').forEach(button => button.onclick = async () => {
-        if (!confirm(`„${button.dataset.mdel}“ wirklich entfernen?`)) return;
-        try { await api(`/api/music/${encodeURIComponent(button.dataset.mdel)}`, { method:'DELETE' }); note('Datei entfernt.'); await renderMusic(); }
+        try { await api('/api/music/upload', { method:'POST', body:form }); note(`„${file.name}“ hochgeladen.`); await renderMusic(); }
         catch (error) { note(error.message); }
-      });
+      };
+      document.querySelectorAll('[data-mplay]').forEach(button => button.onclick = async () => { const file = files.find(item => item.name === button.dataset.mplay); if (file) await playFile(file); });
+      document.querySelectorAll('[data-mpl]').forEach(button => button.onclick = async () => { const file = files.find(item => item.name === button.dataset.mpl); if (file) await addToPlaylist({ title:file.name, url:file.path, source:'file' }); });
+      document.querySelectorAll('[data-mdel]').forEach(button => button.onclick = async () => { if (!confirm(`„${button.dataset.mdel}“ wirklich entfernen?`)) return; try { await api(`/api/music/${encodeURIComponent(button.dataset.mdel)}`, { method:'DELETE' }); note('Datei entfernt.'); await renderMusic(); } catch (error) { note(error.message); } });
     } catch (error) { note(error.message); }
   }
   function enhanceSearchResults() {
     document.querySelectorAll('#results .result').forEach(result => {
       if (result.querySelector('.music-playlist-plus')) return;
-      const buttons = result.querySelector('.controls');
-      if (!buttons) return;
+      const buttons = result.querySelector('.controls'); if (!buttons) return;
       const playlistButton = [...buttons.querySelectorAll('button')].find(button => /Playlist/.test(button.textContent));
       if (playlistButton) { playlistButton.classList.add('music-playlist-plus'); playlistButton.textContent = '＋ Playlist'; }
     });
   }
-  const observer = new MutationObserver(() => {
-    navButton();
-    enhanceSearchResults();
-  });
-  const start = () => {
-    if (!q('#app')) return setTimeout(start, 250);
-    observer.observe(q('#app'), { childList:true, subtree:true });
-    navButton();
-    enhanceSearchResults();
-  };
+  const observer = new MutationObserver(() => { navButton(); enhanceSearchResults(); });
+  const start = () => { if (!q('#app')) return setTimeout(start, 250); observer.observe(q('#app'), { childList:true, subtree:true }); navButton(); enhanceSearchResults(); };
   start();
 })();
