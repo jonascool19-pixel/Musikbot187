@@ -1,5 +1,5 @@
 import { Client, ChannelType, GatewayIntentBits, REST, Routes, SlashCommandBuilder } from "discord.js";
-import { StreamType, createAudioPlayer, createAudioResource, joinVoiceChannel } from "@discordjs/voice";
+import { StreamType, VoiceConnectionStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } from "@discordjs/voice";
 import { PassThrough } from "node:stream";
 
 class Runtime {
@@ -7,6 +7,8 @@ class Runtime {
     this.cfg = cfg;
     this.client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.MessageContent] });
     this.connecting = false;
+    this.voiceRecovering = false;
+    this.voiceRecoveryTimer = null;
   }
 }
 
@@ -81,7 +83,14 @@ export class DiscordManager {
     }
   }
   async replyError(interaction, error) { const text = `Fehler: ${error instanceof Error ? error.message : String(error)}`; if (interaction.replied || interaction.deferred) await interaction.followUp({ content: text, ephemeral: true }); else await interaction.reply({ content: text, ephemeral: true }); }
-  async disconnect(id) { const runtime = this.map.get(id); if (!runtime) return; try { runtime.voice?.destroy(); runtime.stream?.end(); await runtime.client.destroy(); } finally { this.map.delete(id); } }
+  async disconnect(id) {
+    const runtime = this.map.get(id);
+    if (!runtime) return;
+    if (runtime.voiceRecoveryTimer) clearTimeout(runtime.voiceRecoveryTimer);
+    runtime.voiceRecoveryTimer = null;
+    runtime.voiceRecovering = false;
+    try { runtime.voice?.destroy(); runtime.stream?.end(); await runtime.client.destroy(); } finally { this.map.delete(id); }
+  }
   async join(id) {
     const runtime = this.map.get(id);
     if (!runtime) throw new Error("Instanz nicht verbunden. Erst verbinden.");
@@ -90,8 +99,24 @@ export class DiscordManager {
     if (!guild) throw new Error("Discord-Server wurde nicht gefunden");
     const channel = guild.channels.cache.get(runtime.cfg.channelId);
     if (!channel || channel.type !== ChannelType.GuildVoice) throw new Error("Der ausgewählte Voice-Kanal wurde nicht gefunden");
+    if (runtime.voiceRecoveryTimer) clearTimeout(runtime.voiceRecoveryTimer);
+    runtime.voiceRecoveryTimer = null;
+    runtime.voiceRecovering = false;
     runtime.voice?.destroy();
     runtime.voice = joinVoiceChannel({ guildId: guild.id, channelId: channel.id, adapterCreator: guild.voiceAdapterCreator });
+    runtime.voice.on("stateChange", (oldState, newState) => {
+      if (newState.status !== VoiceConnectionStatus.Disconnected || runtime.voiceRecovering) return;
+      runtime.voiceRecovering = true;
+      runtime.voiceRecoveryTimer = setTimeout(() => {
+        runtime.voiceRecoveryTimer = null;
+        this.join(id).catch((error) => {
+          runtime.voiceRecovering = false;
+          console.error(`Discord Voice Recovery ${runtime.cfg.name}:`, error);
+          this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Wiederverbindung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+        });
+      }, 5000);
+      this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Verbindung verloren; Wiederverbindung in 5s.`);
+    });
     runtime.player = createAudioPlayer();
     runtime.voice.subscribe(runtime.player);
     runtime.stream = new PassThrough();
