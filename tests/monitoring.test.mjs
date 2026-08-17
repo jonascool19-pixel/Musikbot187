@@ -24,7 +24,7 @@ test("network monitoring exposes aggregate traffic and per-second counters", asy
 
 test("dashboard contains one-second live monitoring and Discord controls", async () => {
   const app = await readFile(new URL("../frontend/app.js", import.meta.url), "utf8");
-  assert.match(app, /setInterval\(pollMonitor,1000\)/);
+  assert.match(app, /setInterval\(pollMonitor,\s*1000\)/);
   assert.match(app, /Bot zu Discord hinzufügen/);
   assert.match(app, /Einladungslink erstellen/);
   assert.match(app, /Neu verbinden/);
