@@ -1,18 +1,41 @@
-import {mkdir,readFile,writeFile} from 'node:fs/promises';
-import path from 'node:path';
-import {randomUUID,scryptSync,timingSafeEqual} from 'node:crypto';
-const DATA_DIR=process.env.MUSIKBOT187_DATA_DIR||'/var/lib/musikbot187';
-const DATA_FILE=path.join(DATA_DIR,'data.json');
-let state=defaultState(); const sessions=new Map();
-function defaultState(){return{settings:{volume:75,mode:'queue',outputType:'none',outputId:'',networkInterface:'',filesDirectory:'/var/lib/musikbot187/music',theme:'dark'},users:[],playlists:[],discord:[],ts3:[],diagnostics:[],dashboard:[{id:'player',title:'Player',enabled:true},{id:'queue',title:'Warteschlange',enabled:true},{id:'search',title:'Suche',enabled:true},{id:'connections',title:'Verbindungen',enabled:true}],integration:{spotifyClientId:'',spotifyClientSecret:''}};}
-export async function load(){await mkdir(DATA_DIR,{recursive:true});try{state=JSON.parse(await readFile(DATA_FILE,'utf8'));}catch{state=defaultState();await save();}state.settings??=defaultState().settings;state.settings.filesDirectory||='/var/lib/musikbot187/music';await mkdir(state.settings.filesDirectory,{recursive:true});}
-export async function save(){await mkdir(DATA_DIR,{recursive:true});await writeFile(DATA_FILE,JSON.stringify(state,null,2),'utf8');}
-export const db=()=>state;
-export function createAdmin(name,password){state.users.push({id:randomUUID(),name,role:'admin',hash:scryptSync(password,'musikbot187',32).toString('hex')});}
-export function addUser(name,password,role='user'){state.users.push({id:randomUUID(),name,role,hash:scryptSync(password,'musikbot187',32).toString('hex')});}
-export function login(name,password){const u=state.users.find(x=>x.name===name);if(!u)return null;const got=scryptSync(password,'musikbot187',32),expected=Buffer.from(u.hash,'hex');if(got.length!==expected.length||!timingSafeEqual(got,expected))return null;const token=Buffer.from(`${u.id}:${Date.now()}:${randomUUID()}`).toString('base64url');sessions.set(token,u.id);return{token,user:{id:u.id,name:u.name,role:u.role}};}
-export function userFromToken(auth){if(!auth)return null;const token=auth.replace(/^Bearer\s+/i,'');const id=sessions.get(token);return id?state.users.find(x=>x.id===id)||null:null;}
-export function setDiscord(x){const i=state.discord.findIndex(v=>v.id===x.id);if(i>=0)state.discord[i]=x;else state.discord.push(x);}
-export function publicDiscord(){return state.discord.map(({token,...x})=>({...x,hasToken:Boolean(token)}));}
-export function publicTS3(){return state.ts3.map(({password,...x})=>({...x,hasPassword:Boolean(password)}));}
-export function publicState(){return{settings:state.settings,playlists:state.playlists,discord:publicDiscord(),ts3:publicTS3(),diagnostics:state.diagnostics,dashboard:state.dashboard,integration:{spotifyConfigured:Boolean(state.integration.spotifyClientId&&state.integration.spotifyClientSecret)}};}
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+
+const DATA_DIR = process.env.MUSIKBOT187_DATA_DIR || path.resolve(process.cwd(), "../data");
+const FILE = path.join(DATA_DIR, "data.json");
+let state = null;
+const sessions = new Map();
+
+const defaults = () => ({
+  users: [],
+  settings: { volume: 80, mode: "queue", outputType: "none", outputId: "", networkInterface: "", filesDirectory: path.join(DATA_DIR, "music"), theme: "dark" },
+  playlists: [],
+  discord: [],
+  ts3: [],
+  dashboard: [],
+  diagnostics: [],
+  integration: { spotifyClientId: "", spotifyClientSecret: "" }
+});
+
+export async function load() {
+  await mkdir(DATA_DIR, { recursive: true });
+  try { state = JSON.parse(await readFile(FILE, "utf8")); }
+  catch { state = defaults(); await save(); }
+  state = { ...defaults(), ...state, settings: { ...defaults().settings, ...(state.settings || {}) }, integration: { ...defaults().integration, ...(state.integration || {}) } };
+  state.settings.filesDirectory = path.resolve(state.settings.filesDirectory || path.join(DATA_DIR, "music"));
+  return state;
+}
+export function db() { if (!state) throw new Error("Datenbank wurde noch nicht geladen"); return state; }
+export async function save() { await mkdir(DATA_DIR, { recursive: true }); const tmp = `${FILE}.tmp`; await writeFile(tmp, JSON.stringify(state, null, 2), { mode: 0o600 }); await writeFile(FILE, await readFile(tmp), { mode: 0o600 }); }
+
+function hash(password) { return scryptSync(password, "musikbot187", 32); }
+function check(password, hex) { try { return timingSafeEqual(hash(password), Buffer.from(hex, "hex")); } catch { return false; } }
+function publicUser(u) { return { id: u.id, name: u.name, role: u.role }; }
+
+export function createAdmin(name, password) { const u = { id: randomUUID(), name, hash: hash(password).toString("hex"), role: "admin" }; db().users.push(u); return publicUser(u); }
+export function login(name, password) { const u = db().users.find((x) => x.name === name && check(password, x.hash)); if (!u) return null; const token = `${randomUUID()}${randomUUID()}`; sessions.set(token, { userId: u.id, expires: Date.now() + 7 * 24 * 60 * 60 * 1000 }); return { token, user: publicUser(u) }; }
+export function user(header) { if (!header) return null; const token = String(header).replace(/^Bearer\s+/i, ""); const s = sessions.get(token); if (!s || s.expires < Date.now()) { sessions.delete(token); return null; } return db().users.find((x) => x.id === s.userId) || null; }
+export function publicDiscord() { return db().discord.map(({ token, ...x }) => x); }
+export function publicTS3() { return db().ts3.map(({ password, ...x }) => x); }
+export function setDiscord(instance) { const i = db().discord.findIndex((x) => x.id === instance.id); if (i >= 0) db().discord[i] = instance; else db().discord.push(instance); }
