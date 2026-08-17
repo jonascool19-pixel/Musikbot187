@@ -2,10 +2,20 @@ import { Client, ChannelType, GatewayIntentBits, REST, Routes, SlashCommandBuild
 import { StreamType, VoiceConnectionStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } from "@discordjs/voice";
 import { PassThrough } from "node:stream";
 
+export function discordIntents(prefix = "") {
+  const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates];
+  if (String(prefix || "").trim()) intents.push(GatewayIntentBits.MessageContent);
+  return intents;
+}
+
+export function discordCommandAllowed(interaction, guildId) {
+  return Boolean(interaction?.guildId && guildId && interaction.guildId === guildId);
+}
+
 class Runtime {
   constructor(cfg) {
     this.cfg = cfg;
-    this.client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.MessageContent] });
+    this.client = new Client({ intents: discordIntents(cfg.prefix) });
     this.connecting = false;
     this.voiceRecovering = false;
     this.voiceRecoveryTimer = null;
@@ -42,9 +52,16 @@ export class DiscordManager {
     if (!cfg.token) throw new Error("Bot-Token fehlt");
     const runtime = new Runtime(cfg);
     runtime.connecting = true;
-    runtime.client.on("interactionCreate", (interaction) => { if (interaction.isChatInputCommand()) this.handleSlash(interaction).catch((e) => this.replyError(interaction, e)); });
+    runtime.client.on("interactionCreate", (interaction) => {
+      if (!interaction.isChatInputCommand()) return;
+      if (!discordCommandAllowed(interaction, runtime.cfg.guildId)) {
+        void interaction.reply({ content: "Dieser Bot-Befehl ist für diesen Discord-Server nicht freigeschaltet.", ephemeral: true }).catch(() => {});
+        return;
+      }
+      this.handleSlash(interaction).catch((e) => this.replyError(interaction, e));
+    });
     runtime.client.on("messageCreate", (message) => {
-      if (message.author.bot || !message.guild || !message.content || !message.content.startsWith(cfg.prefix || "!")) return;
+      if (message.author.bot || !message.guild || (cfg.guildId && message.guild.id !== cfg.guildId) || !message.content || !message.content.startsWith(cfg.prefix || "!")) return;
       const parts = message.content.slice((cfg.prefix || "!").length).trim().split(/\s+/);
       const command = parts.shift()?.toLowerCase();
       try {
