@@ -19,11 +19,19 @@ if ! command -v node >/dev/null 2>&1 || (( $(node -p 'Number(process.versions.no
   $SUDO apt-get install -y nodejs
 fi
 
+$SUDO curl -fL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+$SUDO chmod 0755 /usr/local/bin/yt-dlp
+command -v yt-dlp >/dev/null
+command -v ffmpeg >/dev/null
+command -v node >/dev/null
+
 $SUDO rm -rf "$APP"
-$SUDO install -d "$DATA/music" /usr/local/sbin
+$SUDO install -d -m 0750 "$DATA/music" /usr/local/sbin
 $SUDO git clone --depth 1 "$REPO" "$APP"
+
 cd "$APP/backend"
 npm install --omit=dev --no-audit --no-fund
+
 $SUDO install -m 0755 install/control.sh /usr/local/sbin/musikbot187-control
 cat >/tmp/musikbot187.env <<ENV
 MUSIKBOT187_DATA_DIR=$DATA
@@ -32,6 +40,7 @@ HOST=0.0.0.0
 PORT=3000
 ENV
 $SUDO install -m 0640 /tmp/musikbot187.env /etc/musikbot187.env
+
 cat >/tmp/musikbot187.service <<UNIT
 [Unit]
 Description=MusikBot187
@@ -53,5 +62,14 @@ UNIT
 $SUDO install -m 0644 /tmp/musikbot187.service /etc/systemd/system/musikbot187.service
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable --now musikbot187
+
+if $SUDO systemctl is-active --quiet musikbot187; then
+  echo "MusikBot187 wurde erfolgreich gestartet."
+else
+  echo "MusikBot187 konnte nicht gestartet werden." >&2
+  $SUDO systemctl --no-pager --full status musikbot187 || true
+  exit 1
+fi
+
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 printf '\nMusikBot187 läuft: http://%s:3000/\n' "${IP:-SERVER-IP}"
