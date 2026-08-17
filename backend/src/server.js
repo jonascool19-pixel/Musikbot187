@@ -59,9 +59,9 @@ app.post("/api/setup", async (request, reply) => {
   if (!name || password.length < 5) return reply.code(400).send({ error: "Name und Passwort mit mindestens 5 Zeichen erforderlich" });
   createAdmin(name, password);
   await save();
-  return login(name, password);
+  return login(name, password, request.ip);
 });
-app.post("/api/login", async (request, reply) => { const session = login(String(request.body?.name || "").trim(), String(request.body?.password || "")); return session || reply.code(401).send({ error: "Ungültige Anmeldung" }); });
+app.post("/api/login", async (request, reply) => { const session = login(String(request.body?.name || "").trim(), String(request.body?.password || ""), request.ip); return session || reply.code(401).send({ error: "Ungültige Anmeldung" }); });
 
 app.get("/api/state", async (request, reply) => { if (!auth(request, reply)) return; return { ...player.snapshot(), settings: db().settings, dashboard: db().dashboard, discord: publicDiscord(), ts3: publicTS3() }; });
 app.get("/api/search", async (request, reply) => {
