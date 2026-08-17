@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import statik from "@fastify/static";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { db, load, save, createAdmin, createUser, login, user, publicDiscord, publicTS3, setDiscord } from "./store.js";
 import { youtubeSearch, radioSearch, spotifySearch } from "./media.js";
