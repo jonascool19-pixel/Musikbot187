@@ -18,6 +18,7 @@ jobs:
       - run: cd backend && npx playwright install --with-deps chromium
       - run: cd backend && npm run test:browser
       - run: bash -n install-stable.sh
+      - run: bash -n install/control.sh
       - run: node --check backend/src/server.js
       - run: node --check backend/src/player.js
       - run: node --check backend/src/media.js
@@ -40,7 +41,7 @@ jobs:
           grep -F 'SERVICE_USER="musikbot187"' install-stable.sh
           grep -F 'User=$SERVICE_USER' install-stable.sh
           grep -F 'UMask=0077' install-stable.sh
-          grep -F 'NoNewPrivileges=true' install-stable.sh
+          grep -F 'NoNewPrivileges=false' install-stable.sh
           grep -F 'PrivateDevices=true' install-stable.sh
           grep -F 'ProtectSystem=strict' install-stable.sh
           grep -F 'ProtectHome=true' install-stable.sh
@@ -56,6 +57,8 @@ jobs:
           grep -F 'MUSIKBOT187_CONTROL' install-stable.sh
           grep -F 'systemd als PID 1' install-stable.sh
           grep -F 'cgroups/systemd' install-stable.sh
+          grep -F 'systemctl reboot' install/control.sh
+          grep -F 'systemctl poweroff' install/control.sh
       - name: Build Ubuntu 24.04 systemd installer test image
         run: |
           cat > /tmp/Dockerfile.musikbot187 <<'DOCKERFILE'
@@ -97,7 +100,7 @@ jobs:
             grep -F "User=musikbot187" /etc/systemd/system/musikbot187.service
             grep -F "ProtectSystem=strict" /etc/systemd/system/musikbot187.service
             grep -F "ProtectHome=true" /etc/systemd/system/musikbot187.service
-            grep -F "NoNewPrivileges=true" /etc/systemd/system/musikbot187.service
+            grep -F "NoNewPrivileges=false" /etc/systemd/system/musikbot187.service
             grep -F "PrivateDevices=true" /etc/systemd/system/musikbot187.service
             grep -F "UMask=0077" /etc/systemd/system/musikbot187.service
             visudo -cf /etc/sudoers.d/musikbot187
@@ -119,6 +122,7 @@ jobs:
               ss -lntp || true
               exit 1
             fi
+            sudo -u musikbot187 /usr/local/sbin/musikbot187-control restart-bot
           '
       - name: Ubuntu 24.04 CT-style preflight
         run: |
