@@ -1,20 +1,291 @@
-import Fastify from 'fastify';import cors from '@fastify/cors';import statik from '@fastify/static';import {mkdir,readdir} from 'node:fs/promises';import {randomUUID} from 'node:crypto';import path from 'node:path';import {execFile} from 'node:child_process';import {promisify} from 'node:util';
-import {db,load,save,createAdmin,addUser,login,userFromToken,publicState,publicDiscord,publicTS3,setDiscord} from './store.js';import {youtubeSearch,radioSearch,spotifySearch} from './media.js';import {Player} from './player.js';import {DiscordManager} from './discord.js';import {TS3Manager} from './ts3.js';import {networkInfo,storageInfo,systemInfo} from './system.js';
-const exec=promisify(execFile);const app=Fastify({logger:true});await load();const player=new Player(db().settings);const discord=new DiscordManager(player);const ts3=new TS3Manager();const FRONTEND=path.resolve(process.cwd(),'../frontend');
-const diagnostic=message=>{db().diagnostics.unshift({time:new Date().toISOString(),message});db().diagnostics=db().diagnostics.slice(0,200);void save();};player.on('diagnostic',diagnostic);player.on('audio',d=>{if(db().settings.outputType==='discord')discord.writeAudio(d,db().settings.outputId);if(db().settings.outputType==='ts3')ts3.writeAudio(d,db().settings.outputId);});
-await app.register(cors,{origin:true});await app.register(statik,{root:FRONTEND,prefix:'/'});
-const auth=(r,q)=>{const u=userFromToken(r.headers.authorization);if(!u){void q.code(401).send({error:'Nicht angemeldet'});return null;}return u;};const admin=(r,q)=>{const u=auth(r,q);if(!u)return null;if(u.role!=='admin'){void q.code(403).send({error:'Administratorrechte erforderlich'});return null;}return u;};
-app.get('/api/health',async()=>({ok:true,name:'MusikBot187',version:'3.0.0'}));app.get('/api/setup',async()=>({initialized:db().users.length>0}));app.get('/api/setup-link',async r=>{const u=process.env.MUSIKBOT187_PUBLIC_URL?.trim();if(u)return{url:u.replace(/\/$/,'')+'/'};return{url:`${r.headers['x-forwarded-proto']||'http'}://${r.headers['x-forwarded-host']||r.headers.host||'localhost:3000'}/`};});
-app.post('/api/setup',async(r,q)=>{if(db().users.length)return q.code(409).send({error:'Bereits eingerichtet'});const b=r.body||{};if(!String(b.name||'').trim()||String(b.password||'').length<5)return q.code(400).send({error:'Name und Passwort mit mindestens 5 Zeichen erforderlich'});createAdmin(String(b.name).trim(),String(b.password));await save();return login(String(b.name).trim(),String(b.password));});app.post('/api/login',async(r,q)=>{const b=r.body||{};const s=login(String(b.name||''),String(b.password||''));if(!s)return q.code(401).send({error:'Ungültige Anmeldung'});return s;});
-app.get('/api/state',async(r,q)=>{if(!auth(r,q))return;return{...player.snapshot(),...publicState()};});app.get('/api/search',async(r,q)=>{if(!auth(r,q))return;const x=r.query||{};const term=String(x.q||'').trim(),source=String(x.source||'all');if(!term)return{youtube:[],radio:[],spotify:[]};const out={youtube:[],radio:[],spotify:[]};const jobs=[];if(source==='all'||source==='youtube')jobs.push(youtubeSearch(term).then(v=>out.youtube=v));if(source==='all'||source==='radio')jobs.push(radioSearch(term).then(v=>out.radio=v));if(source==='all'||source==='spotify')jobs.push(spotifySearch(term,db().integration).then(v=>out.spotify=v));const settled=await Promise.allSettled(jobs);settled.filter(x=>x.status==='rejected').forEach(x=>diagnostic(`Suche: ${x.reason instanceof Error?x.reason.message:String(x.reason)}`));return out;});
-app.post('/api/play',async(r,q)=>{if(!auth(r,q))return;const b=r.body||{};await player.enqueue(Array.isArray(b.items)?b.items:[]);return player.snapshot();});app.post('/api/play/:action',async(r,q)=>{if(!auth(r,q))return;const a=String(r.params.action),b=r.body||{};if(a==='pause')player.pause();else if(a==='resume')player.resume();else if(a==='stop')player.stop();else if(a==='skip')player.skip();else if(a==='clear')player.clear();else if(a==='volume')player.setVolume(Number(b.value));else if(a==='mode'&&['queue','repeat','shuffle'].includes(b.mode))player.setMode(b.mode);else return q.code(400).send({error:'Ungültige Player-Aktion'});db().settings.volume=player.volume;db().settings.mode=player.mode;await save();return player.snapshot();});app.delete('/api/queue/:index',async(r,q)=>{if(!auth(r,q))return;player.remove(Number(r.params.index));return player.snapshot();});
-app.get('/api/playlists',async(r,q)=>auth(r,q)?db().playlists:void 0);app.post('/api/playlists',async(r,q)=>{if(!auth(r,q))return;const p={id:randomUUID(),name:String((r.body||{}).name||'Neue Playlist'),items:[]};db().playlists.push(p);await save();return p;});app.get('/api/playlists/:id',async(r,q)=>{if(!auth(r,q))return;const p=db().playlists.find(x=>x.id===r.params.id);return p||q.code(404).send({error:'Playlist nicht gefunden'});});app.post('/api/playlists/:id/items',async(r,q)=>{if(!auth(r,q))return;const p=db().playlists.find(x=>x.id===r.params.id);if(!p)return q.code(404).send({error:'Playlist nicht gefunden'});p.items.push(...((r.body||{}).items||[]));await save();return p;});app.post('/api/playlists/:id/play',async(r,q)=>{if(!auth(r,q))return;const p=db().playlists.find(x=>x.id===r.params.id);if(!p)return q.code(404).send({error:'Playlist nicht gefunden'});await player.enqueue(p.items);return player.snapshot();});app.delete('/api/playlists/:id/items/:itemId',async(r,q)=>{if(!auth(r,q))return;const p=db().playlists.find(x=>x.id===r.params.id);if(!p)return q.code(404).send({error:'Playlist nicht gefunden'});p.items=p.items.filter(x=>x.id!==r.params.itemId);await save();return p;});
-app.get('/api/files',async(r,q)=>{if(!auth(r,q))return;const dir=path.resolve(db().settings.filesDirectory);await mkdir(dir,{recursive:true});return(await readdir(dir,{withFileTypes:true})).filter(x=>x.isFile()).map(x=>({name:x.name,path:path.join(dir,x.name)}));});app.get('/api/system',async(r,q)=>auth(r,q)?systemInfo():void 0);app.get('/api/network',async(r,q)=>auth(r,q)?networkInfo():void 0);app.get('/api/storage',async(r,q)=>auth(r,q)?storageInfo(db().settings.filesDirectory):void 0);
-app.put('/api/settings',async(r,q)=>{if(!admin(r,q))return;const b=r.body||{};if(typeof b.volume==='number')player.setVolume(b.volume);if(['queue','repeat','shuffle'].includes(b.mode))player.setMode(b.mode);if(['none','discord','ts3'].includes(b.outputType))db().settings.outputType=b.outputType;if(typeof b.outputId==='string')db().settings.outputId=b.outputId;if(typeof b.networkInterface==='string')db().settings.networkInterface=b.networkInterface;if(typeof b.filesDirectory==='string'){db().settings.filesDirectory=path.resolve(b.filesDirectory);await mkdir(db().settings.filesDirectory,{recursive:true});}if(typeof b.theme==='string')db().settings.theme=b.theme;db().settings.volume=player.volume;db().settings.mode=player.mode;await save();return db().settings;});app.put('/api/integration/spotify',async(r,q)=>{if(!admin(r,q))return;const b=r.body||{};db().integration.spotifyClientId=String(b.clientId||'');db().integration.spotifyClientSecret=String(b.clientSecret||'');await save();return{ok:true};});
-app.get('/api/users',async(r,q)=>{if(!admin(r,q))return;return db().users.map(({id,name,role})=>({id,name,role}));});app.post('/api/users',async(r,q)=>{if(!admin(r,q))return;const b=r.body||{};if(!b.name||String(b.password||'').length<5)return q.code(400).send({error:'Passwort muss mindestens 5 Zeichen lang sein'});addUser(String(b.name),String(b.password),b.role==='admin'?'admin':'user');await save();return{ok:true};});app.get('/api/diagnostics',async(r,q)=>admin(r,q)?db().diagnostics:void 0);
-app.get('/api/discord',async(r,q)=>auth(r,q)?publicDiscord():void 0);app.post('/api/discord',async(r,q)=>{if(!admin(r,q))return;const b=r.body||{},old=db().discord.find(x=>x.id===b.id);const x={id:String(b.id||randomUUID()),name:String(b.name||old?.name||'Discord'),enabled:b.enabled!==false,token:b.token?String(b.token):String(old?.token||''),clientId:String(b.clientId||old?.clientId||''),guildId:String(b.guildId||old?.guildId||''),channelId:String(b.channelId||old?.channelId||''),prefix:String(b.prefix||old?.prefix||'!')};if(x.clientId&&!/^\d{17,20}$/.test(x.clientId))return q.code(400).send({error:'Client-ID muss 17–20 Ziffern haben'});setDiscord(x);await save();return publicDiscord();});app.delete('/api/discord/:id',async(r,q)=>{if(!admin(r,q))return;const id=String(r.params.id);await discord.disconnect(id);db().discord=db().discord.filter(x=>x.id!==id);await save();return publicDiscord();});app.post('/api/discord/:id/connect',async(r,q)=>{if(!admin(r,q))return;const x=db().discord.find(v=>v.id===String(r.params.id));if(!x)return q.code(404).send({error:'Instanz nicht gefunden'});try{await discord.connect(x);return discord.status();}catch(e){const m=e instanceof Error?e.message:String(e);diagnostic(`Discord ${x.name}: ${m}`);return q.code(400).send({error:m});}});app.post('/api/discord/:id/disconnect',async(r,q)=>{if(!admin(r,q))return;await discord.disconnect(String(r.params.id));return discord.status();});app.post('/api/discord/:id/join',async(r,q)=>{if(!admin(r,q))return;const id=String(r.params.id);try{await discord.join(id);db().settings.outputType='discord';db().settings.outputId=id;await save();return discord.status();}catch(e){const m=e instanceof Error?e.message:String(e);diagnostic(`Discord ${id}: ${m}`);return q.code(400).send({error:m});}});app.get('/api/discord/:id/guilds',async(r,q)=>admin(r,q)?discord.guilds(String(r.params.id)):void 0);app.get('/api/discord/:id/guilds/:guildId/channels',async(r,q)=>admin(r,q)?discord.channels(String(r.params.id),String(r.params.guildId)):void 0);
-app.get('/api/ts3',async(r,q)=>auth(r,q)?publicTS3():void 0);app.put('/api/ts3',async(r,q)=>{if(!admin(r,q))return;db().ts3=Array.isArray((r.body||{}).instances)?(r.body||{}).instances:[];await save();return publicTS3();});app.post('/api/ts3/:id/connect',async(r,q)=>{if(!admin(r,q))return;const x=db().ts3.find(v=>v.id===String(r.params.id));if(!x)return q.code(404).send({error:'Instanz nicht gefunden'});try{await ts3.connect(x);db().settings.outputType='ts3';db().settings.outputId=x.id;await save();return publicTS3();}catch(e){const m=e instanceof Error?e.message:String(e);diagnostic(`TS3 ${x.name}: ${m}`);return q.code(400).send({error:m});}});app.post('/api/ts3/:id/disconnect',async(r,q)=>{if(!admin(r,q))return;await ts3.disconnect(String(r.params.id));return publicTS3();});
-app.put('/api/dashboard',async(r,q)=>{if(!admin(r,q))return;const b=r.body||{};if(!Array.isArray(b.tiles))return q.code(400).send({error:'tiles erforderlich'});const ids=new Set(b.tiles.map(x=>x.id));db().dashboard=db().dashboard.map(x=>({...x,enabled:ids.has(x.id)}));await save();return db().dashboard;});app.get('/api/dashboard',async(r,q)=>auth(r,q)?db().dashboard:void 0);
-app.post('/api/control',async(r,q)=>{if(!admin(r,q))return;const action=String((r.body||{}).action||'');if(!['restart-bot','stop-bot','restart-system','shutdown-system'].includes(action))return q.code(400).send({error:'Ungültige Aktion'});await exec('/usr/local/sbin/musikbot187-control',[action]);return{ok:true};});app.get('/',async(_r,q)=>q.sendFile('index.html'));app.setErrorHandler((e,_r,q)=>{diagnostic(`HTTP-Fehler: ${e instanceof Error?e.message:String(e)}`);void q.code(500).send({error:'Interner Fehler'});});
-for(const x of db().discord)if(x.enabled&&x.token)discord.connect(x).catch(e=>diagnostic(`Discord ${x.name}: ${e instanceof Error?e.message:String(e)}`));for(const x of db().ts3)if(x.enabled&&x.host)ts3.connect(x).catch(e=>diagnostic(`TS3 ${x.name}: ${e instanceof Error?e.message:String(e)}`));
-await app.listen({host:process.env.HOST||'0.0.0.0',port:Number(process.env.PORT||3000)});console.log('MusikBot187 läuft');
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import statik from "@fastify/static";
+import path from "node:path";
+import { mkdir } from "node:fs/promises";
+import { randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
+import { db, load, save, createAdmin, login, user, publicDiscord, publicTS3, setDiscord } from "./store.js";
+import { youtubeSearch, radioSearch, spotifySearch } from "./media.js";
+import { Player } from "./player.js";
+import { DiscordManager } from "./discord.js";
+import { TS3Manager } from "./ts3.js";
+import { networkInfo, storageInfo, systemInfo } from "./system.js";
+
+const exec = promisify(execFile);
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const FRONTEND_DIR = path.join(ROOT, "frontend");
+const HOST = process.env.HOST || "0.0.0.0";
+const PORT = Number(process.env.PORT || 3000);
+
+await load();
+await mkdir(db().settings.filesDirectory, { recursive: true });
+const app = Fastify({ logger: true });
+const player = new Player(db().settings);
+const discord = new DiscordManager(player);
+const ts3 = new TS3Manager();
+
+function recordDiagnostic(message) {
+  db().diagnostics.unshift({ time: new Date().toISOString(), message: String(message) });
+  db().diagnostics = db().diagnostics.slice(0, 100);
+  void save();
+}
+
+player.on("audio", (data) => {
+  const s = db().settings;
+  if (s.outputType === "discord") discord.writeAudio(data, s.outputId);
+  if (s.outputType === "ts3") ts3.writeAudio(data, s.outputId);
+});
+player.on("diagnostic", recordDiagnostic);
+
+await app.register(cors, { origin: true });
+await app.register(statik, { root: FRONTEND_DIR, prefix: "/" });
+
+const currentUser = (request) => user(request.headers.authorization);
+function auth(request, reply) {
+  const u = currentUser(request);
+  if (!u) {
+    void reply.code(401).send({ error: "Nicht angemeldet" });
+    return null;
+  }
+  return u;
+}
+function admin(request, reply) {
+  const u = auth(request, reply);
+  if (!u) return null;
+  if (u.role !== "admin") {
+    void reply.code(403).send({ error: "Administratorrechte erforderlich" });
+    return null;
+  }
+  return u;
+}
+function normalizeSearchSource(source) {
+  return ["all", "youtube", "radio", "spotify"].includes(source) ? source : "all";
+}
+
+app.get("/api/health", async () => ({ ok: true, name: "MusikBot187", version: "2.0.1" }));
+app.get("/api/setup", async () => ({ initialized: db().users.length > 0 }));
+app.get("/api/setup-link", async (request) => {
+  const env = process.env.MUSIKBOT187_PUBLIC_URL?.trim();
+  if (env) return { url: env.replace(/\/$/, "") + "/" };
+  const host = String(request.headers["x-forwarded-host"] || request.headers.host || `localhost:${PORT}`);
+  const proto = String(request.headers["x-forwarded-proto"] || "http").split(",")[0];
+  return { url: `${proto}://${host}/` };
+});
+
+app.post("/api/setup", async (request, reply) => {
+  if (db().users.length) return reply.code(409).send({ error: "Bereits eingerichtet" });
+  const body = request.body || {};
+  const name = String(body.name || "").trim();
+  const password = String(body.password || "");
+  if (!name || password.length < 5) return reply.code(400).send({ error: "Name und Passwort mit mindestens 5 Zeichen erforderlich" });
+  createAdmin(name, password);
+  await save();
+  return login(name, password);
+});
+
+app.post("/api/login", async (request, reply) => {
+  const body = request.body || {};
+  const session = login(String(body.name || "").trim(), String(body.password || ""));
+  return session || reply.code(401).send({ error: "Ungültige Anmeldung" });
+});
+
+app.get("/api/state", async (request, reply) => {
+  if (!auth(request, reply)) return;
+  return { ...player.snapshot(), settings: db().settings, dashboard: db().dashboard, discord: publicDiscord(), ts3: publicTS3() };
+});
+
+app.get("/api/search", async (request, reply) => {
+  if (!auth(request, reply)) return;
+  const q = String(request.query?.q || "").trim();
+  const source = normalizeSearchSource(String(request.query?.source || "all"));
+  if (!q) return { youtube: [], radio: [], spotify: [] };
+  const out = { youtube: [], radio: [], spotify: [] };
+  await Promise.allSettled([
+    (source === "all" || source === "youtube") ? youtubeSearch(q).then((v) => { out.youtube = v; }) : Promise.resolve(),
+    (source === "all" || source === "radio") ? radioSearch(q).then((v) => { out.radio = v; }) : Promise.resolve(),
+    (source === "all" || source === "spotify") ? spotifySearch(q, db().integration).then((v) => { out.spotify = v; }) : Promise.resolve()
+  ]);
+  return out;
+});
+
+app.post("/api/play", async (request, reply) => {
+  if (!auth(request, reply)) return;
+  const items = Array.isArray(request.body?.items) ? request.body.items : [];
+  await player.enqueue(items);
+  return player.snapshot();
+});
+
+app.post("/api/play/:action", async (request, reply) => {
+  if (!auth(request, reply)) return;
+  const action = String(request.params.action || "");
+  const body = request.body || {};
+  if (action === "pause") player.pause();
+  else if (action === "resume") player.resume();
+  else if (action === "stop") player.stop();
+  else if (action === "skip") player.skip();
+  else if (action === "clear") player.clear();
+  else if (action === "volume") player.setVolume(Number(body.value));
+  else if (action === "mode" && ["queue", "repeat", "shuffle"].includes(body.mode)) player.setMode(body.mode);
+  else return reply.code(400).send({ error: "Ungültige Player-Aktion" });
+  db().settings.volume = player.volume;
+  db().settings.mode = player.mode;
+  await save();
+  return player.snapshot();
+});
+
+app.delete("/api/queue/:index", async (request, reply) => {
+  if (!auth(request, reply)) return;
+  await player.remove(Number(request.params.index));
+  return player.snapshot();
+});
+
+app.get("/api/playlists", async (request, reply) => auth(request, reply) ? db().playlists : undefined);
+app.post("/api/playlists", async (request, reply) => {
+  if (!auth(request, reply)) return;
+  const p = { id: randomUUID(), name: String(request.body?.name || "Neue Playlist").trim() || "Neue Playlist", items: [] };
+  db().playlists.push(p);
+  await save();
+  return p;
+});
+app.get("/api/playlists/:id", async (request, reply) => auth(request, reply) ? (db().playlists.find((x) => x.id === request.params.id) || reply.code(404).send({ error: "Playlist nicht gefunden" })) : undefined);
+app.post("/api/playlists/:id/items", async (request, reply) => {
+  if (!auth(request, reply)) return;
+  const p = db().playlists.find((x) => x.id === request.params.id);
+  if (!p) return reply.code(404).send({ error: "Playlist nicht gefunden" });
+  if (Array.isArray(request.body?.items)) p.items.push(...request.body.items);
+  await save();
+  return p;
+});
+app.post("/api/playlists/:id/play", async (request, reply) => {
+  if (!auth(request, reply)) return;
+  const p = db().playlists.find((x) => x.id === request.params.id);
+  if (!p) return reply.code(404).send({ error: "Playlist nicht gefunden" });
+  await player.enqueue(p.items);
+  return player.snapshot();
+});
+app.delete("/api/playlists/:id/items/:itemId", async (request, reply) => {
+  if (!auth(request, reply)) return;
+  const p = db().playlists.find((x) => x.id === request.params.id);
+  if (!p) return reply.code(404).send({ error: "Playlist nicht gefunden" });
+  p.items = p.items.filter((x) => x.id !== request.params.itemId);
+  await save();
+  return p;
+});
+
+app.get("/api/network", async (request, reply) => auth(request, reply) ? networkInfo(db().settings.networkInterface) : undefined);
+app.get("/api/system", async (request, reply) => auth(request, reply) ? systemInfo() : undefined);
+app.get("/api/storage", async (request, reply) => auth(request, reply) ? storageInfo(db().settings.filesDirectory) : undefined);
+
+app.put("/api/settings", async (request, reply) => {
+  if (!admin(request, reply)) return;
+  const b = request.body || {};
+  if (typeof b.volume === "number") player.setVolume(b.volume);
+  if (["queue", "repeat", "shuffle"].includes(b.mode)) player.setMode(b.mode);
+  if (["discord", "ts3", "none"].includes(b.outputType)) db().settings.outputType = b.outputType;
+  if (typeof b.outputId === "string") db().settings.outputId = b.outputId;
+  if (typeof b.networkInterface === "string") db().settings.networkInterface = b.networkInterface;
+  if (typeof b.filesDirectory === "string" && b.filesDirectory.trim()) {
+    db().settings.filesDirectory = path.resolve(b.filesDirectory.trim());
+    await mkdir(db().settings.filesDirectory, { recursive: true });
+  }
+  if (typeof b.theme === "string") db().settings.theme = b.theme;
+  db().settings.volume = player.volume;
+  db().settings.mode = player.mode;
+  await save();
+  return db().settings;
+});
+
+app.put("/api/integration/spotify", async (request, reply) => {
+  if (!admin(request, reply)) return;
+  db().integration.spotifyClientId = String(request.body?.clientId || "");
+  db().integration.spotifyClientSecret = String(request.body?.clientSecret || "");
+  await save();
+  return { ok: true };
+});
+
+app.get("/api/users", async (request, reply) => auth(request, reply)?.role === "admin" ? db().users.map(({ id, name, role }) => ({ id, name, role })) : undefined);
+app.post("/api/users", async (request, reply) => {
+  if (!admin(request, reply)) return;
+  const name = String(request.body?.name || "").trim();
+  const password = String(request.body?.password || "");
+  if (!name || password.length < 5) return reply.code(400).send({ error: "Name und Passwort erforderlich; Passwort mindestens 5 Zeichen" });
+  const role = request.body?.role === "user" ? "user" : "admin";
+  const existing = db().users.find((x) => x.name === name);
+  if (existing) return reply.code(409).send({ error: "Benutzername bereits vorhanden" });
+  db().users.push({ id: randomUUID(), name, hash: scryptSync(password, "musikbot187", 32).toString("hex"), role });
+  await save();
+  return { ok: true };
+});
+app.get("/api/diagnostics", async (request, reply) => auth(request, reply)?.role === "admin" ? db().diagnostics : undefined);
+
+app.get("/api/discord", async (request, reply) => auth(request, reply) ? publicDiscord() : undefined);
+app.post("/api/discord", async (request, reply) => {
+  if (!admin(request, reply)) return;
+  const b = request.body || {};
+  const old = db().discord.find((x) => x.id === b.id);
+  const x = {
+    id: String(b.id || randomUUID()),
+    name: String(b.name || old?.name || "Discord"),
+    enabled: b.enabled !== false,
+    token: b.token ? String(b.token) : String(old?.token || ""),
+    clientId: String(b.clientId || old?.clientId || ""),
+    guildId: String(b.guildId || old?.guildId || ""),
+    channelId: String(b.channelId || old?.channelId || ""),
+    prefix: String(b.prefix || old?.prefix || "!")
+  };
+  if (x.clientId && !/^\d{17,20}$/.test(x.clientId)) return reply.code(400).send({ error: "Discord Client-ID muss aus 17–20 Ziffern bestehen" });
+  setDiscord(x);
+  await save();
+  return publicDiscord();
+});
+app.delete("/api/discord/:id", async (request, reply) => {
+  if (!admin(request, reply)) return;
+  await discord.disconnect(request.params.id);
+  db().discord = db().discord.filter((x) => x.id !== request.params.id);
+  await save();
+  return publicDiscord();
+});
+app.post("/api/discord/:id/connect", async (request, reply) => {
+  if (!admin(request, reply)) return;
+  const x = db().discord.find((y) => y.id === request.params.id);
+  if (!x) return reply.code(404).send({ error: "Instanz nicht gefunden" });
+  try { await discord.connect(x); return discord.status(); }
+  catch (e) { const m = e instanceof Error ? e.message : String(e); recordDiagnostic(`Discord ${x.name}: ${m}`); return reply.code(400).send({ error: m }); }
+});
+app.post("/api/discord/:id/disconnect", async (request, reply) => { if (!admin(request, reply)) return; await discord.disconnect(request.params.id); return discord.status(); });
+app.post("/api/discord/:id/join", async (request, reply) => {
+  if (!admin(request, reply)) return;
+  try {
+    await discord.join(request.params.id);
+    db().settings.outputType = "discord";
+    db().settings.outputId = request.params.id;
+    await save();
+    return discord.status();
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e);
+    recordDiagnostic(`Discord Voice ${request.params.id}: ${m}`);
+    return reply.code(400).send({ error: m });
+  }
+});
+app.get("/api/discord/:id/guilds", async (request, reply) => auth(request, reply)?.role === "admin" ? discord.guilds(request.params.id) : undefined);
+app.get("/api/discord/:id/guilds/:guildId/channels", async (request, reply) => auth(request, reply)?.role === "admin" ? discord.channels(request.params.id, request.params.guildId) : undefined);
+
+app.get("/api/ts3", async (request, reply) => auth(request, reply) ? publicTS3() : undefined);
+app.put("/api/ts3", async (request, reply) => { if (!admin(request, reply)) return; db().ts3 = Array.isArray(request.body?.instances) ? request.body.instances : []; await save(); return publicTS3(); });
+app.post("/api/ts3/:id/connect", async (request, reply) => { if (!admin(request, reply)) return; const x = db().ts3.find((y) => y.id === request.params.id); if (!x) return reply.code(404).send({ error: "Instanz nicht gefunden" }); try { await ts3.connect(x); db().settings.outputType = "ts3"; db().settings.outputId = x.id; await save(); return publicTS3(); } catch (e) { const m = e instanceof Error ? e.message : String(e); recordDiagnostic(`TS3 ${x.name}: ${m}`); return reply.code(400).send({ error: m }); } });
+app.post("/api/ts3/:id/disconnect", async (request, reply) => { if (!admin(request, reply)) return; await ts3.disconnect(request.params.id); return publicTS3(); });
+
+app.get("/api/files", async (request, reply) => { if (!auth(request, reply)) return; const dir = path.resolve(db().settings.filesDirectory); await mkdir(dir, { recursive: true }); const { readdir } = await import("node:fs/promises"); return readdir(dir, { withFileTypes: true }).then((items) => items.map((x) => ({ name: x.name, directory: x.isDirectory(), path: path.join(dir, x.name) }))); });
+app.post("/api/control", async (request, reply) => { if (!admin(request, reply)) return; const action = String(request.body?.action || ""); if (!["restart-bot", "stop-bot", "restart-system", "shutdown-system"].includes(action)) return reply.code(400).send({ error: "Ungültige Aktion" }); await exec("sudo", ["/usr/local/sbin/musikbot187-control", action]); return { ok: true }; });
+
+app.get("/", async (_request, reply) => reply.sendFile("index.html"));
+app.setErrorHandler((error, _request, reply) => { recordDiagnostic(`HTTP-Fehler: ${error.message}`); app.log.error(error); void reply.code(500).send({ error: "Interner Fehler", detail: error.message }); });
+
+for (const x of db().discord) if (x.enabled && x.token) discord.connect(x).catch((e) => recordDiagnostic(`Discord ${x.name}: ${e instanceof Error ? e.message : String(e)}`));
+for (const x of db().ts3) if (x.enabled && x.host) ts3.connect(x).catch((e) => recordDiagnostic(`TS3 ${x.name}: ${e instanceof Error ? e.message : String(e)}`));
+
+await app.listen({ host: HOST, port: PORT });
+console.log(`MusikBot187 läuft auf ${HOST}:${PORT}`);
