@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { Player } from "../backend/src/player.js";
 
 function settings(overrides = {}) { return { volume: 80, mode: "queue", ...overrides }; }
@@ -35,4 +36,10 @@ test("Player skip cancels an in-flight resolver without leaving a phantom curren
   p.skip();
   await run;
   assert.equal(p.generation > 1, true);
+});
+
+test("Dashboard contains the primary navigation and backend action endpoints", async () => {
+  const ui = await readFile(new URL("../frontend/app.js", import.meta.url), "utf8");
+  for (const text of ["/api/search", "/api/play/volume", "/api/play/mode", "/api/queue/", "/api/playlists", "/api/discord", "/api/ts3", "/api/system", "/api/network", "/api/storage", "/api/files", "/api/settings", "/api/users", "/api/diagnostics", "/api/control"]) assert.ok(ui.includes(text), `Dashboard missing ${text}`);
+  for (const tab of ["player", "playlists", "connections", "system", "admin"]) assert.ok(ui.includes(`['${tab}'`), `Dashboard missing ${tab} tab`);
 });
