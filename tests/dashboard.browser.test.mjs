@@ -7,21 +7,12 @@ import { chromium } from "playwright";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const frontend = join(root, "frontend");
-const state = {
-  settings: { theme: "dark", outputType: "discord" },
-  current: { title: "Browser Test Track" }, paused: false, volume: 80, mode: "queue",
-  queue: [{ id: "q1", title: "Queued Track", url: "http://example.test/audio.mp3", source: "radio" }]
-};
+const state = { settings: { theme: "dark", outputType: "discord" }, current: { title: "Browser Test Track" }, paused: false, volume: 80, mode: "queue", queue: [{ id: "q1", title: "Queued Track", url: "http://example.test/audio.mp3", source: "radio" }] };
 const playlists = [{ id: "p1", name: "Test Playlist", items: [{ id: "pitem1", title: "Playlist Track", url: "http://example.test/p.mp3", source: "radio" }] }];
 const discord = [{ id: "d1", name: "Test Discord", enabled: true, guildId: "g1", channelId: "v1", clientId: "c1" }];
 const ts3 = [{ id: "t1", name: "Test TS3", host: "127.0.0.1", port: 9987, channel: "Music", connected: false }];
 
-function json(res, body, status = 200) {
-  const data = JSON.stringify(body);
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(data) });
-  res.end(data);
-}
-
+function json(res, body, status = 200) { const data = JSON.stringify(body); res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(data) }); res.end(data); }
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
   if (url.pathname.startsWith("/api/")) {
@@ -48,11 +39,7 @@ const server = http.createServer(async (req, res) => {
   const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
   const safe = join(frontend, file);
   if (!safe.startsWith(frontend)) return json(res, { error: "forbidden" }, 403);
-  try {
-    const data = await readFile(safe);
-    const type = file.endsWith(".html") ? "text/html" : file.endsWith(".js") ? "text/javascript" : "text/css";
-    res.writeHead(200, { "content-type": `${type}; charset=utf-8` }); res.end(data);
-  } catch { res.writeHead(404); res.end("not found"); }
+  try { const data = await readFile(safe); const type = file.endsWith(".html") ? "text/html" : file.endsWith(".js") ? "text/javascript" : "text/css"; res.writeHead(200, { "content-type": `${type}; charset=utf-8` }); res.end(data); } catch { res.writeHead(404); res.end("not found"); }
 });
 
 const port = await new Promise(resolve => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
@@ -65,9 +52,10 @@ page.on("pageerror", err => pageErrors.push(String(err)));
 try {
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
   const inputs = page.locator("input");
+  assert.equal(await inputs.count(), 2, "Login should render username and password inputs");
   await inputs.nth(0).fill("admin");
   await inputs.nth(1).fill("password");
-  await page.locator("button").filter({ hasText: /Anmelden|Login|Einloggen/ }).first().click();
+  await page.locator("button").first().click();
   await page.getByRole("button", { name: /Playlists/ }).click();
   await assertText(page, "Test Playlist");
   await page.getByRole("button", { name: /System/ }).click();
@@ -94,11 +82,6 @@ try {
   await page.getByRole("button", { name: /Abmelden/ }).click();
   assert.equal(consoleErrors.length, 0, `Browser console errors: ${consoleErrors.join(" | ")}`);
   assert.equal(pageErrors.length, 0, `Browser page errors: ${pageErrors.join(" | ")}`);
-} finally {
-  await browser.close();
-  await new Promise(resolve => server.close(resolve));
-}
+} finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 
-async function assertText(page, text) {
-  await page.getByText(text, { exact: false }).first().waitFor({ state: "visible" });
-}
+async function assertText(page, text) { await page.getByText(text, { exact: false }).first().waitFor({ state: "visible" }); }
