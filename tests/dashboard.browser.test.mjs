@@ -37,7 +37,6 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/music/upload" && req.method === "POST") return json(res, { ok: true, file: files[0] });
     if (url.pathname === "/api/music/test.mp3" && req.method === "DELETE") return json(res, { ok: true });
     if (url.pathname === "/api/health") return json(res, { ok: true });
-    if (url.pathname === "/api/settings" && req.method === "GET") return json(res, state.settings);
     if (url.pathname === "/api/settings" && req.method === "PUT") return json(res, { ...state.settings });
     if (url.pathname === "/api/users") return json(res, [{ id: "u1", name: "admin", role: "admin" }]);
     if (url.pathname === "/api/diagnostics") return json(res, [{ time: new Date().toISOString(), level: "error", source: "browser-test", message: "Smoke test diagnostic" }]);
