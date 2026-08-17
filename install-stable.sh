@@ -28,7 +28,11 @@ $SUDO apt-get upgrade -y
 $SUDO apt-get install -y curl git ffmpeg ca-certificates python3 sudo
 
 if ! command -v node >/dev/null 2>&1 || (( $(node -p 'Number(process.versions.node.split(".")[0])') < 22 )); then
-  curl -fsSL https://deb.nodesource.com/setup_22.x | $SUDO -E bash -
+  if [[ -n "$SUDO" ]]; then
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+  else
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash
+  fi
   $SUDO apt-get install -y nodejs
 fi
 
