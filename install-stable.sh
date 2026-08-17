@@ -30,7 +30,7 @@ $SUDO install -d -m 0750 "$DATA/music" /usr/local/sbin
 $SUDO git clone --depth 1 "$REPO" "$APP"
 
 cd "$APP/backend"
-npm install --omit=dev --no-audit --no-fund
+$SUDO npm install --omit=dev --no-audit --no-fund
 
 $SUDO install -m 0755 install/control.sh /usr/local/sbin/musikbot187-control
 cat >/tmp/musikbot187.env <<ENV
