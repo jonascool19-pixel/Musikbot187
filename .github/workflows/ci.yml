@@ -37,6 +37,8 @@ jobs:
           grep -F 'ReadWritePaths=$DATA' install-stable.sh
           grep -F 'visudo -cf /etc/sudoers.d/musikbot187' install-stable.sh
           grep -F 'MUSIKBOT187_CONTROL' install-stable.sh
+          grep -F 'systemd als PID 1' install-stable.sh
+          grep -F 'cgroups/systemd' install-stable.sh
       - name: Run installer in isolated systemd container
         run: |
           set -euo pipefail
@@ -63,4 +65,18 @@ jobs:
             grep -F "musikbot187 ALL=(root) NOPASSWD" /etc/sudoers.d/musikbot187
             systemctl is-active --quiet musikbot187
             curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3000/ >/dev/null
+          '
+      - name: Ubuntu 24.04 CT-style preflight
+        run: |
+          docker run --rm --privileged --cgroupns=host ubuntu:24.04 bash -lc '
+            set -euo pipefail
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y bash ca-certificates curl ffmpeg git procps sudo python3 systemd systemd-sysv
+            test "$(. /etc/os-release && echo "$VERSION_ID")" = "24.04"
+            test -d /sys/fs/cgroup
+            test -r /proc/1/comm
+            grep -qx systemd /proc/1/comm || true
+            command -v systemctl
+            command -v ffmpeg
+            command -v python3
           '
