@@ -3,9 +3,9 @@ import cors from "@fastify/cors";
 import statik from "@fastify/static";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-import { randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { db, load, save, createAdmin, login, user, publicDiscord, publicTS3, setDiscord } from "./store.js";
+import { db, load, save, createAdmin, createUser, login, user, publicDiscord, publicTS3, setDiscord } from "./store.js";
 import { youtubeSearch, radioSearch, spotifySearch } from "./media.js";
 import { Player } from "./player.js";
 import { DiscordManager } from "./discord.js";
@@ -134,7 +134,7 @@ app.post("/api/users", async (request, reply) => {
   if (!name || password.length < 5) return reply.code(400).send({ error: "Name und Passwort erforderlich; Passwort mindestens 5 Zeichen" });
   const role = request.body?.role === "user" ? "user" : "admin";
   if (db().users.some(x => x.name === name)) return reply.code(409).send({ error: "Benutzername bereits vorhanden" });
-  db().users.push({ id: randomUUID(), name, hash: scryptSync(password, "musikbot187", 32).toString("hex"), role });
+  createUser(name, password, role);
   await save();
   return { ok: true };
 });
@@ -164,7 +164,7 @@ app.post("/api/ts3/:id/disconnect", async (request, reply) => { if (!admin(reque
 app.post("/api/control", async (request, reply) => {
   if (!admin(request, reply)) return;
   const action = String(request.body?.action || "");
-  if (!["restart-bot", "stop-bot", "restart-system", "shutdown-system"].includes(action)) return reply.code(400).send({ error: "Ungültige Aktion" });
+  if (!["restart-bot", "stop-bot"].includes(action)) return reply.code(400).send({ error: "Nur Bot-Neustart und Bot-Stopp werden unterstützt" });
   const { execFile } = await import("node:child_process");
   await new Promise((resolve, reject) => execFile("/usr/bin/sudo", ["/usr/local/sbin/musikbot187-control", action], error => error ? reject(error) : resolve()));
   return { ok: true };
