@@ -13,21 +13,15 @@
   const getCustom = () => localStorage.getItem(customKey) || '#0b69b3';
   const setVars = theme => {
     const root = document.documentElement;
-    root.style.setProperty('--theme-bg', theme.bg);
-    root.style.setProperty('--theme-panel', theme.panel);
-    root.style.setProperty('--theme-text', theme.text);
-    root.style.setProperty('--theme-muted', theme.muted);
-    root.style.setProperty('--theme-border', theme.border);
-    root.style.setProperty('--theme-accent', theme.accent);
-    root.style.setProperty('--theme-accent-2', theme.accent2);
-    document.body.dataset.themeMode = theme.mode;
+    root.style.setProperty('--theme-bg', theme.bg); root.style.setProperty('--theme-panel', theme.panel); root.style.setProperty('--theme-text', theme.text); root.style.setProperty('--theme-muted', theme.muted); root.style.setProperty('--theme-border', theme.border); root.style.setProperty('--theme-accent', theme.accent); root.style.setProperty('--theme-accent-2', theme.accent2); document.body.dataset.themeMode = theme.mode;
   };
   window.MusikBotThemes = {
     themes,
     apply(name, customAccent = '') {
       const base = themes[name] || themes.dark;
       const theme = { ...base };
-      if (customAccent) theme.accent = customAccent;
+      // The multi-theme presets own their accents. Custom color is only allowed for the two base themes.
+      if ((name === 'dark' || name === 'light') && /^#[0-9a-f]{6}$/i.test(customAccent || '')) theme.accent = customAccent;
       setVars(theme);
       return theme;
     },
