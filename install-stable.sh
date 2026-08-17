@@ -3,6 +3,7 @@ set -euo pipefail
 REPO="https://github.com/jonascool19-pixel/radiobot.git"
 APP="/opt/musikbot187"
 DATA="/var/lib/musikbot187"
+SERVICE_USER="musikbot187"
 
 if [[ $EUID -ne 0 ]]; then SUDO=sudo; else SUDO=""; fi
 if ! command -v apt-get >/dev/null 2>&1; then
@@ -25,23 +26,40 @@ command -v yt-dlp >/dev/null
 command -v ffmpeg >/dev/null
 command -v node >/dev/null
 
-# Stop an existing installation before replacing its files.
+# Stop an existing installation before replacing its application files.
 $SUDO systemctl stop musikbot187.service 2>/dev/null || true
 $SUDO rm -rf "$APP"
-$SUDO install -d -m 0750 "$DATA/music" /usr/local/sbin
-$SUDO git clone --depth 1 "$REPO" "$APP"
 
+# Create a dedicated unprivileged service account. Existing data is preserved.
+if ! $SUDO getent passwd "$SERVICE_USER" >/dev/null; then
+  $SUDO useradd --system --home /nonexistent --shell /usr/sbin/nologin "$SERVICE_USER"
+fi
+$SUDO install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA" "$DATA/music"
+$SUDO install -d -m 0755 /usr/local/sbin
+
+$SUDO git clone --depth 1 "$REPO" "$APP"
 cd "$APP/backend"
 $SUDO npm install --omit=dev --no-audit --no-fund
+$SUDO chown -R "$SERVICE_USER":"$SERVICE_USER" "$APP"
 
-$SUDO install -m 0755 "$APP/install/control.sh" /usr/local/sbin/musikbot187-control
+$SUDO install -o root -g root -m 0755 "$APP/install/control.sh" /usr/local/sbin/musikbot187-control
 cat >/tmp/musikbot187.env <<ENV
 MUSIKBOT187_DATA_DIR=$DATA
 NODE_ENV=production
 HOST=0.0.0.0
 PORT=3000
 ENV
-$SUDO install -m 0640 /tmp/musikbot187.env /etc/musikbot187.env
+$SUDO install -o root -g "$SERVICE_USER" -m 0640 /tmp/musikbot187.env /etc/musikbot187.env
+rm -f /tmp/musikbot187.env
+
+# The web service may invoke only the four explicit control actions, without a password.
+cat >/tmp/musikbot187.sudoers <<SUDOERS
+Cmnd_Alias MUSIKBOT187_CONTROL = /usr/bin/systemctl restart musikbot187, /usr/bin/systemctl stop musikbot187, /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
+$SERVICE_USER ALL=(root) NOPASSWD: MUSIKBOT187_CONTROL
+SUDOERS
+$SUDO install -o root -g root -m 0440 /tmp/musikbot187.sudoers /etc/sudoers.d/musikbot187
+rm -f /tmp/musikbot187.sudoers
+$SUDO visudo -cf /etc/sudoers.d/musikbot187
 
 cat >/tmp/musikbot187.service <<UNIT
 [Unit]
@@ -56,12 +74,19 @@ EnvironmentFile=/etc/musikbot187.env
 ExecStart=/usr/bin/node $APP/backend/src/server.js
 Restart=on-failure
 RestartSec=3
-User=root
+User=$SERVICE_USER
+Group=$SERVICE_USER
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=$DATA
 
 [Install]
 WantedBy=multi-user.target
 UNIT
-$SUDO install -m 0644 /tmp/musikbot187.service /etc/systemd/system/musikbot187.service
+$SUDO install -o root -g root -m 0644 /tmp/musikbot187.service /etc/systemd/system/musikbot187.service
+rm -f /tmp/musikbot187.service
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable --now musikbot187
 
