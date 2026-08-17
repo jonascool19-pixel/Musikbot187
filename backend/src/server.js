@@ -36,6 +36,7 @@ const currentUser = (request) => user(request.headers.authorization);
 function auth(request, reply) { const u = currentUser(request); if (!u) { void reply.code(401).send({ error: "Nicht angemeldet" }); return null; } return u; }
 function admin(request, reply) { const u = auth(request, reply); if (!u) return null; if (u.role !== "admin") { void reply.code(403).send({ error: "Administratorrechte erforderlich" }); return null; } return u; }
 function searchSource(source) { return ["all", "youtube", "radio", "spotify"].includes(source) ? source : "all"; }
+const ok = (value) => value !== undefined && value !== null;
 
 app.get("/api/health", async () => ({ ok: true, name: "MusikBot187", version: "2.0.1" }));
 app.get("/api/setup", async () => ({ initialized: db().users.length > 0 }));
@@ -74,7 +75,7 @@ app.get("/api/ts3", async (request, reply) => { if (!auth(request, reply)) retur
 app.put("/api/ts3", async (request, reply) => { if (!admin(request, reply)) return; db().ts3 = Array.isArray(request.body?.instances) ? request.body.instances : []; await save(); return publicTS3(); });
 app.post("/api/ts3/:id/connect", async (request, reply) => { if (!admin(request, reply)) return; const x = db().ts3.find(y => y.id === request.params.id); if (!x) return reply.code(404).send({ error: "Instanz nicht gefunden" }); try { await ts3.connect(x); db().settings.outputType = "ts3"; db().settings.outputId = x.id; await save(); return publicTS3(); } catch (e) { const m = e instanceof Error ? e.message : String(e); recordDiagnostic(`TS3 ${x.name}: ${m}`); return reply.code(400).send({ error: m }); } });
 app.post("/api/ts3/:id/disconnect", async (request, reply) => { if (!admin(request, reply)) return; await ts3.disconnect(request.params.id); return publicTS3(); });
-app.post("/api/control", async (request, reply) => { if (!admin(request, reply)) return; const action = String(request.body?.action || ""); if (!["restart-bot", "stop-bot", "restart-system", "shutdown-system"].includes(action)) return reply.code(400).send({ error: "Ungültige Aktion" }); await exec("/usr/bin/sudo", ["/usr/local/sbin/musikbot187-control", action]); return { ok: true }; });
+app.post("/api/control", async (request, reply) => { if (!admin(request, reply)) return; const action = String(request.body?.action || ""); if (!["restart-bot", "stop-bot", "restart-system", "shutdown-system"].includes(action)) return reply.code(400).send({ error: "Ungültige Aktion" }); const { execFile: run } = await import("node:child_process"); await new Promise((resolve, reject) => run("/usr/bin/sudo", ["/usr/local/sbin/musikbot187-control", action], (error) => error ? reject(error) : resolve())); return { ok: true }; });
 app.get("/", async (_request, reply) => reply.sendFile("index.html"));
 app.setErrorHandler((error, _request, reply) => { recordDiagnostic(`HTTP-Fehler: ${error.message}`); app.log.error(error); void reply.code(500).send({ error: "Interner Fehler", detail: error.message }); });
 for (const x of db().discord) if (x.enabled && x.token) discord.connect(x).catch(e => recordDiagnostic(`Discord ${x.name}: ${e instanceof Error ? e.message : String(e)}`));
