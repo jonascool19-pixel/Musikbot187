@@ -71,6 +71,7 @@ RestartSec=3
 User=$SERVICE_USER
 Group=$SERVICE_USER
 UMask=0077
+NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
