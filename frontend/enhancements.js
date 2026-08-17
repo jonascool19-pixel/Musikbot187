@@ -1,5 +1,6 @@
 (() => {
   let authHeader = '';
+  document.addEventListener('click', event => { if (event.target.closest?.('#logout')) authHeader = ''; }, true);
   const nativeFetch = window.fetch.bind(window);
   window.fetch = async (input, init = {}) => {
     try {
@@ -23,8 +24,8 @@
   async function snapshot() {
     if (!authHeader) return null;
     try {
-      const [state, system, network, health, discord, ts3] = await Promise.all([api('/api/state'), api('/api/system'), api('/api/network'), api('/api/health'), api('/api/discord'), api('/api/ts3')]);
-      return { state, system, network, health, discord, ts3 };
+      const [state, health, discord, ts3] = await Promise.all([api('/api/state'), api('/api/health'), api('/api/discord'), api('/api/ts3')]);
+      return { state, health, discord, ts3, system: window.__musikbotMonitor?.system || null, network: window.__musikbotMonitor?.network || null };
     } catch { return null; }
   }
   function applyTheme(name, accent = '') {
@@ -73,12 +74,18 @@
   }
   function renderMetrics(data) {
     const set = (id, value) => { const n = q(id); if (n) n.textContent = value; };
-    const rx = data.network.rxUtilizationPercent == null ? '—' : `↓ ${data.network.rxUtilizationPercent}%`;
-    const tx = data.network.txUtilizationPercent == null ? '—' : `↑ ${data.network.txUtilizationPercent}%`;
-    const sysRx = data.network.rxUtilizationPercent == null ? '—' : `${data.network.rxUtilizationPercent}%`;
-    const sysTx = data.network.txUtilizationPercent == null ? '—' : `${data.network.txUtilizationPercent}%`;
-    set('#topCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`); set('#topRam', `${Number(data.system.memory.percent).toFixed(1)} %`); set('#topNetRx', rx); set('#topNetTx', tx); set('#topNetTotal', `${((data.network.totalRxBytes + data.network.totalTxBytes) / 1024).toFixed(1)} KB`);
-    set('#sysCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`); set('#sysRam', `${Number(data.system.memory.percent).toFixed(1)} %`); set('#sysRamDetail', `${data.system.memory.used} / ${data.system.memory.total}`); set('#sysNetRx', sysRx); set('#sysNetTx', sysTx); set('#sysNetTotal', `${((data.network.totalRxBytes + data.network.totalTxBytes) / 1024).toFixed(1)} KB`);
+    const network = data.network || {};
+    const rx = network.rxUtilizationPercent == null ? '—' : `↓ ${network.rxUtilizationPercent}%`;
+    const tx = network.txUtilizationPercent == null ? '—' : `↑ ${network.txUtilizationPercent}%`;
+    const sysRx = network.rxUtilizationPercent == null ? '—' : `${network.rxUtilizationPercent}%`;
+    const sysTx = network.txUtilizationPercent == null ? '—' : `${network.txUtilizationPercent}%`;
+    if (data.system) set('#topCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`);
+    if (data.system) set('#topRam', `${Number(data.system.memory.percent).toFixed(1)} %`);
+    set('#topNetRx', rx); set('#topNetTx', tx);
+    if (Number.isFinite(network.totalRxBytes) && Number.isFinite(network.totalTxBytes)) set('#topNetTotal', `${((network.totalRxBytes + network.totalTxBytes) / 1024).toFixed(1)} KB`);
+    if (data.system) { set('#sysCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`); set('#sysRam', `${Number(data.system.memory.percent).toFixed(1)} %`); set('#sysRamDetail', `${data.system.memory.used} / ${data.system.memory.total}`); }
+    set('#sysNetRx', sysRx); set('#sysNetTx', sysTx);
+    if (Number.isFinite(network.totalRxBytes) && Number.isFinite(network.totalTxBytes)) set('#sysNetTotal', `${((network.totalRxBytes + network.totalTxBytes) / 1024).toFixed(1)} KB`);
   }
   function renderDiscordDots(data) {
     const heading = [...document.querySelectorAll('h2')].find(x => x.textContent.trim() === 'Discord'); if (!heading) return;
@@ -118,6 +125,6 @@
     renderControls(data); renderMetrics(data); renderDiscordDots(data); renderThemePanel(data.state); renderDiscordIntentToggle();
     if (data.state?.settings) applyTheme(data.state.settings.theme || 'dark', data.state.settings.accentColor || window.MusikBotThemes?.customAccent?.() || '');
   }
-  const start = () => { if (!q('#app')) return setTimeout(start, 250); void refresh(); setInterval(refresh, 1000); };
+  const start = () => { if (!q('#app')) return setTimeout(start, 250); void refresh(); setInterval(refresh, 3000); };
   start();
 })();
