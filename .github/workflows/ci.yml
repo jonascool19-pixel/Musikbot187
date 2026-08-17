@@ -52,18 +52,26 @@ jobs:
       - name: Run installer in isolated Ubuntu 24.04 systemd container
         run: |
           set -euo pipefail
-          python3 -m http.server 8765 --directory "$PWD" >/tmp/musikbot187-http.log 2>&1 &
-          HTTP_PID=$!
-          trap 'kill "$HTTP_PID" >/dev/null 2>&1 || true' EXIT
+          rm -rf /tmp/musikbot187-git && mkdir -p /tmp/musikbot187-git
+          git clone --bare "$GITHUB_WORKSPACE" /tmp/musikbot187-git/radiobot.git
+          git --git-dir=/tmp/musikbot187-git/radiobot.git update-server-info
+          git daemon --reuseaddr --base-path=/tmp/musikbot187-git --export-all --port=29418 >/tmp/musikbot187-git.log 2>&1 &
+          GIT_PID=$!
+          trap 'kill "$GIT_PID" >/dev/null 2>&1 || true' EXIT
+          sleep 1
           docker rm -f musikbot187-ci >/dev/null 2>&1 || true
-          docker run -d --name musikbot187-ci --privileged --cgroupns=host -p 8765:8765 musikbot187-ci:ubuntu2404-systemd
-          trap 'docker rm -f musikbot187-ci >/dev/null 2>&1 || true; kill "$HTTP_PID" >/dev/null 2>&1 || true' EXIT
+          docker run -d --name musikbot187-ci --privileged --cgroupns=host --add-host=host.docker.internal:host-gateway musikbot187-ci:ubuntu2404-systemd
+          trap 'docker rm -f musikbot187-ci >/dev/null 2>&1 || true; kill "$GIT_PID" >/dev/null 2>&1 || true' EXIT
           for i in {1..30}; do docker exec musikbot187-ci systemctl is-system-running >/dev/null 2>&1 && break; sleep 1; done
           docker exec musikbot187-ci bash -lc '
             set -euo pipefail
-            cp /repo/install-stable.sh /tmp/install-stable.sh 2>/dev/null || true
-            if [[ ! -s /tmp/install-stable.sh ]]; then curl --fail --silent --show-error http://host.docker.internal:8765/install-stable.sh -o /tmp/install-stable.sh; fi
-            sed -i "s#REPO=\"https://github.com/jonascool19-pixel/radiobot.git\"#REPO=\"http://host.docker.internal:8765/.git\"#" /tmp/install-stable.sh
+            curl --fail --silent --show-error --max-time 10 http://host.docker.internal:3000/ >/dev/null 2>&1 || true
+            curl --fail --silent --show-error http://host.docker.internal:8765/install-stable.sh -o /tmp/install-stable.sh 2>/dev/null || true
+            if [[ ! -s /tmp/install-stable.sh ]]; then
+              git clone git://host.docker.internal:29418/radiobot.git /tmp/installer-repo
+              cp /tmp/installer-repo/install-stable.sh /tmp/install-stable.sh
+            fi
+            sed -i "s#REPO=\"https://github.com/jonascool19-pixel/radiobot.git\"#REPO=\"git://host.docker.internal:29418/radiobot.git\"#" /tmp/install-stable.sh
             chmod 0755 /tmp/install-stable.sh
             bash -n /tmp/install-stable.sh
             /tmp/install-stable.sh
