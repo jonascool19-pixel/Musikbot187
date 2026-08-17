@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { spawn } from "node:child_process";
-import { validatePlaybackItem } from "./source-policy.js";
+import { validatePlaybackItem, revalidatePlaybackTarget } from "./source-policy.js";
 
 const YTDLP = process.env.MUSIKBOT187_YTDLP || "yt-dlp";
 const FFMPEG = process.env.MUSIKBOT187_FFMPEG || "ffmpeg";
@@ -18,8 +18,9 @@ export class Player extends EventEmitter {
   resolver = null;
   generation = 0;
   spawnFn;
-  dataDirectory;
-  constructor(settings, { spawnFn = spawn } = {}) { super(); this.volume = clampVolume(settings.volume ?? 80); this.mode = ["queue", "repeat", "shuffle"].includes(settings.mode) ? settings.mode : "queue"; this.spawnFn = spawnFn; this.dataDirectory = settings.filesDirectory; }
+  settings;
+  constructor(settings, { spawnFn = spawn } = {}) { super(); this.settings = settings; this.volume = clampVolume(settings.volume ?? 80); this.mode = ["queue", "repeat", "shuffle"].includes(settings.mode) ? settings.mode : "queue"; this.spawnFn = spawnFn; }
+  get dataDirectory() { return this.settings.filesDirectory; }
   snapshot() { return { queue: this.queue, current: this.current, paused: this.paused, volume: this.volume, mode: this.mode }; }
   setVolume(value) {
     const next = clampVolume(value);
@@ -74,8 +75,10 @@ export class Player extends EventEmitter {
     return url;
   }
   async playSource(item, run) {
+    await revalidatePlaybackTarget(item, this.dataDirectory);
     const source = await this.resolve(item);
     if (run !== this.generation) return "cancelled";
+    if (item.source === "direct" || item.source === "radio") await revalidatePlaybackTarget(item, this.dataDirectory);
     const ff = this.spawnFn(FFMPEG, ["-hide_banner", "-loglevel", "error", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_at_eof", "1", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "4xx,5xx", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "-af", `volume=${this.volume / 100}`, "pipe:1"], { stdio: ["ignore", "pipe", "pipe"] });
     this.ff = ff;
     if (this.paused) { try { ff.kill("SIGSTOP"); } catch {} }
