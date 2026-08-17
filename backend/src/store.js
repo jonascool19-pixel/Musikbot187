@@ -11,7 +11,7 @@ let saveChain = Promise.resolve();
 
 const defaults = () => ({
   users: [],
-  settings: { volume: 80, mode: "queue", outputType: "none", outputId: "", networkInterface: "", filesDirectory: path.join(DATA_DIR, "music"), theme: "dark" },
+  settings: { volume: 80, mode: "queue", outputType: "none", outputId: "", networkInterface: "", filesDirectory: path.join(DATA_DIR, "music"), theme: "dark", accentColor: "#0b69b3" },
   playlists: [],
   discord: [],
   ts3: [],
