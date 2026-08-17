@@ -9,7 +9,6 @@
     } catch {}
     return nativeFetch(input, init);
   };
-
   const q = s => document.querySelector(s);
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const api = (path, options = {}) => {
@@ -24,110 +23,42 @@
   };
   const post = (path, body = {}) => api(path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   const put = (path, body = {}) => api(path, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-
-  function note(text) {
-    const n = q('#notice');
-    if (!n) return;
-    n.textContent = text;
-    n.classList.add('show');
-    setTimeout(() => n.classList.remove('show'), 3500);
-  }
-
+  function note(text) { const n = q('#notice'); if (!n) return; n.textContent = text; n.classList.add('show'); setTimeout(() => n.classList.remove('show'), 3500); }
   async function snapshot() {
     if (!authHeader) return null;
     try {
-      const [state, system, network, health, discord, ts3] = await Promise.all([
-        api('/api/state'), api('/api/system'), api('/api/network'), api('/api/health'), api('/api/discord'), api('/api/ts3')
-      ]);
+      const [state, system, network, health, discord, ts3] = await Promise.all([api('/api/state'), api('/api/system'), api('/api/network'), api('/api/health'), api('/api/discord'), api('/api/ts3')]);
       return { state, system, network, health, discord, ts3 };
     } catch { return null; }
   }
-
   function ensureHeader() {
-    const top = q('.top');
-    if (!top || q('#enhancedControls')) return;
+    const top = q('.top'); if (!top || q('#enhancedControls')) return;
     const right = top.querySelector('.clock')?.parentElement || top;
-    const box = document.createElement('div');
-    box.id = 'enhancedControls';
-    box.className = 'enhanced-controls';
+    const box = document.createElement('div'); box.id = 'enhancedControls'; box.className = 'enhanced-controls';
     right.insertBefore(box, right.querySelector('.clock'));
   }
-
   function renderControls(data) {
-    ensureHeader();
-    const box = q('#enhancedControls');
-    if (!box || !data) return;
-    const items = [
-      ...data.discord.map(x => ({ type:'discord', id:x.id, name:x.name, connected:x.connected })),
-      ...data.ts3.map(x => ({ type:'ts3', id:x.id, name:x.name, connected:x.connected }))
-    ];
+    ensureHeader(); const box = q('#enhancedControls'); if (!box || !data) return;
+    const items = [...data.discord.map(x => ({ type:'discord', id:x.id, name:x.name, connected:x.connected })), ...data.ts3.map(x => ({ type:'ts3', id:x.id, name:x.name, connected:x.connected }))];
     const selected = `${data.state.settings.outputType}:${data.state.settings.outputId}`;
     box.innerHTML = `<label class="instance-control">Ausgabe<select id="enhancedOutput"><option value="none:">Keine</option>${items.map(x => `<option value="${esc(x.type)}:${esc(x.id)}" ${selected === `${x.type}:${x.id}` ? 'selected' : ''}>${x.connected ? '🟢' : '🔴'} ${esc(x.name)}</option>`).join('')}</select></label><button id="enhancedBot" class="mini-power">⏻ Bot ${data.health.ok ? 'Ein' : 'Aus'}</button><button id="enhancedRestart" class="mini-power">↻ Ubuntu</button><button id="enhancedShutdown" class="mini-power danger">⏻ Ubuntu</button>`;
-    q('#enhancedOutput').onchange = async e => {
-      const [type,id] = String(e.target.value).split(':');
-      try { await put('/api/settings', { outputType:type, outputId:id || '' }); note('Ausgabeinstanz gespeichert.'); await refresh(); } catch (e) { note(e.message); }
-    };
-    q('#enhancedBot').onclick = async () => {
-      const action = data.health.ok ? 'stop-bot' : 'start-bot';
-      try { await post('/api/control', { action }); note(action === 'stop-bot' ? 'Bot wird gestoppt.' : 'Bot wird gestartet.'); setTimeout(refresh, 1000); } catch (e) { note(e.message); }
-    };
-    q('#enhancedRestart').onclick = async () => {
-      if (!confirm('Ubuntu jetzt neu starten?')) return;
-      try { await post('/api/control', { action:'restart-system' }); } catch (e) { note(e.message); }
-    };
-    q('#enhancedShutdown').onclick = async () => {
-      if (!confirm('Ubuntu jetzt herunterfahren?')) return;
-      try { await post('/api/control', { action:'shutdown-system' }); } catch (e) { note(e.message); }
-    };
+    q('#enhancedOutput').onchange = async e => { const [type,id] = String(e.target.value).split(':'); try { await put('/api/settings', { outputType:type, outputId:id || '' }); note('Ausgabeinstanz gespeichert.'); await refresh(); } catch (e) { note(e.message); } };
+    q('#enhancedBot').onclick = async () => { const action = data.health.ok ? 'stop-bot' : 'start-bot'; try { await post('/api/control', { action }); note(action === 'stop-bot' ? 'Bot wird gestoppt.' : 'Bot wird gestartet.'); setTimeout(refresh, 1000); } catch (e) { note(e.message); } };
+    q('#enhancedRestart').onclick = async () => { if (!confirm('Ubuntu jetzt neu starten?')) return; try { await post('/api/control', { action:'restart-system' }); } catch (e) { note(e.message); } };
+    q('#enhancedShutdown').onclick = async () => { if (!confirm('Ubuntu jetzt herunterfahren?')) return; try { await post('/api/control', { action:'shutdown-system' }); } catch (e) { note(e.message); } };
   }
-
   function renderMetrics(data) {
     const set = (id, value) => { const n = q(id); if (n) n.textContent = value; };
-    set('#topCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`);
-    set('#topRam', `${Number(data.system.memory.percent).toFixed(1)} %`);
-    set('#topNetRx', `↓ ${data.network.rxUtilizationPercent ?? 0}%`);
-    set('#topNetTx', `↑ ${data.network.txUtilizationPercent ?? 0}%`);
-    set('#topNetTotal', `${((data.network.totalRxBytes + data.network.totalTxBytes) / 1024).toFixed(1)} KB`);
-    set('#sysCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`);
-    set('#sysRam', `${Number(data.system.memory.percent).toFixed(1)} %`);
-    set('#sysRamDetail', `${data.system.memory.used} / ${data.system.memory.total}`);
-    set('#sysNetRx', `${data.network.rxUtilizationPercent ?? 0}%`);
-    set('#sysNetTx', `${data.network.txUtilizationPercent ?? 0}%`);
-    set('#sysNetTotal', `${((data.network.totalRxBytes + data.network.totalTxBytes) / 1024).toFixed(1)} KB`);
+    set('#topCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`); set('#topRam', `${Number(data.system.memory.percent).toFixed(1)} %`); set('#topNetRx', `↓ ${data.network.rxUtilizationPercent ?? 0}%`); set('#topNetTx', `↑ ${data.network.txUtilizationPercent ?? 0}%`); set('#topNetTotal', `${((data.network.totalRxBytes + data.network.totalTxBytes) / 1024).toFixed(1)} KB`);
+    set('#sysCpu', `${Number(data.system.cpuPercent).toFixed(1)} %`); set('#sysRam', `${Number(data.system.memory.percent).toFixed(1)} %`); set('#sysRamDetail', `${data.system.memory.used} / ${data.system.memory.total}`); set('#sysNetRx', `${data.network.rxUtilizationPercent ?? 0}%`); set('#sysNetTx', `${data.network.txUtilizationPercent ?? 0}%`); set('#sysNetTotal', `${((data.network.totalRxBytes + data.network.totalTxBytes) / 1024).toFixed(1)} KB`);
   }
-
   function renderDiscordDots(data) {
-    const heading = [...document.querySelectorAll('h2')].find(x => x.textContent.trim() === 'Discord');
-    if (!heading) return;
-    const section = heading.closest('section');
-    if (!section) return;
+    const heading = [...document.querySelectorAll('h2')].find(x => x.textContent.trim() === 'Discord'); if (!heading) return;
+    const section = heading.closest('section'); if (!section) return;
     const cards = [...section.querySelectorAll('article.card')];
-    data.discord.forEach((item, index) => {
-      const card = cards[index];
-      if (!card) return;
-      const head = card.querySelector('.sectionhead');
-      if (!head) return;
-      let dot = head.querySelector('.instance-status-dot');
-      if (!dot) { dot = document.createElement('span'); dot.className = 'instance-status-dot'; head.querySelector('b')?.appendChild(dot); }
-      dot.textContent = item.connected ? ' 🟢' : ' 🔴';
-      dot.title = item.connected ? 'Discord verbunden' : 'Discord getrennt';
-    });
+    data.discord.forEach((item, index) => { const card = cards[index]; if (!card) return; const head = card.querySelector('.sectionhead'); if (!head) return; let dot = head.querySelector('.instance-status-dot'); if (!dot) { dot = document.createElement('span'); dot.className = 'instance-status-dot'; head.querySelector('b')?.appendChild(dot); } dot.textContent = item.connected ? ' 🟢' : ' 🔴'; dot.title = item.connected ? 'Discord verbunden' : 'Discord getrennt'; });
   }
-
-  async function refresh() {
-    const data = await snapshot();
-    if (!data) return;
-    renderControls(data);
-    renderMetrics(data);
-    renderDiscordDots(data);
-  }
-
-  const observer = new MutationObserver(() => { void refresh(); });
-  const start = () => {
-    if (!q('#app')) return setTimeout(start, 250);
-    observer.observe(q('#app'), { childList:true, subtree:true });
-    void refresh();
-    setInterval(refresh, 1000);
-  };
+  async function refresh() { const data = await snapshot(); if (!data) return; renderControls(data); renderMetrics(data); renderDiscordDots(data); }
+  const start = () => { if (!q('#app')) return setTimeout(start, 250); void refresh(); setInterval(refresh, 1000); };
   start();
 })();
