@@ -25,6 +25,8 @@ command -v yt-dlp >/dev/null
 command -v ffmpeg >/dev/null
 command -v node >/dev/null
 
+# Stop an existing installation before replacing its files.
+$SUDO systemctl stop musikbot187.service 2>/dev/null || true
 $SUDO rm -rf "$APP"
 $SUDO install -d -m 0750 "$DATA/music" /usr/local/sbin
 $SUDO git clone --depth 1 "$REPO" "$APP"
