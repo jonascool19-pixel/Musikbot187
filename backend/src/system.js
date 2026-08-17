@@ -1,6 +1,5 @@
 import os from 'node:os';
-import { readFile } from 'node:fs/promises';
-import { stat, statfs } from 'node:fs/promises';
+import { readFile, stat, statfs } from 'node:fs/promises';
 import path from 'node:path';
 
 export function calculateCpuPercent(usedSeconds, elapsedSeconds, cpuCount) {
@@ -27,7 +26,7 @@ function parseProcNetDev(text) {
 
 let lastCpu = process.cpuUsage();
 let lastTime = process.hrtime.bigint();
-let lastNetwork = null;
+const lastNetwork = new Map();
 
 export function systemInfo() {
   const now = process.hrtime.bigint();
@@ -48,56 +47,44 @@ export function systemInfo() {
     uptime: os.uptime(),
     cpus: os.cpus().length,
     cpuPercent: Number(cpuPercent.toFixed(1)),
-    memory: {
-      total,
-      free,
-      used: usedMem,
-      percent: Number((usedMem / total * 100).toFixed(1))
-    },
+    memory: { total, free, used: usedMem, percent: Number((usedMem / total * 100).toFixed(1)) },
     load: os.loadavg()
   };
 }
 
 export async function networkInfo(selectedName = '') {
   let traffic = [];
-  try {
-    traffic = parseProcNetDev(await readFile('/proc/net/dev', 'utf8'));
-  } catch {}
+  try { traffic = parseProcNetDev(await readFile('/proc/net/dev', 'utf8')); } catch {}
 
   const now = process.hrtime.bigint();
-  const totalRxBytes = traffic.reduce((sum, x) => sum + x.rxBytes, 0);
-  const totalTxBytes = traffic.reduce((sum, x) => sum + x.txBytes, 0);
-  const elapsed = lastNetwork ? Math.max(0.001, Number(now - lastNetwork.time) / 1e9) : 0;
-  const rxBytesPerSecond = lastNetwork ? Math.max(0, (totalRxBytes - lastNetwork.rxBytes) / elapsed) : 0;
-  const txBytesPerSecond = lastNetwork ? Math.max(0, (totalTxBytes - lastNetwork.txBytes) / elapsed) : 0;
-  lastNetwork = { time: now, rxBytes: totalRxBytes, txBytes: totalTxBytes };
-
   const addresses = Object.entries(os.networkInterfaces()).map(([name, values]) => ({
     name,
     addresses: (values || []).map(v => ({ address: v.address, family: v.family, internal: v.internal }))
   }));
   const selectedAddresses = selectNetworkInterfaces(addresses, selectedName);
   const selectedNames = new Set(selectedAddresses.map(x => x.name));
-  const selectedTraffic = selectedName ? traffic.filter(x => selectedNames.has(x.name)) : traffic;
-  const selectedRxBytes = selectedTraffic.reduce((sum, x) => sum + x.rxBytes, 0);
-  const selectedTxBytes = selectedTraffic.reduce((sum, x) => sum + x.txBytes, 0);
+  const measuredTraffic = selectedName ? traffic.filter(x => selectedNames.has(x.name)) : traffic;
+  const totalRxBytes = measuredTraffic.reduce((sum, x) => sum + x.rxBytes, 0);
+  const totalTxBytes = measuredTraffic.reduce((sum, x) => sum + x.txBytes, 0);
+  const key = selectedName || '*';
+  const previous = lastNetwork.get(key);
+  const elapsed = previous ? Math.max(0.001, Number(now - previous.time) / 1e9) : 0;
+  const rxBytesPerSecond = previous ? Math.max(0, (totalRxBytes - previous.rxBytes) / elapsed) : 0;
+  const txBytesPerSecond = previous ? Math.max(0, (totalTxBytes - previous.txBytes) / elapsed) : 0;
+  lastNetwork.set(key, { time: now, rxBytes: totalRxBytes, txBytes: totalTxBytes });
 
   const interfaces = selectedAddresses.map(item => {
     const stat = traffic.find(x => x.name === item.name);
-    return {
-      ...item,
-      rxBytes: stat?.rxBytes || 0,
-      txBytes: stat?.txBytes || 0
-    };
+    return { ...item, rxBytes: stat?.rxBytes || 0, txBytes: stat?.txBytes || 0 };
   });
 
   return {
     hostname: os.hostname(),
     interfaces,
-    totalRxBytes: selectedName ? selectedRxBytes : totalRxBytes,
-    totalTxBytes: selectedName ? selectedTxBytes : totalTxBytes,
-    rxBytesPerSecond: selectedName ? Math.max(0, (selectedRxBytes - (lastNetwork?.selectedRxBytes ?? selectedRxBytes)) / elapsed) : rxBytesPerSecond,
-    txBytesPerSecond: selectedName ? Math.max(0, (selectedTxBytes - (lastNetwork?.selectedTxBytes ?? selectedTxBytes)) / elapsed) : txBytesPerSecond,
+    totalRxBytes,
+    totalTxBytes,
+    rxBytesPerSecond,
+    txBytesPerSecond,
     measuredSeconds: elapsed
   };
 }
