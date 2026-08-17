@@ -22,3 +22,5 @@ jobs:
       - run: node --check backend/src/ts3.js
       - run: node --check backend/src/store.js
       - run: node --check frontend/app.js
+      - run: grep -F 'releases/latest/download/yt-dlp' install-stable.sh
+      - run: grep -F 'ExecStart=/usr/bin/node $APP/backend/src/server.js' install-stable.sh
