@@ -11,7 +11,7 @@ export function discordIntents(prefix = "", messageContentIntent = false) {
 }
 export function discordCommandAllowed(interaction, guildId) { return Boolean(interaction?.guildId && guildId && interaction.guildId === guildId); }
 class Runtime {
-  constructor(cfg) { this.cfg = cfg; this.client = new Client({ intents: discordIntents(cfg.prefix, cfg.messageContentIntent) }); this.connecting = false; this.reconnecting = false; this.reconnectAttempt = 0; this.reconnectTimer = null; this.voiceRecovering = false; this.voiceRecoveryTimer = null; this.lastGuildId = cfg.guildId || ""; }
+  constructor(cfg) { this.cfg = cfg; this.client = new Client({ intents: discordIntents(cfg.prefix, cfg.messageContentIntent) }); this.connecting = false; this.reconnecting = false; this.reconnectAttempt = 0; this.reconnectTimer = null; this.voiceRecovering = false; this.voiceRecoveryTimer = null; }
 }
 function commands() {
   return [
@@ -31,7 +31,7 @@ function makePlayItem(query) {
 export class DiscordManager {
   constructor(music) { this.music = music; this.map = new Map(); }
   scheduleGatewayReconnect(runtime) {
-    if (!runtime.map || runtime.reconnectTimer || runtime.reconnecting || !runtime.cfg.enabled) return;
+    if (!runtime || runtime.reconnectTimer || runtime.reconnecting || !runtime.cfg.enabled) return;
     runtime.reconnecting = true;
     const delay = GATEWAY_RETRY_MS[Math.min(runtime.reconnectAttempt, GATEWAY_RETRY_MS.length - 1)];
     runtime.reconnectAttempt += 1;
@@ -44,7 +44,7 @@ export class DiscordManager {
       }).catch(error => {
         runtime.reconnecting = false;
         this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: Wiederverbindung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
-        this.scheduleGatewayReconnect(runtime);
+        if (this.map.get(runtime.cfg.id) === runtime) this.scheduleGatewayReconnect(runtime);
       });
     }, delay);
     runtime.reconnectTimer.unref?.();
@@ -59,11 +59,11 @@ export class DiscordManager {
     if (!cfg.token) throw new Error("Bot-Token fehlt");
     const runtime = new Runtime(cfg);
     runtime.connecting = true;
-    runtime.reconnecting = false;
     this.map.set(cfg.id, runtime);
     runtime.client.on("ready", async () => {
       runtime.connecting = false;
       runtime.reconnectAttempt = 0;
+      runtime.reconnecting = false;
       if (runtime.client.user) {
         const rest = new REST({ version: "10" }).setToken(cfg.token);
         try {
@@ -94,9 +94,14 @@ export class DiscordManager {
       runtime.connecting = false;
     } catch (e) {
       runtime.connecting = false;
-      this.map.delete(cfg.id);
-      try { await runtime.client.destroy(); } catch {}
-      throw new Error(e?.code === "TokenInvalid" ? "Discord-Token ist ungültig" : e?.message || String(e));
+      const invalidToken = e?.code === "TokenInvalid" || /token is invalid/i.test(String(e?.message || e));
+      if (invalidToken) {
+        this.map.delete(cfg.id);
+        try { await runtime.client.destroy(); } catch {}
+        throw new Error("Discord-Token ist ungültig");
+      }
+      this.scheduleGatewayReconnect(runtime);
+      throw new Error(e?.message || String(e));
     }
   }
   async handleSlash(interaction) {
@@ -113,7 +118,7 @@ export class DiscordManager {
     const runtime = this.map.get(id); if (!runtime) return;
     if (runtime.reconnectTimer) clearTimeout(runtime.reconnectTimer); runtime.reconnectTimer = null; runtime.reconnecting = false;
     if (runtime.voiceRecoveryTimer) clearTimeout(runtime.voiceRecoveryTimer); runtime.voiceRecoveryTimer = null; runtime.voiceRecovering = false;
-    try { runtime.voice?.removeAllListeners("stateChange"); runtime.voice?.destroy(); runtime.stream?.end(); await runtime.client.destroy(); } finally { this.map.delete(id); }
+    try { runtime.voice?.removeAllListeners("stateChange"); runtime.voice?.destroy(); runtime.player?.stop?.(); runtime.stream?.end(); await runtime.client.destroy(); } finally { this.map.delete(id); }
   }
   async join(id) {
     const runtime = this.map.get(id); if (!runtime || !runtime.client.isReady()) throw new Error("Instanz nicht verbunden. Erst verbinden.");
@@ -122,6 +127,7 @@ export class DiscordManager {
     const channel = guild.channels.cache.get(runtime.cfg.channelId); if (!channel || channel.type !== ChannelType.GuildVoice) throw new Error("Der ausgewählte Voice-Kanal wurde nicht gefunden");
     if (runtime.voiceRecoveryTimer) clearTimeout(runtime.voiceRecoveryTimer); runtime.voiceRecoveryTimer = null; runtime.voiceRecovering = false;
     if (runtime.voice) { runtime.voice.removeAllListeners("stateChange"); runtime.voice.destroy(); }
+    runtime.player?.stop?.(); runtime.stream?.end(); runtime.player = null; runtime.stream = null;
     runtime.voice = joinVoiceChannel({ guildId: guild.id, channelId: channel.id, adapterCreator: guild.voiceAdapterCreator });
     runtime.voice.on("stateChange", (_oldState, newState) => {
       if (newState.status !== VoiceConnectionStatus.Disconnected || runtime.voiceRecovering) return;
@@ -134,7 +140,7 @@ export class DiscordManager {
     });
     runtime.player = createAudioPlayer(); runtime.voice.subscribe(runtime.player); runtime.stream = new PassThrough({ highWaterMark: 256 * 1024 }); runtime.player.play(createAudioResource(runtime.stream, { inputType: StreamType.Raw }));
   }
-  writeAudio(data, id) { const stream = this.map.get(id)?.stream; if (!stream || stream.destroyed) return; if (stream.writableLength > 1024 * 1024) { stream.read(0); return; } stream.write(data); }
+  writeAudio(data, id) { const stream = this.map.get(id)?.stream; if (!stream || stream.destroyed) return; if (stream.writableLength > 1024 * 1024) return; stream.write(data); }
   guilds(id) { const r = this.map.get(id); return r && r.client.isReady() ? [...r.client.guilds.cache.values()].map((g) => ({ id: g.id, name: g.name })) : []; }
   channels(id, guildId) { const g = this.map.get(id)?.client.guilds.cache.get(guildId); return g ? [...g.channels.cache.values()].filter((c) => c.type === ChannelType.GuildVoice).map((c) => ({ id: c.id, name: c.name })) : []; }
   status() { return [...this.map.values()].map((r) => ({ id: r.cfg.id, name: r.cfg.name, enabled: r.cfg.enabled, connected: Boolean(r.client.isReady()), connecting: Boolean(r.connecting || r.reconnecting), guildId: r.cfg.guildId, channelId: r.cfg.channelId, inviteUrl: r.cfg.clientId && /^\d{17,20}$/.test(r.cfg.clientId) ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(r.cfg.clientId)}&scope=bot%20applications.commands&permissions=36700160` : "", messageContentIntent: Boolean(r.cfg.messageContentIntent), voiceConnected: Boolean(r.voice && (r.voice.state.status === VoiceConnectionStatus.Ready || r.voice.state.status === VoiceConnectionStatus.Signalling)) })); }
