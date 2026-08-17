@@ -37,11 +37,11 @@ test("dashboard contains one-second live monitoring, Discord controls, power con
   assert.match(enhancement, /restart-system/);
   assert.match(enhancement, /shutdown-system/);
   assert.match(enhancement, /messageContentIntent/);
-  assert.match(enhancement, /rxUtilizationPercent/);
   assert.match(music, /\/api\/music\/upload/);
   assert.match(music, /\+ Playlist|＋ Playlist/);
   assert.match(themes, /ocean/);
   assert.match(themes, /saveCustomAccent/);
   assert.match(server, /accentColor/);
   assert.match(server, /MUSIC_EXTENSIONS/);
+  assert.match(server, /\/api\/network/);
 });
