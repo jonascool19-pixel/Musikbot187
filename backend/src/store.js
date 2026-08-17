@@ -50,6 +50,18 @@ function check(password, hex) { try { return timingSafeEqual(hash(password), Buf
 function publicUser(u) { return { id: u.id, name: u.name, role: u.role }; }
 export function loginRateKey(name, clientKey='unknown') { return `${String(clientKey || "unknown").trim() || "unknown"}:${String(name || "").toLowerCase()}`; }
 
+const AUTH_STATE_SWEEP_MS = 60 * 60 * 1000;
+const AUTH_STATE_MAX_AGE_MS = 30 * 60 * 1000;
+const authStateSweep = setInterval(() => {
+  const now = Date.now();
+  for (const [token, session] of sessions) if (session.expires <= now) sessions.delete(token);
+  for (const [key, attempt] of loginAttempts) {
+    const lastActivity = Math.max(attempt.first || 0, attempt.last || 0, attempt.blockedUntil || 0);
+    if (lastActivity + AUTH_STATE_MAX_AGE_MS <= now) loginAttempts.delete(key);
+  }
+}, AUTH_STATE_SWEEP_MS);
+authStateSweep.unref?.();
+
 export function createAdmin(name, password) {
   const u = { id: randomUUID(), name, hash: hash(password).toString("hex"), role: "admin" };
   db().users.push(u);
@@ -58,9 +70,10 @@ export function createAdmin(name, password) {
 export function login(name, password, clientKey='unknown') {
   const key = loginRateKey(name, clientKey);
   const now = Date.now();
-  const attempt = loginAttempts.get(key) || { count: 0, first: now, blockedUntil: 0 };
+  const attempt = loginAttempts.get(key) || { count: 0, first: now, last: now, blockedUntil: 0 };
   if (attempt.first + 15 * 60 * 1000 <= now) { attempt.count = 0; attempt.first = now; attempt.blockedUntil = 0; }
-  if (attempt.blockedUntil > now) return null;
+  attempt.last = now;
+  if (attempt.blockedUntil > now) { loginAttempts.set(key, attempt); return null; }
   const u = db().users.find((x) => x.name === name);
   if (!u || !check(password, u.hash)) {
     attempt.count += 1;
