@@ -41,7 +41,7 @@ export class Player extends EventEmitter {
   async enqueue(items) { const clean = Array.isArray(items) ? items.filter(x => x && typeof x.url === "string" && x.url.trim()) : []; this.queue.push(...clean); if (!this.current) await this.next(); else this.emit("state"); }
   async resolve(item) {
     const input = String(item.url);
-    if (item.source === "radio" || item.source === "file") return input;
+    if (item.source === "radio" || item.source === "file" || item.source === "direct") return input;
     const args = ["-g", "-f", "bestaudio/best", "--no-playlist"];
     if (item.source === "spotify" || input.startsWith("ytsearch")) args.push("--default-search", "ytsearch1");
     args.push(input);
@@ -66,7 +66,7 @@ export class Player extends EventEmitter {
     return url;
   }
   async next() {
-    if (!this.queue.length) { this.current = null; this.emit("state"); return; }
+    if (!this.queue.length) { this.current = null; this.paused = false; this.emit("state"); return; }
     let item = this.queue.shift();
     if (this.mode === "shuffle" && this.queue.length) { const index = Math.floor(Math.random() * (this.queue.length + 1)); if (index < this.queue.length) { const randomItem = this.queue.splice(index, 1)[0]; this.queue.unshift(item); item = randomItem; } }
     this.current = item; this.paused = false; this.emit("state");
@@ -76,6 +76,7 @@ export class Player extends EventEmitter {
       if (run !== this.generation) return;
       const ff = spawn(FFMPEG, ["-hide_banner", "-loglevel", "error", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "-af", `volume=${this.volume / 100}`, "pipe:1"], { stdio: ["ignore", "pipe", "pipe"] });
       this.ff = ff;
+      if (this.paused) { try { ff.kill("SIGSTOP"); } catch {} }
       ff.stdout.on("data", d => this.emit("audio", Buffer.from(d)));
       ff.stderr.on("data", d => { const message = String(d).trim(); if (message) this.emit("diagnostic", message); });
       await new Promise(resolve => { ff.on("error", () => resolve()); ff.on("close", () => resolve()); });
