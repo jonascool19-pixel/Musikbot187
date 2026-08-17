@@ -61,7 +61,7 @@ export class DiscordManager {
       this.handleSlash(interaction).catch((e) => this.replyError(interaction, e));
     });
     runtime.client.on("messageCreate", (message) => {
-      if (message.author.bot || !message.guild || (cfg.guildId && message.guild.id !== cfg.guildId) || !message.content || !message.content.startsWith(cfg.prefix || "!")) return;
+      if (message.author.bot || !message.guild || !cfg.guildId || message.guild.id !== cfg.guildId || !message.content || !message.content.startsWith(cfg.prefix || "!")) return;
       const parts = message.content.slice((cfg.prefix || "!").length).trim().split(/\s+/);
       const command = parts.shift()?.toLowerCase();
       try {
