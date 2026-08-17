@@ -25,7 +25,7 @@ function commands() {
 function makePlayItem(query) {
   const value = String(query).trim();
   const direct = /^https?:\/\//i.test(value);
-  return { id: Date.now().toString(), title: value, url: direct ? value : `ytsearch1:${value}`, source: direct ? "youtube" : "youtube" };
+  return { id: Date.now().toString(), title: value, url: direct ? value : `ytsearch1:${value}`, source: "youtube" };
 }
 
 export class DiscordManager {
@@ -44,14 +44,14 @@ export class DiscordManager {
       const parts = message.content.slice((cfg.prefix || "!").length).trim().split(/\s+/);
       const command = parts.shift()?.toLowerCase();
       try {
-        if (command === "play") return this.music.enqueue([makePlayItem(parts.join(" "))]);
+        if (command === "play") return void this.music.enqueue([makePlayItem(parts.join(" "))]).catch((e) => message.reply(`Fehler: ${e instanceof Error ? e.message : String(e)}`).catch(() => {}));
         if (command === "pause") this.music.pause();
         else if (command === "resume") this.music.resume();
         else if (command === "skip") this.music.skip();
         else if (command === "stop") this.music.stop();
         else if (command === "volume" && parts[0] !== undefined) this.music.setVolume(Number(parts[0]));
-        else if (command === "queue") void message.reply(this.music.queue.map((x) => x.title).join("\n") || "Queue ist leer.");
-      } catch (e) { void message.reply(`Fehler: ${e instanceof Error ? e.message : String(e)}`); }
+        else if (command === "queue") void message.reply(this.music.queue.map((x) => x.title).join("\n") || "Queue ist leer.").catch(() => {});
+      } catch (e) { void message.reply(`Fehler: ${e instanceof Error ? e.message : String(e)}`).catch(() => {}); }
     });
     try {
       await runtime.client.login(cfg.token);
