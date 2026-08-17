@@ -11,6 +11,18 @@ if ! command -v apt-get >/dev/null 2>&1; then
   exit 1
 fi
 
+# MusikBot187 is designed for systemd-based Proxmox CTs and normal Ubuntu/Debian hosts.
+# Fail early with a useful message instead of partially installing into a container
+# where systemd/cgroups are unavailable.
+if [[ "$(ps -p 1 -o comm= 2>/dev/null || true)" != "systemd" ]]; then
+  echo "Fehler: MusikBot187 benötigt systemd als PID 1. Bei einem Proxmox-CT bitte einen Ubuntu 24.04 CT mit systemd verwenden." >&2
+  exit 1
+fi
+if [[ ! -d /sys/fs/cgroup ]]; then
+  echo "Fehler: cgroups sind nicht verfügbar. Der Proxmox-CT muss cgroups/systemd zulassen." >&2
+  exit 1
+fi
+
 $SUDO apt-get update
 $SUDO apt-get upgrade -y
 $SUDO apt-get install -y curl git ffmpeg ca-certificates python3 sudo
