@@ -10,19 +10,17 @@ test("setup fragment is sent as an HTTP header and then removed from the URL", a
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto("data:text/html,<body></body>#setup=secret%20token");
-    await page.addScriptTag({ content: script });
-    const result = await page.evaluate(async () => {
-      const original = window.fetch;
-      window.fetch = async (input, init) => {
-        const headers = new Headers(init?.headers);
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } });
-      };
+    await page.setContent("<body></body>");
+    await page.evaluate(() => { window.location.hash = "setup=secret%20token"; });
+    const captured = await page.evaluate(async scriptText => {
+      let seen = null;
+      window.fetch = async (_input, init) => { seen = new Headers(init?.headers).get("X-MusikBot-Setup-Token"); return new Response("{}", { status: 200 }); };
+      const el = document.createElement("script"); el.textContent = scriptText; document.documentElement.appendChild(el);
       await window.fetch("/api/setup", { method: "POST" });
-      return window.location.href;
-    });
-    assert.ok(result.includes("data:text/html"));
-    assert.ok(!result.includes("#setup="));
+      return { seen, hash: window.location.hash };
+    }, script);
+    assert.equal(captured.seen, "secret token");
+    assert.equal(captured.hash, "");
   } finally {
     await browser.close();
   }
