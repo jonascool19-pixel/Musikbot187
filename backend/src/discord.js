@@ -1,5 +1,5 @@
 import { Client, ChannelType, GatewayIntentBits, REST, Routes, SlashCommandBuilder } from "discord.js";
-import { AudioPlayer, StreamType, createAudioPlayer, createAudioResource, joinVoiceChannel } from "@discordjs/voice";
+import { StreamType, createAudioPlayer, createAudioResource, joinVoiceChannel } from "@discordjs/voice";
 import { PassThrough } from "node:stream";
 
 class Runtime {
@@ -25,7 +25,9 @@ function commands() {
 function makePlayItem(query) {
   const value = String(query).trim();
   const direct = /^https?:\/\//i.test(value);
-  return { id: Date.now().toString(), title: value, url: direct ? value : `ytsearch1:${value}`, source: "youtube" };
+  if (!direct) return { id: Date.now().toString(), title: value, url: `ytsearch1:${value}`, source: "youtube" };
+  const youtube = /(?:youtube\.com|youtu\.be)\//i.test(value);
+  return { id: Date.now().toString(), title: value, url: value, source: youtube ? "youtube" : "direct" };
 }
 
 export class DiscordManager {
