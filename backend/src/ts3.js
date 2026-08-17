@@ -12,25 +12,60 @@ function withTimeout(promise, ms, message) {
   return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms); })]).finally(() => clearTimeout(timer));
 }
 export class TS3Manager {
-  constructor(onDiagnostic = () => {}) { this.map = new Map(); this.pcm = new Map(); this.lastVoiceError = new Map(); this.onDiagnostic = onDiagnostic; this.encoder = new OpusScript(48000, 2, OpusScript.Application.AUDIO); }
-  diagnostic(id, message) { const key = String(id || "unknown"); const now = Date.now(); const last = this.lastVoiceError.get(key) || 0; if (now - last >= 5000) { this.lastVoiceError.set(key, now); this.onDiagnostic(`TS3 ${key}: ${message}`); } }
+  constructor(onDiagnostic = () => {}) {
+    this.map = new Map(); this.configs = new Map(); this.reconnectTimers = new Map(); this.pcm = new Map(); this.lastVoiceError = new Map();
+    this.onDiagnostic = onDiagnostic; this.encoder = new OpusScript(48000, 2, OpusScript.Application.AUDIO);
+  }
+  diagnostic(id, message) {
+    const key = String(id || "unknown"); const now = Date.now(); const last = this.lastVoiceError.get(key) || 0;
+    if (now - last >= 5000) { this.lastVoiceError.set(key, now); this.onDiagnostic(`TS3 ${key}: ${message}`); }
+  }
+  scheduleReconnect(id) {
+    const key = String(id);
+    if (!this.configs.has(key) || this.reconnectTimers.has(key)) return;
+    this.diagnostic(key, "Verbindung verloren; Wiederverbindung in 5s.");
+    const timer = setTimeout(async () => {
+      this.reconnectTimers.delete(key);
+      const config = this.configs.get(key); if (!config) return;
+      try { await this.connect(config); this.diagnostic(key, "TS3-Verbindung wiederhergestellt."); }
+      catch (error) { this.diagnostic(key, `Wiederverbindung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`); this.scheduleReconnect(key); }
+    }, 5000);
+    timer.unref?.(); this.reconnectTimers.set(key, timer);
+  }
   async connect(config) {
-    await this.disconnect(config.id);
+    const key = String(config.id);
+    this.configs.set(key, { ...config });
+    await this.disconnect(key, false);
     if (!config.enabled) throw new Error("Instanz ist ausgeschaltet");
     if (!config.host) throw new Error("TS3-Server fehlt");
     const client = new Client(generateIdentity(8), address(config.host, config.port), config.nickname || "MusikBot187", { serverPassword: config.password || undefined, defaultChannel: config.channel || undefined });
     try {
       await withTimeout(client.connect(), 15000, "TS3-Verbindung hat das Zeitlimit überschritten");
       await withTimeout(client.waitConnected(AbortSignal.timeout(15000)), 15000, "TS3-Server wurde nicht rechtzeitig verbunden");
-      this.map.set(config.id, client); this.pcm.set(config.id, Buffer.alloc(0)); this.lastVoiceError.delete(config.id);
-    } catch (error) { try { await client.disconnect(); } catch {} throw error; }
+      this.map.set(key, client); this.pcm.set(key, Buffer.alloc(0)); this.lastVoiceError.delete(key);
+    } catch (error) {
+      try { await client.disconnect(); } catch {}
+      throw error;
+    }
   }
-  async disconnect(id) { const client = this.map.get(id); if (client) { try { await client.disconnect(); } finally { this.map.delete(id); this.pcm.delete(id); this.lastVoiceError.delete(id); } } }
+  async disconnect(id, keepConfig = false) {
+    const key = String(id); const timer = this.reconnectTimers.get(key);
+    if (timer) { clearTimeout(timer); this.reconnectTimers.delete(key); }
+    const client = this.map.get(key);
+    try { if (client) await client.disconnect(); } finally {
+      this.map.delete(key); this.pcm.delete(key); this.lastVoiceError.delete(key);
+      if (!keepConfig) this.configs.delete(key);
+    }
+  }
   writeAudio(data, id) {
-    const client = this.map.get(id); if (!client || !Buffer.isBuffer(data)) return;
-    let buffer = Buffer.concat([this.pcm.get(id) || Buffer.alloc(0), data]);
-    while (buffer.length >= 3840) { const frame = buffer.subarray(0, 3840); buffer = buffer.subarray(3840); try { client.sendVoice(this.encoder.encode(frame, 960), 4); } catch (error) { this.diagnostic(id, error instanceof Error ? error.message : String(error)); } }
-    this.pcm.set(id, buffer);
+    const key = String(id); const client = this.map.get(key); if (!client || !Buffer.isBuffer(data)) return;
+    let buffer = Buffer.concat([this.pcm.get(key) || Buffer.alloc(0), data]);
+    while (buffer.length >= 3840) {
+      const frame = buffer.subarray(0, 3840); buffer = buffer.subarray(3840);
+      try { client.sendVoice(this.encoder.encode(frame, 960), 4); }
+      catch (error) { this.diagnostic(key, error instanceof Error ? error.message : String(error)); this.map.delete(key); this.pcm.delete(key); this.scheduleReconnect(key); break; }
+    }
+    this.pcm.set(key, buffer);
   }
   status() { return [...this.map.keys()]; }
 }
