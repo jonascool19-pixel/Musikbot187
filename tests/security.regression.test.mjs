@@ -42,7 +42,7 @@ test("first-run setup requires the installer token and preserves admin/user role
   const dataDir = await mkdtemp(join(tmpdir(), "musikbot187-security-"));
   const port = await findPort();
   const token = "test-setup-token-1234567890";
-  const child = spawn(process.execPath, ["../backend/src/server.js"], {
+  const child = spawn(process.execPath, ["backend/src/server.js"], {
     cwd: new URL("..", import.meta.url),
     env: { ...process.env, MUSIKBOT187_DATA_DIR: dataDir, MUSIKBOT187_SETUP_TOKEN: token, HOST: "127.0.0.1", PORT: String(port) },
     stdio: ["ignore", "pipe", "pipe"]
