@@ -16,7 +16,22 @@ export class Player extends EventEmitter {
   generation = 0;
   constructor(settings) { super(); this.volume = clampVolume(settings.volume ?? 80); this.mode = ["queue", "repeat", "shuffle"].includes(settings.mode) ? settings.mode : "queue"; }
   snapshot() { return { queue: this.queue, current: this.current, paused: this.paused, volume: this.volume, mode: this.mode }; }
-  setVolume(value) { this.volume = clampVolume(value); if (this.ff) this.ff.kill("SIGTERM"); }
+  setVolume(value) {
+    const next = clampVolume(value);
+    if (next === this.volume) return;
+    this.volume = next;
+    if (this.ff && this.current) {
+      const current = this.current;
+      this.generation++;
+      try { this.ff.kill("SIGCONT"); } catch {}
+      try { this.ff.kill("SIGTERM"); } catch {}
+      this.ff = null;
+      this.queue.unshift(current);
+      this.current = null;
+      this.paused = false;
+      void this.next();
+    }
+  }
   setMode(mode) { if (["queue", "repeat", "shuffle"].includes(mode)) this.mode = mode; }
   pause() { this.paused = true; if (this.ff) try { this.ff.kill("SIGSTOP"); } catch {} }
   resume() { this.paused = false; if (this.ff) try { this.ff.kill("SIGCONT"); } catch {} }
@@ -62,7 +77,6 @@ export class Player extends EventEmitter {
       await this.next();
     } catch (error) {
       if (this.resolver) this.resolver = null;
-      if (this.ff && this.ff === this.ff) this.ff = null;
       if (run === this.generation) { this.emit("diagnostic", error instanceof Error ? error.message : String(error)); await this.next(); }
     }
   }
