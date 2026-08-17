@@ -22,8 +22,17 @@ test("Player removes queue entries safely", async () => {
   assert.equal(p.queue.length, 1);
 });
 
-test("Player ignores malformed enqueue entries", async () => {
+test("Player filters malformed queue items", async () => {
   const p = new Player(settings());
   await p.enqueue([{ title: "missing url" }, null, { id: "r", title: "Radio", url: "http://example/r", source: "radio" }]);
   assert.ok(p.current || p.queue.length === 0);
+});
+
+test("Player skip cancels an in-flight resolver without leaving a phantom current item", async () => {
+  const p = new Player(settings());
+  p.resolve = async function () { await new Promise((resolve) => setTimeout(resolve, 100)); return "unused"; };
+  const run = p.enqueue([{ id: "1", title: "A", url: "ytsearch1:A", source: "youtube" }, { id: "2", title: "B", url: "http://example/b", source: "radio" }]);
+  p.skip();
+  await run;
+  assert.equal(p.generation > 1, true);
 });
