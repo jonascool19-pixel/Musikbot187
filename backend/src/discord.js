@@ -2,9 +2,9 @@ import { Client, ChannelType, GatewayIntentBits, REST, Routes, SlashCommandBuild
 import { StreamType, VoiceConnectionStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } from "@discordjs/voice";
 import { PassThrough } from "node:stream";
 
-export function discordIntents(prefix = "") {
+export function discordIntents(prefix = "", messageContentIntent = false) {
   const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates];
-  if (String(prefix || "").trim()) intents.push(GatewayIntentBits.MessageContent);
+  if (Boolean(messageContentIntent) && String(prefix || "").trim()) intents.push(GatewayIntentBits.MessageContent);
   return intents;
 }
 
@@ -15,7 +15,7 @@ export function discordCommandAllowed(interaction, guildId) {
 class Runtime {
   constructor(cfg) {
     this.cfg = cfg;
-    this.client = new Client({ intents: discordIntents(cfg.prefix) });
+    this.client = new Client({ intents: discordIntents(cfg.prefix, cfg.messageContentIntent) });
     this.connecting = false;
     this.voiceRecovering = false;
     this.voiceRecoveryTimer = null;
@@ -142,5 +142,5 @@ export class DiscordManager {
   writeAudio(data, id) { const stream = this.map.get(id)?.stream; if (stream && !stream.destroyed) stream.write(data); }
   guilds(id) { const r = this.map.get(id); return r ? [...r.client.guilds.cache.values()].map((g) => ({ id: g.id, name: g.name })) : []; }
   channels(id, guildId) { const g = this.map.get(id)?.client.guilds.cache.get(guildId); return g ? [...g.channels.cache.values()].filter((c) => c.type === ChannelType.GuildVoice).map((c) => ({ id: c.id, name: c.name })) : []; }
-  status() { return [...this.map.values()].map((r) => ({ id: r.cfg.id, name: r.cfg.name, enabled: r.cfg.enabled, connected: true, guildId: r.cfg.guildId, channelId: r.cfg.channelId, inviteUrl: r.cfg.clientId && /^\d{17,20}$/.test(r.cfg.clientId) ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(r.cfg.clientId)}&scope=bot%20applications.commands&permissions=36700160` : "" })); }
+  status() { return [...this.map.values()].map((r) => ({ id: r.cfg.id, name: r.cfg.name, enabled: r.cfg.enabled, connected: true, guildId: r.cfg.guildId, channelId: r.cfg.channelId, inviteUrl: r.cfg.clientId && /^\d{17,20}$/.test(r.cfg.clientId) ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(r.cfg.clientId)}&scope=bot%20applications.commands&permissions=36700160` : "", messageContentIntent: Boolean(r.cfg.messageContentIntent), voiceConnected: Boolean(r.voice) })); }
 }
