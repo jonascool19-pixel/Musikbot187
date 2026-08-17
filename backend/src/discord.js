@@ -89,7 +89,7 @@ export class DiscordManager {
     if (runtime.voiceRecoveryTimer) clearTimeout(runtime.voiceRecoveryTimer);
     runtime.voiceRecoveryTimer = null;
     runtime.voiceRecovering = false;
-    try { runtime.voice?.destroy(); runtime.stream?.end(); await runtime.client.destroy(); } finally { this.map.delete(id); }
+    try { runtime.voice?.removeAllListeners("stateChange"); runtime.voice?.destroy(); runtime.stream?.end(); await runtime.client.destroy(); } finally { this.map.delete(id); }
   }
   async join(id) {
     const runtime = this.map.get(id);
@@ -102,7 +102,7 @@ export class DiscordManager {
     if (runtime.voiceRecoveryTimer) clearTimeout(runtime.voiceRecoveryTimer);
     runtime.voiceRecoveryTimer = null;
     runtime.voiceRecovering = false;
-    runtime.voice?.destroy();
+    if (runtime.voice) { runtime.voice.removeAllListeners("stateChange"); runtime.voice.destroy(); }
     runtime.voice = joinVoiceChannel({ guildId: guild.id, channelId: channel.id, adapterCreator: guild.voiceAdapterCreator });
     runtime.voice.on("stateChange", (oldState, newState) => {
       if (newState.status !== VoiceConnectionStatus.Disconnected || runtime.voiceRecovering) return;
