@@ -1,16 +1,30 @@
-const systemIntervals=new Set();
+const systemTimers=new Set();
 const originalSetInterval=window.setInterval.bind(window);
 const originalClearInterval=window.clearInterval.bind(window);
+const originalSetTimeout=window.setTimeout.bind(window);
+const originalClearTimeout=window.clearTimeout.bind(window);
+
 window.setInterval=(callback,delay,...args)=>{
   const id=originalSetInterval(callback,delay,...args);
-  try{if(typeof callback==='function'&&String(callback).includes('/api/system'))systemIntervals.add(id)}catch{}
+  try{
+    if(typeof callback==='function' && String(callback).includes('tick')) systemTimers.add(id);
+  }catch{}
   return id;
 };
-window.clearInterval=id=>{systemIntervals.delete(id);return originalClearInterval(id)};
-function clearSystemIntervals(){for(const id of systemIntervals)originalClearInterval(id);systemIntervals.clear()}
+window.clearInterval=id=>{systemTimers.delete(id);return originalClearInterval(id)};
+window.setTimeout=(callback,delay,...args)=>{
+  const id=originalSetTimeout(callback,delay,...args);
+  try{
+    if(typeof callback==='function' && delay===5000 && String(callback).includes('system()')) systemTimers.add(id);
+  }catch{}
+  return id;
+};
+window.clearTimeout=id=>{systemTimers.delete(id);return originalClearTimeout(id)};
+function clearSystemTimers(){for(const id of systemTimers){originalClearInterval(id);originalClearTimeout(id)}systemTimers.clear()}
+
 document.addEventListener('click',event=>{
   const tab=event.target.closest?.('[data-tab]');
-  if(tab&&tab.dataset.tab!=='system')clearSystemIntervals();
-  if(event.target.closest?.('#logout'))clearSystemIntervals();
+  if(tab&&tab.dataset.tab!=='system')clearSystemTimers();
+  if(event.target.closest?.('#logout'))clearSystemTimers();
 });
-window.addEventListener('pagehide',clearSystemIntervals);
+window.addEventListener('pagehide',clearSystemTimers);
