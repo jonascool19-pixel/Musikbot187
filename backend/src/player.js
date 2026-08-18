@@ -66,7 +66,7 @@ export class Player extends EventEmitter {
 
   get dataDirectory() { return this.settings.filesDirectory; }
   snapshot() { return { queue: this.queue, current: this.current, paused: this.paused, volume: this.volume, mode: this.mode }; }
-  setVolume(value) { this.volume = clampVolume(value); this.emit("state"); }
+  setVolume(value) { this.volume = clampVolume(value); this.emit("state"); this.emit("volume", this.volume); }
   setMode(mode) { if (["queue", "repeat", "shuffle"].includes(mode)) this.mode = mode; }
   pause() {
     this.paused = true;
@@ -137,7 +137,7 @@ export class Player extends EventEmitter {
     const input = String(item.url);
     const args = ["--no-playlist", "--no-warnings", "--js-runtimes", "node", "--force-ipv4", "--add-header", `User-Agent: ${USER_AGENT}`];
     if (item.source === "spotify" || input.startsWith("ytsearch")) args.push("--default-search", "ytsearch1");
-    if (item.source === "youtube" || input.startsWith("ytsearch")) args.push("--extractor-args", "youtube:player_client=default,web_embedded");
+    if (item.source === "youtube" || input.startsWith("ytsearch")) args.push("--extractor-args", "youtube:player_client=web_safari");
     args.push("-f", "bestaudio/best", "-g", input);
     const p = this.spawnFn(YTDLP, args, { stdio: ["ignore", "pipe", "pipe"] });
     this.resolver = p;
@@ -160,7 +160,7 @@ export class Player extends EventEmitter {
     const input = String(item.url);
     const args = ["--no-playlist", "--no-warnings", "--js-runtimes", "node", "--force-ipv4", "--add-header", `User-Agent: ${USER_AGENT}`, "-f", "bestaudio/best", "-o", "-"];
     if (item.source === "spotify" || input.startsWith("ytsearch")) args.push("--default-search", "ytsearch1");
-    if (item.source === "youtube" || input.startsWith("ytsearch")) args.push("--extractor-args", "youtube:player_client=default,web_embedded");
+    if (item.source === "youtube" || input.startsWith("ytsearch")) args.push("--extractor-args", "youtube:player_client=web_safari");
     args.push(input);
 
     const yt = this.spawnFn(YTDLP, args, { stdio: ["ignore", "pipe", "pipe"] });
