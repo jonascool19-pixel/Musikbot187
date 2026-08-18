@@ -58,8 +58,7 @@
   }
 
   function rowFor(id) {
-    const buttons = [...document.querySelectorAll('[data-dedit]')];
-    const edit = buttons.find(button => button.dataset.dedit === String(id));
+    const edit = [...document.querySelectorAll('[data-dedit]')].find(button => button.dataset.dedit === String(id));
     return edit?.closest('.listrow') || null;
   }
 
@@ -108,7 +107,9 @@
         item.guildId = select.value;
         item.channelId = '';
       }
-      if (!guilds.length) notify('Keine Discord-Server gefunden. Prüfe, ob der Bot dem Server hinzugefügt wurde und die nötigen Berechtigungen besitzt.');
+      if (!guilds.length) {
+        notify('Keine Discord-Server gefunden. Prüfe, ob der Bot dem Server hinzugefügt wurde und die nötigen Berechtigungen besitzt.');
+      }
     } finally {
       setBusy(row, false);
     }
@@ -133,7 +134,9 @@
         item.guildId = guildId;
         item.channelId = channelSelect.value || '';
       }
-      if (!channels.length) notify('Keine Voice-Kanäle gefunden. Prüfe, ob der Bot Zugriff auf Voice-Kanäle des ausgewählten Servers hat.');
+      if (!channels.length) {
+        notify('Keine Voice-Kanäle gefunden. Prüfe, ob der Bot Zugriff auf Voice-Kanäle des ausgewählten Servers hat.');
+      }
     } finally {
       setBusy(row, false);
     }
@@ -168,7 +171,6 @@
 
   function decorateRow(row, item) {
     if (!row || row.querySelector('[data-discord-direct-actions]')) return;
-
     const controls = row.querySelector('.controls');
     if (!controls) return;
 
@@ -186,9 +188,8 @@
       <div class="discord-direct-actions-buttons">
         <button type="button" data-dbot-invite="${item.id}">🤖 Bot hinzufügen</button>
         <button type="button" data-dvoice-join="${item.id}">🎧 Voice-Chat betreten</button>
-        <span class="discord-direct-status" data-dstatus="${item.id}"></span>
+        <span class="discord-direct-status" data-dstatus="${item.id}">${item.connected ? 'Verbunden' : 'Nicht verbunden'}</span>
       </div>`;
-
     row.insertBefore(wrapper, controls);
 
     const invite = row.querySelector('[data-dinvite]');
@@ -200,23 +201,27 @@
 
     const guildSelect = wrapper.querySelector('[data-dguild]');
     const channelSelect = wrapper.querySelector('[data-dchannel]');
-    const status = wrapper.querySelector('[data-dstatus]');
-    guildSelect.value = item.guildId || '';
+    if (item.guildId) {
+      guildSelect.add(new Option(`Gespeicherter Server (${item.guildId})`, item.guildId, true, true));
+    }
+    if (item.channelId) {
+      channelSelect.add(new Option(`Gespeicherter Voice-Kanal (${item.channelId})`, item.channelId, true, true));
+    }
+  }
 
-    void loadGuilds(row, item, guildSelect, status).then(() => {
-      if (guildSelect.value) void loadChannels(row, item, guildSelect, channelSelect, status);
-    }).catch(error => {
-      status.textContent = error.message || 'Server konnten nicht geladen werden';
-    });
+  let decorateTimer = null;
+  function scheduleDecorate() {
+    clearTimeout(decorateTimer);
+    decorateTimer = setTimeout(decorate, 60);
   }
 
   function decorate() {
-    const rows = [...document.querySelectorAll('[data-dedit]')]
+    const pending = [...document.querySelectorAll('[data-dedit]')]
       .map(button => button.closest('.listrow'))
-      .filter(Boolean);
-    if (!rows.length) return;
+      .filter(row => row && !row.querySelector('[data-discord-direct-actions]'));
+    if (!pending.length) return;
     void getInstances().then(instances => {
-      for (const row of rows) {
+      for (const row of pending) {
         const id = row.querySelector('[data-dedit]')?.dataset.dedit;
         const item = instances.get(String(id));
         if (item) decorateRow(row, item);
@@ -321,8 +326,8 @@
     .discord-direct-status{font-size:.8rem;opacity:.75}
     @media(max-width:760px){.discord-direct-actions-row{grid-template-columns:1fr}}
   `;
-  document.head.appendChild(style);
+  if (!document.getElementById('discord-instance-actions-style')) document.head.appendChild(style);
 
-  new MutationObserver(decorate).observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(scheduleDecorate).observe(document.documentElement, { childList: true, subtree: true });
   decorate();
 })();
