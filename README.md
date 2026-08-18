@@ -2,6 +2,8 @@
 
 MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowie Discord- und TeamSpeak-3-Ausgabe. Der aktuelle Stand ist auf einen einfachen Betrieb auf Debian/Ubuntu und besonders auf **Ubuntu 24.04 in einem Proxmox-LXC-Container (CT)** ausgelegt.
 
+Projekt-/Dokumentationshinweis: **Vanessa Zürn**.
+
 ## Was der Bot aktuell kann
 
 ### Audio und Quellen
@@ -25,6 +27,7 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 - Playlists erstellen und verwalten
 - Titel hinzufügen und entfernen
 - Suchergebnisse, Radiosender und hochgeladene Musik direkt per **＋ Playlist** hinzufügen
+- aktuell laufenden Titel direkt per **＋ Playlist** speichern
 - Playlists abspielen
 
 ### Discord
@@ -75,6 +78,27 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 - Login-Rate-Limit
 - sichere Benutzer-/Service-Rollen für den Betrieb
 
+## Discord-Instanzen konfigurieren
+
+Im Dashboard unter **Verbindungen → Discord** können mehrere Discord-Instanzen verwaltet werden.
+
+### Eine Discord-Instanz hinzufügen
+
+1. **Verbindungen** öffnen und den Bereich **Discord** auswählen.
+2. Bei den neuen Instanzdaten **alle erforderlichen Felder ausfüllen**.
+3. Die Discord-App über den Einladungslink zum gewünschten Server hinzufügen.
+4. Server und Voice-Kanal auswählen.
+5. Auf **Speichern** klicken.
+6. Danach einmal auf einen **anderen Tab** in der Seitenleiste klicken.
+7. Anschließend wieder auf **Verbindungen → Discord** zurückgehen.
+8. Die gespeicherte Discord-Instanz und ihre aktualisierten Felder werden dort angezeigt und können weiterbearbeitet werden.
+
+Dieser zusätzliche Tab-Wechsel ist im aktuellen UI-Zustand ein bekannter Darstellungs-Workaround: Die Konfiguration wird beim Speichern persistiert; die sichtbare Instanzliste aktualisiert sich zuverlässig nach dem erneuten Öffnen des Verbindungs-Tabs.
+
+### Message Content Intent
+
+Für die normalen Slash Commands ist der Message Content Intent nicht erforderlich. Wenn Prefix Commands verwendet werden sollen, muss der **Message Content Intent** in der Discord Developer Portal App aktiviert und anschließend die passende Option in der Discord-Instanz im Dashboard gespeichert werden.
+
 ## Installation und Betrieb
 
 Der aktuelle Installer ist für Debian/Ubuntu mit `apt-get` ausgelegt. Für den Schnellstart wird vor der eigentlichen MusikBot187-Installation das System aktualisiert und `curl` installiert. Voraussetzung ist ein systemd-basiertes Debian/Ubuntu-System; für Proxmox wird ein **Ubuntu-24.04-LXC/CT mit systemd und verfügbaren cgroups** verwendet.
@@ -87,7 +111,9 @@ Auf dem frisch erstellten Container als Root oder mit einem Benutzer mit `sudo`-
 sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-latest.sh | sudo bash
 ```
 
-Dieser Einstieg installiert reproduzierbar den aktuellen freigegebenen Audit-Stand `15e03967c56da52830e36babe7eaeb92275ca73c` inklusive der aktuellen Frontend-Stabilitätsfixes, Theme-Erweiterungen und Installer-Verbesserungen. Der eigentliche Stable-Installer richtet unter anderem ein:
+Der Einstieg lädt den aktuellen `main`-Stand. Damit werden keine alten fest eingebauten Audit-Revisionen ausgewählt, solange `main` der Standard-Ref des Installers bleibt.
+
+Der eigentliche Stable-Installer richtet unter anderem ein:
 
 - Node.js 22
 - FFmpeg
@@ -113,11 +139,12 @@ http://SERVER-IP:3000/
 1. Den vom Installer ausgegebenen Einrichtungslink im Browser öffnen.
 2. Den ersten Admin-Benutzer anlegen.
 3. Im Dashboard unter **Verbindungen → Discord** eine Discord-Instanz konfigurieren.
-4. Bot hinzufügen, Server und Voice-Kanal auswählen und die Instanz speichern/verbinden.
-5. Falls Prefix Commands benötigt werden, Message Content Intent für die Discord-App ausdrücklich freigeben und im Dashboard aktivieren.
-6. Unter **Musik** eigene Audiodateien direkt aus dem Browser hochladen und anschließend abspielen oder einer Playlist hinzufügen.
-7. Unter **🎨 Design** Theme und Akzentfarbe auswählen.
-8. Anschließend Player, Netzwerk-Monitoring und Systemdaten testen.
+4. Bot hinzufügen, Server und Voice-Kanal auswählen und die Instanz speichern.
+5. Einmal auf einen anderen Tab wechseln und anschließend **Verbindungen → Discord** erneut öffnen, damit die aktualisierte Instanzdarstellung sicher neu aufgebaut wird.
+6. Falls Prefix Commands benötigt werden, Message Content Intent für die Discord-App ausdrücklich freigeben und im Dashboard aktivieren.
+7. Unter **Musik** eigene Audiodateien direkt aus dem Browser hochladen und anschließend abspielen oder einer Playlist hinzufügen.
+8. Unter **🎨 Design** Theme und Akzentfarbe auswählen.
+9. Anschließend Player, Netzwerk-Monitoring und Systemdaten testen.
 
 ## Zielplattform
 
@@ -173,4 +200,4 @@ Der aktuelle `main`-Stand enthält die CI-Kette mit:
 - Regressionstests für Passwort-Salts, private Netzwerkbereiche, Discord-Intents und Admin-/Power-Control
 - Regressionstests für Monitoring, Discord-Verwaltungsoberfläche, Instanzkontrollen, Theme-System und Musikbibliothek
 
-Die aktuelle Fix-Runde muss nach den letzten Frontend-Stabilitätsänderungen noch einmal vollständig über GitHub Actions verifiziert werden.
+Die aktuelle Fix-Runde muss nach den letzten Frontend-, Player- und Playlist-Änderungen noch einmal vollständig über GitHub Actions verifiziert werden.
