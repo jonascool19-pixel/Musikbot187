@@ -35,10 +35,10 @@
   const keyFor = (input, init) => {
     const url = typeof input === 'string' ? input : input?.url || '';
     if (init?.method && String(init.method).toUpperCase() !== 'GET') return null;
-    const path = new URL(url, window.location.href).pathname;
-    if (!Object.prototype.hasOwnProperty.call(TTL, path)) return null;
+    const parsed = new URL(url, window.location.href);
+    if (!Object.prototype.hasOwnProperty.call(TTL, parsed.pathname)) return null;
     const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
-    return `${path}|${headers.get('Authorization') || ''}`;
+    return `${parsed.pathname}|${parsed.search}|${headers.get('Authorization') || ''}`;
   };
 
   const cachedFetch = async (input, init = {}) => {
@@ -46,8 +46,9 @@
     const method = String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
     const path = new URL(url, window.location.href).pathname;
     if (method !== 'GET') {
-      try { const response = await baseFetch(input, init); invalidateForWrite(path); return response; }
-      catch (error) { throw error; }
+      const response = await baseFetch(input, init);
+      invalidateForWrite(path);
+      return response;
     }
 
     const key = keyFor(input, init);
@@ -55,17 +56,21 @@
     const ttl = TTL[key.split('|', 1)[0]];
     const now = Date.now();
     const hit = cache.get(key);
-    if (hit?.pending) return cloneJsonResponse(await hit.pending);
+    if (hit?.pending) {
+      const result = await hit.pending;
+      return cloneJsonResponse(result.body, result.status);
+    }
     if (hit && now - hit.time < ttl) return cloneJsonResponse(hit.value, hit.status || 200);
 
     const pending = baseFetch(input, init).then(async response => {
       const body = await response.json().catch(() => ({}));
+      const result = { body, status: response.status };
       if (response.ok) cache.set(key, { time: Date.now(), value: body, status: response.status });
       else cache.delete(key);
-      return { body, status: response.status };
+      return result;
     }).finally(() => {
       const current = cache.get(key);
-      if (current?.pending) delete current.pending;
+      if (current?.pending) cache.delete(key);
     });
     cache.set(key, { time: now, value: null, pending });
     const result = await pending;
