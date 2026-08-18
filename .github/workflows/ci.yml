@@ -46,8 +46,8 @@ jobs:
       - run: node --check frontend/enhancements.js
       - run: node --check frontend/music-ui.js
       - run: node --check frontend/live-search.js
+      - run: node --check frontend/performance.js
       - run: node --check frontend/play-now.js
-      - run: node --check frontend/play-current-playlist.js
       - run: node --check frontend/playlist-ui.js
       - run: node --check frontend/playlist-ui-bridge.js
       - run: node --check frontend/setup-security.js
@@ -57,7 +57,7 @@ jobs:
       - run: node --check frontend/ui-polish.js
       - run: node --check frontend/uuid-polyfill.js
       - run: grep -F 'fetch-layer.js' frontend/index.html
-      - run: grep -F 'play-current-playlist.js' frontend/index.html
+      - run: grep -F 'performance.js' frontend/index.html
       - run: grep -F 'releases/download/' install-stable.sh
       - run: grep -F 'sha256sum -c' install-stable.sh
       - run: grep -F 'git -C "$APP" fetch --depth 1 origin "$REF"' install-stable.sh
