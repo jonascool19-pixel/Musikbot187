@@ -6,7 +6,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -15,18 +15,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Generate lockfile when missing
-        run: |
-          if [[ ! -f backend/package-lock.json ]]; then
-            cd backend
-            npm install --package-lock-only --ignore-scripts --no-fund --no-audit
-            cd ..
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add backend/package-lock.json
-            git commit -m "chore: add npm lockfile"
-            git push
-          fi
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: test -f backend/package-lock.json
       - run: cd backend && npm ci --no-fund
       - run: cd backend && npm audit --omit=dev --audit-level=high
       - run: cd backend && npm test
@@ -38,6 +29,7 @@ jobs:
       - run: node --check backend/src/player.js
       - run: node --check backend/src/media.js
       - run: node --check backend/src/source-policy.js
+      - run: node --check backend/src/egress-proxy.js
       - run: node --check backend/src/discord.js
       - run: node --check backend/src/ts3.js
       - run: node --check backend/src/store.js
@@ -49,10 +41,12 @@ jobs:
       - run: node --check frontend/errorlog.js
       - run: node --check frontend/enhancements.js
       - run: node --check frontend/music-ui.js
+      - run: node --check frontend/system-cleanup.js
       - run: node --check frontend/themes.js
       - run: grep -F 'fetch-layer.js' frontend/index.html
       - run: grep -F 'releases/download/' install-stable.sh
       - run: grep -F 'sha256sum -c' install-stable.sh
+      - run: grep -F 'git -C "$APP" fetch --depth 1 origin "$REF"' install-stable.sh
       - run: grep -F 'NoNewPrivileges=true' install-stable.sh
       - run: grep -F 'CapabilityBoundingSet=' install-stable.sh
       - run: '! grep -F "NOPASSWD" install-stable.sh'
