@@ -147,8 +147,23 @@ export class DiscordManager {
       runtime.voiceRecoveryTimer.unref?.();
       this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Verbindung verloren; Wiederverbindung in 5s.`);
     });
-    runtime.player = createAudioPlayer(); runtime.voice.subscribe(runtime.player); runtime.stream = new PassThrough({ highWaterMark: 256 * 1024 }); runtime.player.play(createAudioResource(runtime.stream, { inputType: StreamType.Raw }));
+    runtime.player = createAudioPlayer(); runtime.voice.subscribe(runtime.player); runtime.stream = new PassThrough({ highWaterMark: 32 * 1024 }); runtime.player.play(createAudioResource(runtime.stream, { inputType: StreamType.Raw }));
     runtime.missingStreamLogged = false;
+  }
+  resetAudioStream(id) {
+    const runtime = this.map.get(id);
+    if (!runtime || !runtime.voice || !runtime.client.isReady() || !runtime.cfg.guildId || !runtime.cfg.channelId) return;
+    try {
+      runtime.player?.stop?.();
+      runtime.stream?.end();
+      runtime.stream = new PassThrough({ highWaterMark: 32 * 1024 });
+      runtime.player = createAudioPlayer();
+      runtime.voice.subscribe(runtime.player);
+      runtime.player.play(createAudioResource(runtime.stream, { inputType: StreamType.Raw }));
+      runtime.missingStreamLogged = false;
+    } catch (error) {
+      this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiopuffer konnte nicht zurückgesetzt werden: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   writeAudio(data, id) {
     const runtime = this.map.get(id);
@@ -160,10 +175,11 @@ export class DiscordManager {
       }
       return;
     }
-    if (stream.writableLength > 1024 * 1024) return;
+    if (stream.writableLength > 128 * 1024) return;
     stream.write(data);
   }
   guilds(id) { const r = this.map.get(id); return r && r.client.isReady() ? [...r.client.guilds.cache.values()].map((g) => ({ id: g.id, name: g.name })) : []; }
   channels(id, guildId) { const g = this.map.get(id)?.client.guilds.cache.get(guildId); return g ? [...g.channels.cache.values()].filter((c) => c.type === ChannelType.GuildVoice).map((c) => ({ id: c.id, name: c.name })) : []; }
-  status() { return [...this.map.values()].map((r) => ({ id: r.cfg.id, name: r.cfg.name, enabled: r.cfg.enabled, connected: Boolean(r.client.isReady()), connecting: Boolean(r.connecting || r.reconnecting), guildId: r.cfg.guildId, channelId: r.cfg.channelId, inviteUrl: r.cfg.clientId && /^\d{17,20}$/.test(r.cfg.clientId) ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(r.cfg.clientId)}&scope=bot%20applications.commands&permissions=36700160` : "", messageContentIntent: Boolean(r.cfg.messageContentIntent), voiceConnected: Boolean(r.voice && (r.voice.state.status === VoiceConnectionStatus.Ready || r.voice.state.status === VoiceConnectionStatus.Signalling)) })); }
+  status() { return [...this.map.values()].map((r) => ({ id: r.cfg.id, name: r.cfg.name, enabled: r.cfg.enabled, connected: Boolean(r.client.isReady()), connecting: Boolean(r.connecting || r.reconnecting), guildId: r.cfg.guildId, channelId: r.cfg.channelId, inviteUrl: r.cfg.clientId && /^\d{17,20}$/.test(r.cfg.clientId) ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(r.cfg.clientId)}&scope=bot%20applications.commands&permissions=36700160` : "", messageContentIntent: Boolean(r.cfg.messageContentIntent), voiceConnected: Boolean(r.voice && (r.voice.state.status === VoiceConnectionStatus.Ready || r.voice.state.status === VoiceConnectionStatus.Signalling)) }));
+  }
 }
