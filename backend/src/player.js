@@ -75,7 +75,7 @@ export class Player extends EventEmitter {
     await revalidatePlaybackTarget(item, this.dataDirectory); const source = await this.resolve(item); if (run !== this.generation) return "cancelled";
     if (item.source === "direct" || item.source === "radio") await revalidatePlaybackTarget(item, this.dataDirectory); if (item.source === "file") await revalidatePlaybackTarget(item, this.dataDirectory);
     const ffArgs = ["-hide_banner", "-loglevel", "error", "-nostdin"];
-    if (item.source !== "file") ffArgs.push("-http_proxy", await this.ensureEgressProxy());
+    if (item.source !== "file" && item.source !== "youtube" && item.source !== "spotify") ffArgs.push("-http_proxy", await this.ensureEgressProxy());
     ffArgs.push("-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_at_eof", "1", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "4xx,5xx", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "pipe:1");
     const ff = this.spawnFn(FFMPEG, ffArgs, { stdio: ["ignore", "pipe", "pipe"] }); this.ff = ff; if (this.paused) { try { ff.kill("SIGSTOP"); } catch {} }
     ff.stdout.on("data", d => { if (run === this.generation && this.ff === ff) this.emit("audio", scalePcm16(Buffer.from(d), this.volume)); });
