@@ -24,7 +24,8 @@ jobs:
       - run: cd backend && npm ci --no-fund
       - run: cd backend && npm audit --omit=dev --audit-level=high
       - run: cd backend && npm test
-      - run: cd backend && npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium only
+        run: cd backend && npx playwright install chromium
       - run: cd backend && npm run test:browser
       - run: bash -n install-stable.sh
       - run: bash -n install/control.sh
