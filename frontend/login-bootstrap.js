@@ -46,21 +46,7 @@
 
     const response = await nativeFetch(input, nextInit);
     if (url.endsWith('/api/setup') && response.ok) {
-      try {
-        saveSession(await response.clone().json());
-      } catch {}
-      return response;
-    }
-
-    if (url.endsWith('/api/login') && response.status === 401) {
-      const bootstrap = readSession();
-      if (bootstrap) {
-        sessionStorage.removeItem(KEY);
-        return new Response(JSON.stringify({ token: bootstrap.token, user: bootstrap.user }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
+      try { saveSession(await response.clone().json()); } catch {}
     }
     return response;
   };
