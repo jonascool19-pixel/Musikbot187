@@ -11,16 +11,7 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 
 test("secrets are encrypted at rest and decrypt losslessly", async () => { const plain = "ts3-super-secret-123"; const encrypted = await encryptSecret(plain); assert.notEqual(encrypted, plain); assert.match(encrypted, /^enc\$/); assert.equal(await decryptSecret(encrypted), plain); });
 
-test("egress proxy blocks loopback before opening an upstream socket", async () => {
-  const proxy = await new EgressProxy().start();
-  try {
-    const status = await new Promise((resolve) => {
-      const request = http.request({ hostname: "127.0.0.1", port: proxy.port, path: "http://127.0.0.1:1/test", method: "GET" }, response => { response.resume(); resolve(response.statusCode); });
-      request.once("error", error => resolve(error.code === "ECONNRESET" ? 502 : 599)); request.end();
-    });
-    assert.equal(status, 502);
-  } finally { await proxy.stop(); }
-});
+test("egress proxy blocks loopback before opening an upstream socket", async () => { const proxy = await new EgressProxy().start(); try { const status = await new Promise(resolve => { const request = http.request({ hostname: "127.0.0.1", port: proxy.port, path: "http://127.0.0.1:1/test", method: "GET" }, response => { response.resume(); resolve(response.statusCode); }); request.once("error", error => resolve(error.code === "ECONNRESET" ? 502 : 599)); request.end(); }); assert.equal(status, 502); } finally { await proxy.stop(); } });
 
 test("source policy rejects reserved final media targets", async () => { await assert.rejects(() => validateResolvedMediaUrl("http://127.0.0.1:3000/audio"), /nicht erlaubtes Netzwerkziel/); });
 
@@ -32,7 +23,13 @@ test("frontend has one central fetch wrapper and lifecycle cleanup", async () =>
 
 test("coalesced dashboard requests return the same JSON shape as normal requests", async () => { const performance = await readFile(path.join(root, "frontend/performance.js"), "utf8"); assert.match(performance, /const result = await hit\.pending/); assert.match(performance, /cloneJsonResponse\(result\.body, result\.status\)/); assert.doesNotMatch(performance, /cloneJsonResponse\(await hit\.pending\)/); });
 
-test("Discord volume changes do not restart the live audio stream", async () => { const discord = await readFile(path.join(root, "backend/src/discord.js"), "utf8"); const writeAudio = discord.slice(discord.indexOf("  writeAudio(data, id)")); assert.match(writeAudio, /runtime\.lastVolume = this\.music\.volume/); assert.doesNotMatch(writeAudio, /resetAudioStream\(id\)/); });
+test("Discord volume changes use the live resource instead of restarting audio", async () => { const discord = await readFile(path.join(root, "backend/src/discord.js"), "utf8"); const writeAudio = discord.slice(discord.indexOf("  writeAudio(data, id)")); assert.match(discord, /inlineVolume: true/); assert.match(discord, /resource\.volume\.setVolume/); assert.doesNotMatch(writeAudio, /resetAudioStream\(id\)/); });
+
+test("player emits raw PCM so output adapters own volume processing", async () => { const player = await readFile(path.join(root, "backend/src/player.js"), "utf8"); assert.match(player, /this\.emit\("audio", Buffer\.from\(d\)\)/); assert.doesNotMatch(player, /scalePcm16/); });
+
+test("YouTube playback uses a current fallback client chain", async () => { const player = await readFile(path.join(root, "backend/src/player.js"), "utf8"); assert.match(player, /youtube:player_client=default,web_embedded/); assert.doesNotMatch(player, /player_client=web_safari/); assert.match(player, /-f\", \"bestaudio\/best/); });
+
+test("search play sends one immediate playNow request", async () => { const playNow = await readFile(path.join(root, "frontend/play-now.js"), "utf8"); assert.match(playNow, /playNow: true/); assert.doesNotMatch(playNow, /\/api\/play\/stop/); });
 
 test("playlist reorder is atomic and playlist playback replaces the current queue", async () => { const server = await readFile(path.join(root, "backend/src/server.js"), "utf8"); const playlist = await readFile(path.join(root, "frontend/playlist-ui.js"), "utf8"); assert.match(server, /app\.put\("\/api\/playlists\/:id"/); assert.match(server, /playNow: true/); assert.match(playlist, /put\(`\/api\/playlists/); assert.doesNotMatch(playlist, /for \(const item of playlist\.items\) await del/); });
 
