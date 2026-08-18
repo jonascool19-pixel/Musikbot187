@@ -1,22 +1,4 @@
 (() => {
-  const originalFetch = window.fetch.bind(window);
-  const returnTab = sessionStorage.getItem('musikbot187.returnTab');
-  if (returnTab) sessionStorage.removeItem('musikbot187.returnTab');
-
-  window.fetch = async (...args) => {
-    const input = args[0];
-    const options = args[1] || {};
-    const method = String(options.method || input?.method || 'GET').toUpperCase();
-    const url = typeof input === 'string' ? input : input?.url || '';
-    const response = await originalFetch(...args);
-    if (method !== 'GET' && /^\/api\/(discord|ts3)(?:\/|$)/.test(url) && response.ok) {
-      const active = document.body.dataset.currentTab || document.querySelector('[data-tab].active')?.dataset.tab || 'connections';
-      sessionStorage.setItem('musikbot187.returnTab', active);
-      window.setTimeout(() => window.location.reload(), 120);
-    }
-    return response;
-  };
-
   const style = document.createElement('style');
   style.id = 'musikbotUiPolishStyle';
   style.textContent = `
@@ -52,16 +34,4 @@
     }
   `;
   document.head.appendChild(style);
-
-  if (returnTab) {
-    const restore = () => {
-      const button = document.querySelector(`[data-tab="${CSS.escape(returnTab)}"]`);
-      if (button) { button.click(); return true; }
-      return false;
-    };
-    if (!restore()) {
-      const timer = setInterval(() => { if (restore()) clearInterval(timer); }, 50);
-      setTimeout(() => clearInterval(timer), 5000);
-    }
-  }
 })();
