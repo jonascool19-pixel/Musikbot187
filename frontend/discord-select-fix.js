@@ -1,4 +1,7 @@
 (() => {
+  if (window.__musikbotDiscordSelectFixInstalled) return;
+  window.__musikbotDiscordSelectFixInstalled = true;
+
   const getAuth = () => window.MusikBotFetch?.getAuth?.() || '';
 
   async function request(path, options = {}) {
@@ -43,10 +46,11 @@
     return first?.id ? String(first.id) : '';
   }
 
-  async function refreshGuilds(button) {
+  async function refreshGuilds() {
     const id = await resolveInstanceId();
     const select = document.querySelector('#dg');
-    if (!id || !select) return;
+    const button = document.querySelector('#dgrefresh');
+    if (!id || !select || !button) return;
     const previous = select.value;
     button.disabled = true;
     try {
@@ -61,12 +65,13 @@
     }
   }
 
-  async function refreshChannels(button) {
+  async function refreshChannels() {
     const id = await resolveInstanceId();
     const guildSelect = document.querySelector('#dg');
     const select = document.querySelector('#dv');
+    const button = document.querySelector('#dvrefresh');
     const guild = guildSelect?.value?.trim();
-    if (!id || !guild || !select) return;
+    if (!id || !guild || !select || !button) return;
     const previous = select.value;
     button.disabled = true;
     try {
@@ -81,11 +86,10 @@
   }
 
   async function saveDiscordCanonically() {
-    const instanceId = document.querySelector('#did')?.value?.trim() || '';
+    const clientId = document.querySelector('#did')?.value?.trim() || '';
     const body = {
-      id: instanceId || undefined,
       name: String(document.querySelector('#dn')?.value || 'Discord').trim().slice(0, 128),
-      clientId: instanceId,
+      clientId,
       token: document.querySelector('#dt')?.value || undefined,
       guildId: document.querySelector('#dg')?.value || '',
       channelId: document.querySelector('#dv')?.value || '',
@@ -93,63 +97,49 @@
       enabled: true,
       messageContentIntent: document.querySelector('#dintent')?.checked === true
     };
+
     const saved = await request('/api/discord', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
+
     const notice = document.querySelector('#notice');
     if (notice) {
       notice.textContent = 'Discord-Instanz gespeichert.';
       notice.classList.add('show');
     }
+
     document.querySelector('[data-tab="connections"]')?.click();
     return saved;
   }
 
-  function bind() {
-    const guildButton = document.querySelector('#dgrefresh');
-    const channelButton = document.querySelector('#dvrefresh');
-    const saveButton = document.querySelector('#saveDiscord');
-
-    if (guildButton && !guildButton.dataset.discordRefreshBound) {
-      guildButton.dataset.discordRefreshBound = '1';
-      guildButton.onclick = event => {
-        event.preventDefault();
-        void refreshGuilds(guildButton).catch(showError);
-      };
-    }
-    if (channelButton && !channelButton.dataset.discordRefreshBound) {
-      channelButton.dataset.discordRefreshBound = '1';
-      channelButton.onclick = event => {
-        event.preventDefault();
-        void refreshChannels(channelButton).catch(showError);
-      };
-    }
-    if (saveButton && !saveButton.dataset.discordSaveBound) {
-      saveButton.dataset.discordSaveBound = '1';
-      saveButton.onclick = event => {
-        event.preventDefault();
-        void saveDiscordCanonically().catch(showError);
-      };
-    }
-
-    const guildSelect = document.querySelector('#dg');
-    const channelSelect = document.querySelector('#dv');
-    if (guildSelect && !guildSelect.dataset.discordChangeBound) {
-      guildSelect.dataset.discordChangeBound = '1';
-      guildSelect.addEventListener('change', () => {
-        window.__musikbotDiscordGuildId = guildSelect.value;
-      });
-    }
-    if (channelSelect && !channelSelect.dataset.discordChangeBound) {
-      channelSelect.dataset.discordChangeBound = '1';
-      channelSelect.addEventListener('change', () => {
-        window.__musikbotDiscordChannelId = channelSelect.value;
-      });
-    }
+  function isButton(target, id) {
+    return target?.closest?.(`#${id}`);
   }
 
-  new MutationObserver(bind).observe(document.documentElement, { childList: true, subtree: true });
-  bind();
+  document.addEventListener('click', event => {
+    if (isButton(event.target, 'dgrefresh')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void refreshGuilds().catch(showError);
+      return;
+    }
+    if (isButton(event.target, 'dvrefresh')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void refreshChannels().catch(showError);
+      return;
+    }
+    if (isButton(event.target, 'saveDiscord')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void saveDiscordCanonically().catch(showError);
+    }
+  }, true);
+
+  document.addEventListener('change', event => {
+    if (event.target?.id === 'dg') window.__musikbotDiscordGuildId = event.target.value;
+    if (event.target?.id === 'dv') window.__musikbotDiscordChannelId = event.target.value;
+  }, true);
 })();
