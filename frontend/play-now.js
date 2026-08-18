@@ -23,14 +23,15 @@
   };
 
   async function playNow(item) {
-    const headers = authHeaders({ 'Content-Type': 'application/json' });
-    const response = await originalFetch('/api/play/stop', { method: 'POST', headers });
+    const stopHeaders = authHeaders();
+    const response = await originalFetch('/api/play/stop', { method: 'POST', headers: stopHeaders });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(body.error || `Stoppen fehlgeschlagen (HTTP ${response.status})`);
     }
+    const playHeaders = authHeaders({ 'Content-Type': 'application/json' });
     const playResponse = await originalFetch('/api/play', {
-      method: 'POST', headers,
+      method: 'POST', headers: playHeaders,
       body: JSON.stringify({ items: [{ id: item.id || `${Date.now()}`, title: item.title, url: item.url, source: item.source, artist: item.artist || '' }] })
     });
     const body = await playResponse.json().catch(() => ({}));
