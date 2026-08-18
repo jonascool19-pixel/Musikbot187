@@ -34,6 +34,7 @@
         body: JSON.stringify({
           id: value('did'), name: value('dn'), token: value('dt'), clientId: value('dc'),
           guildId: value('dg'), channelId: value('dv'), prefix: value('dp'),
+          messageContentIntent: Boolean(document.querySelector('#dintent')?.checked),
           enabled: Boolean(document.querySelector('#de')?.checked)
         })
       });
