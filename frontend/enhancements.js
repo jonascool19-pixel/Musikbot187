@@ -70,7 +70,8 @@
     }
     const items = [...data.discord.map(x => ({type:'discord', id:x.id, name:x.name, connected:x.connected})), ...data.ts3.map(x => ({type:'ts3', id:x.id, name:x.name, connected:x.connected}))];
     const selected = `${data.state.settings.outputType}:${data.state.settings.outputId}`;
-    const isAdmin = Boolean(q('[data-tab="admin"]'));
+    const adminButton = q('[data-tab="admin"]');
+    const isAdmin = Boolean(adminButton && !adminButton.hidden && adminButton.offsetParent !== null);
     const markup = `<label class="instance-control">Ausgabe<select id="enhancedOutput"><option value="none:">Keine</option>${items.map(x => `<option value="${esc(x.type)}:${esc(x.id)}" ${selected === `${x.type}:${x.id}` ? 'selected' : ''}>${x.connected ? '🟢' : '🔴'} ${esc(x.name)}</option>`).join('')}</select></label>${isAdmin ? '<button id="enhancedBotStart" class="mini-power">▶ Bot Ein / Neu starten</button><button id="enhancedStopBot" class="mini-power danger">⏹ Bot stoppen</button><button id="enhancedRestart" class="mini-power">↻ Ubuntu</button><button id="enhancedShutdown" class="mini-power danger">⏻ Ubuntu</button>' : ''}`;
     if (box.dataset.signature !== markup) {
       box.dataset.signature = markup;
@@ -88,7 +89,7 @@
       wire('#enhancedBotStart','start-bot','Bot wird gestartet bzw. aktiviert.');
       wire('#enhancedStopBot','stop-bot','Bot wird gestoppt.','Bot wirklich stoppen?');
       wire('#enhancedRestart','restart-system','System wird neu gestartet.','Ubuntu jetzt neu starten?');
-      wire('#enhancedShutdown','shutdown-system','System wird heruntergefahren.','Ubuntu jetzt herunterfahren?');
+      wire('#enhancedShutdown','shutdown-system','Ubuntu wird heruntergefahren.','Ubuntu jetzt herunterfahren?');
     }
   }
 
@@ -130,8 +131,11 @@
         prefix:q('#dp')?.value || '', enabled:q('#de')?.checked !== false,
         messageContentIntent:q('#dintent')?.checked === true
       };
-      try { await api('/api/discord',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); note('Discord gespeichert.'); }
-      catch (error) { note(error.message); }
+      try {
+        await api('/api/discord',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        note('Discord gespeichert.');
+        document.querySelector('[data-tab="connections"]')?.click();
+      } catch (error) { note(error.message); }
     };
   }
 
