@@ -24,13 +24,17 @@
 
   async function playNow(item) {
     const headers = authHeaders({ 'Content-Type': 'application/json' });
-    await originalFetch('/api/play/stop', { method: 'POST', headers });
-    const response = await originalFetch('/api/play', {
+    const response = await originalFetch('/api/play/stop', { method: 'POST', headers });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || `Stoppen fehlgeschlagen (HTTP ${response.status})`);
+    }
+    const playResponse = await originalFetch('/api/play', {
       method: 'POST', headers,
       body: JSON.stringify({ items: [{ id: item.id || `${Date.now()}`, title: item.title, url: item.url, source: item.source, artist: item.artist || '' }] })
     });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    const body = await playResponse.json().catch(() => ({}));
+    if (!playResponse.ok) throw new Error(body.error || `HTTP ${playResponse.status}`);
     return body;
   }
 
