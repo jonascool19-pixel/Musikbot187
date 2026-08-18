@@ -1,20 +1,15 @@
 (() => {
   const originalFetch = window.fetch.bind(window);
 
-  function refreshConnectionsSoon() {
-    window.setTimeout(() => {
-      const active = document.querySelector('[data-tab="connections"].active, [data-tab="connections"]');
-      if (document.body.dataset.currentTab === 'connections' || active?.classList.contains('active')) active?.click();
-    }, 80);
-  }
-
   window.fetch = async (...args) => {
     const input = args[0];
     const options = args[1] || {};
     const method = String(options.method || input?.method || 'GET').toUpperCase();
     const url = typeof input === 'string' ? input : input?.url || '';
     const response = await originalFetch(...args);
-    if (method !== 'GET' && /^\/api\/(discord|ts3)(?:\/|$)/.test(url)) refreshConnectionsSoon();
+    if (method !== 'GET' && /^\/api\/(discord|ts3)(?:\/|$)/.test(url) && response.ok) {
+      window.setTimeout(() => window.location.reload(), 120);
+    }
     return response;
   };
 
