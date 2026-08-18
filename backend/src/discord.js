@@ -168,7 +168,7 @@ export class DiscordManager {
   }
   writeAudio(data, id) {
     const runtime = this.map.get(id);
-    if (runtime && Number.isFinite(this.music.volume) && runtime.lastVolume !== this.music.volume) this.resetAudioStream(id);
+    if (runtime && Number.isFinite(this.music.volume) && runtime.lastVolume !== this.music.volume) runtime.lastVolume = this.music.volume;
     const stream = this.map.get(id)?.stream;
     if (!runtime || !stream || stream.destroyed) {
       if (runtime && !runtime.missingStreamLogged) {
