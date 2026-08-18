@@ -37,11 +37,22 @@
     now.appendChild(b);
   }
 
-  document.addEventListener('click', event => {
-    const playerTab=event.target?.closest?.('[data-tab="player"]');
-    if(playerTab) window.setTimeout(syncPlayer,100);
+  const onNavigation = event => {
+    if(event.target?.closest?.('[data-tab="player"]')) window.setTimeout(syncPlayer,100);
+  };
+  document.addEventListener('click', onNavigation);
+  let observer = null;
+  const attachObserver = () => {
+    const view = document.querySelector('#view');
+    if (!view || observer) return;
+    observer = new MutationObserver(() => syncPlayer());
+    observer.observe(view, { childList:true, subtree:true });
+    syncPlayer();
+  };
+  window.setTimeout(attachObserver,350);
+  window.__musikbotRegisterCleanup?.(() => {
+    document.removeEventListener('click', onNavigation);
+    observer?.disconnect();
+    observer = null;
   });
-
-  window.__musikbotRegisterCleanup?.(() => {});
-  window.setTimeout(syncPlayer,350);
 })();
