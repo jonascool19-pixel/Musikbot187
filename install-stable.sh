@@ -109,12 +109,9 @@ WantedBy=multi-user.target
 UNIT
 $SUDO install -o root -g root -m 0644 /tmp/musikbot187.service /etc/systemd/system/musikbot187.service; rm -f /tmp/musikbot187.service; $SUDO systemctl daemon-reload; $SUDO systemctl enable --now musikbot187-control.service; $SUDO systemctl enable --now musikbot187.service
 if $SUDO systemctl is-active --quiet musikbot187; then log_ok "MusikBot187-Dienst läuft"; else log_error "MusikBot187 konnte nicht gestartet werden."; $SUDO systemctl --no-pager --full status musikbot187 || true; exit 1; fi
-IP="$(hostname -I 2>/dev/null | awk '{print $1}')"; BASE_URL="http://${IP:-SERVER-IP}:3000"
-printf '\n%s%s╔════════════════════════════════════════════════════════════════════╗%s\n' "$C_GREEN_BG" "$C_RED$C_BOLD" "$C_RESET"
-printf '%s%s║  MUSIKBOT187 ERFOLGREICH INSTALLIERT                            ║%s\n' "$C_GREEN_BG" "$C_RED$C_BOLD" "$C_RESET"
-printf '%s%s║                                                                  ║%s\n' "$C_GREEN_BG" "$C_RED$C_BOLD" "$C_RESET"
-printf '%s%s║  Bot läuft:       %-48s║%s\n' "$C_GREEN_BG" "$C_RED$C_BOLD" "$BASE_URL" "$C_RESET"
-printf '%s%s║  Einrichtungslink: %-45s║%s\n' "$C_GREEN_BG" "$C_RED$C_BOLD" "$BASE_URL/#setup=$SETUP_TOKEN" "$C_RESET"
-printf '%s%s║                                                                  ║%s\n' "$C_GREEN_BG" "$C_RED$C_BOLD" "$C_RESET"
-printf '%s%s║  Öffne den Einrichtungslink jetzt im Browser.                   ║%s\n' "$C_GREEN_BG" "$C_RED$C_BOLD" "$C_RESET"
-printf '%s%s╚════════════════════════════════════════════════════════════════════╝%s\n\n' "$C_GREEN_BG" "$C_RED$C_BOLD" "$C_RESET"
+IP="$(hostname -I 2>/dev/null | awk '{print $1}')"; PUBLIC_URL="${MUSIKBOT187_PUBLIC_URL:-}"; if [[ -z "$PUBLIC_URL" && -n "$IP" ]]; then PUBLIC_URL="http://${IP}:3000"; fi; BASE_URL="${PUBLIC_URL:-http://SERVER-IP:3000}"
+SETUP_URL="${BASE_URL%/}/?setup=${SETUP_TOKEN}"
+printf '\n%sMusikBot187 erfolgreich installiert%s\n' "$C_GREEN$C_BOLD" "$C_RESET"
+printf 'Dashboard:        %s\n' "$BASE_URL"
+printf 'Einrichtungslink: %s\n' "$SETUP_URL"
+printf '\nEinrichtungslink im Browser öffnen und den ersten Admin-Benutzer anlegen.\n\n'
