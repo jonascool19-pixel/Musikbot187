@@ -1,0 +1,42 @@
+name: one-time Discord intent fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[skip discord intent fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Discord Message Content Intent persistence
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('frontend/app.js')
+          s = p.read_text()
+          old = '<label>Prefix<input id="dp" value="!"></label><label class="checklabel"><input id="de" type="checkbox" checked> Aktiv</label>'
+          new = '<label>Prefix<input id="dp" value="!"></label><label class="checklabel"><input id="dintent" type="checkbox"> Message Content Intent</label><label class="checklabel"><input id="de" type="checkbox" checked> Aktiv</label>'
+          assert s.count(old) == 1
+          s = s.replace(old, new)
+          old = "  if ($('#de')) $('#de').checked = true;"
+          new = "  if ($('#dintent')) $('#dintent').checked = false;\n  if ($('#de')) $('#de').checked = true;"
+          assert s.count(old) == 1
+          s = s.replace(old, new)
+          old = "  $('#did').value = item.id; $('#dn').value = item.name || ''; $('#dt').value = ''; $('#dc').value = item.clientId || ''; $('#dp').value = item.prefix || '!'; $('#de').checked = item.enabled !== false;"
+          new = "  $('#did').value = item.id; $('#dn').value = item.name || ''; $('#dt').value = ''; $('#dc').value = item.clientId || ''; $('#dp').value = item.prefix || '!'; $('#dintent').checked = item.messageContentIntent === true; $('#de').checked = item.enabled !== false;"
+          assert s.count(old) == 1
+          s = s.replace(old, new)
+          old = "await post('/api/discord', { id: $('#did').value, name: $('#dn').value, token: $('#dt').value, clientId: $('#dc').value, guildId: $('#dg').value, channelId: $('#dv').value, prefix: $('#dp').value, enabled: $('#de').checked });"
+          new = "await post('/api/discord', { id: $('#did').value, name: $('#dn').value, token: $('#dt').value, clientId: $('#dc').value, guildId: $('#dg').value, channelId: $('#dv').value, prefix: $('#dp').value, messageContentIntent: $('#dintent').checked, enabled: $('#de').checked });"
+          assert s.count(old) == 1
+          s = s.replace(old, new)
+          p.write_text(s)
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/app.js
+          git diff --cached --quiet || (git commit -m "fix: persist Discord Message Content Intent [skip discord intent fix]" && git push)
