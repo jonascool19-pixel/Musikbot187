@@ -1,87 +1,98 @@
 (() => {
-  const nativeFetch = () => window.MusikBotFetch?.nativeFetch || window.fetch.bind(window);
-  const auth = () => window.MusikBotFetch?.getAuth?.() || '';
+  const getAuth = () => window.MusikBotFetch?.getAuth?.() || '';
 
-  const api = async path => {
-    const headers = new Headers();
-    const token = auth();
-    if (token) headers.set('Authorization', token);
-    const response = await nativeFetch()(path, { headers });
+  async function request(path) {
+    const headers = {};
+    const token = getAuth();
+    if (token) headers.Authorization = token;
+    const response = await fetch(path, { headers });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
     return body;
-  };
+  }
 
-  const setOptions = (select, items, placeholder, selected = '') => {
+  function replaceOptions(select, items, placeholder, selected = '') {
     if (!select) return;
     const previous = selected || select.value || '';
-    select.replaceChildren(new Option(placeholder, ''));
+    const fragment = document.createDocumentFragment();
+    fragment.append(new Option(placeholder, ''));
     for (const item of Array.isArray(items) ? items : []) {
-      select.add(new Option(item.name || item.id, String(item.id)));
+      fragment.append(new Option(item.name || item.id, String(item.id)));
     }
+    select.replaceChildren(fragment);
     if (previous && [...select.options].some(option => option.value === previous)) {
       select.value = previous;
     }
-  };
+  }
 
-  const resolveInstanceId = async () => {
+  async function resolveInstanceId() {
     const field = document.querySelector('#did');
     const value = field?.value?.trim();
     if (value) return value;
-
-    // The connection editor can be re-rendered immediately after saving. During
-    // that short window #did may not exist yet. Resolve the active/first Discord
-    // instance from the authoritative endpoint instead of silently doing nothing.
-    const discord = await api('/api/discord');
+    const discord = await request('/api/discord');
     const first = Array.isArray(discord) ? discord.find(item => item?.id) : null;
     return first?.id ? String(first.id) : '';
-  };
+  }
 
-  const loadGuilds = async () => {
+  async function refreshGuilds(button) {
     const id = await resolveInstanceId();
     const select = document.querySelector('#dg');
     if (!id || !select) return;
     const previous = select.value;
-    select.disabled = true;
+    button.disabled = true;
     try {
-      const guilds = await api(`/api/discord/${encodeURIComponent(id)}/guilds`);
-      setOptions(select, guilds, 'Discord-Server auswählen', previous);
-      // Expose the resolved instance so a concurrently rendered editor can pick
-      // it up without requiring a tab switch.
+      const guilds = await request(`/api/discord/${encodeURIComponent(id)}/guilds`);
+      const configured = String(window.__musikbotDiscordGuildId || '').trim();
+      replaceOptions(select, guilds, 'Server auswählen', configured || previous);
+      window.__musikbotDiscordGuildId = select.value;
       select.dataset.discordInstanceId = id;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
     } finally {
-      select.disabled = false;
+      button.disabled = false;
     }
-  };
+  }
 
-  const loadChannels = async () => {
+  async function refreshChannels(button) {
     const id = await resolveInstanceId();
     const guildSelect = document.querySelector('#dg');
     const select = document.querySelector('#dv');
     const guild = guildSelect?.value?.trim();
     if (!id || !guild || !select) return;
     const previous = select.value;
-    select.disabled = true;
+    button.disabled = true;
     try {
-      const channels = await api(`/api/discord/${encodeURIComponent(id)}/guilds/${encodeURIComponent(guild)}/channels`);
-      setOptions(select, channels, 'Voice-Kanal auswählen', previous);
+      const channels = await request(`/api/discord/${encodeURIComponent(id)}/guilds/${encodeURIComponent(guild)}/channels`);
+      const configured = String(window.__musikbotDiscordChannelId || '').trim();
+      replaceOptions(select, channels, 'Voice-Kanal auswählen', configured || previous);
       select.dataset.discordInstanceId = id;
     } finally {
-      select.disabled = false;
+      button.disabled = false;
     }
-  };
+  }
 
-  document.addEventListener('click', event => {
-    const target = event.target?.closest?.('#dgrefresh, #dvrefresh');
-    if (!target) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    void (target.id === 'dgrefresh' ? loadGuilds() : loadChannels()).catch(error => {
-      const notice = document.querySelector('#notice');
-      if (notice) {
-        notice.textContent = error.message || String(error);
-        notice.classList.add('show');
-      }
-    });
+  function bind() {
+    const guildButton = document.querySelector('#dgrefresh');
+    const channelButton = document.querySelector('#dvrefresh');
+    if (guildButton && !guildButton.dataset.discordRefreshBound) {
+      guildButton.dataset.discordRefreshBound = '1';
+      guildButton.onclick = event => {
+        event.preventDefault();
+        void refreshGuilds(guildButton).catch(error => window.MusikBotFetch?.showError?.(error) || console.error(error));
+      };
+    }
+    if (channelButton && !channelButton.dataset.discordRefreshBound) {
+      channelButton.dataset.discordRefreshBound = '1';
+      channelButton.onclick = event => {
+        event.preventDefault();
+        void refreshChannels(channelButton).catch(error => window.MusikBotFetch?.showError?.(error) || console.error(error));
+      };
+    }
+  }
+
+  new MutationObserver(bind).observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('change', event => {
+    if (event.target?.id === 'dg') window.__musikbotDiscordGuildId = event.target.value;
+    if (event.target?.id === 'dv') window.__musikbotDiscordChannelId = event.target.value;
   }, true);
+  bind();
 })();
