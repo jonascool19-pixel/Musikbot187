@@ -19,13 +19,30 @@
     catch { window.prompt('Einladungslink', value); }
   }
 
+  function syncNavigation() {
+    const current = document.body.dataset.currentTab || '';
+    document.querySelectorAll('nav .navbtn').forEach(button => {
+      const active = button.dataset.tab === current || button.dataset.extraTab === current;
+      button.classList.toggle('active', active);
+    });
+  }
+
+  function rememberNavigation(target) {
+    if (!target) return;
+    const tab = target.dataset.tab || target.dataset.extraTab || '';
+    if (!tab) return;
+    document.body.dataset.currentTab = tab;
+    syncNavigation();
+    if (tab === 'connections' || tab === 'admin') window.setTimeout(applyCurrentTabFixes, 80);
+  }
+
   function hideAdminThemeSelect() {
     const theme = q('#at');
     const label = theme?.closest('label');
     if (label) label.hidden = true;
   }
 
-  async function preserveGeneralSettingsSave() {
+  function preserveGeneralSettingsSave() {
     const button = q('#as');
     if (!button || button.dataset.designFixWired) return;
     button.dataset.designFixWired = '1';
@@ -79,13 +96,13 @@
         window.open(url, '_blank', 'noopener,noreferrer');
       };
       row.querySelector('[data-ix-link]').onclick = () => copy(inviteUrl(clientId));
-      row.querySelector('[data-ix-server]').onclick = async () => {
+      row.querySelector('[data-ix-server]').onclick = () => {
         edit.click();
-        setTimeout(() => q('#dgrefresh')?.click(), 50);
+        window.setTimeout(() => q('#dgrefresh')?.click(), 50);
       };
-      row.querySelector('[data-ix-voice]').onclick = async () => {
+      row.querySelector('[data-ix-voice]').onclick = () => {
         edit.click();
-        setTimeout(() => q('#dvrefresh')?.click(), 70);
+        window.setTimeout(() => q('#dvrefresh')?.click(), 70);
       };
     });
   }
@@ -104,6 +121,7 @@
   }
 
   function applyCurrentTabFixes() {
+    syncNavigation();
     if (document.body.dataset.currentTab === 'connections') {
       addDiscordInstanceActions();
       addNewInstanceShortcut();
@@ -115,12 +133,9 @@
   }
 
   document.addEventListener('click', event => {
-    const target = event.target?.closest?.('[data-tab]');
-    if (target?.dataset.tab === 'connections' || target?.dataset.tab === 'admin') {
-      window.setTimeout(applyCurrentTabFixes, 60);
-    }
-  });
+    const target = event.target?.closest?.('nav .navbtn');
+    if (target) rememberNavigation(target);
+  }, true);
 
   window.setTimeout(applyCurrentTabFixes, 250);
-  window.setInterval(applyCurrentTabFixes, 1000);
 })();
