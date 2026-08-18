@@ -57,8 +57,6 @@ function fmtUptime(seconds) {
 function inviteUrl(clientId) {
   const id = String(clientId || '').trim();
   if (!/^\d{17,20}$/.test(id)) return '';
-  // Minimal, valid permissions for a music bot: View Channel, Connect, Speak, Send Messages.
-  // Slash commands are granted via the applications.commands OAuth scope.
   const permissions = 3148800;
   return `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(id)}&scope=bot%20applications.commands&permissions=${permissions}`;
 }
@@ -202,101 +200,58 @@ async function pickPlaylist(item) {
 
 async function playlists() {
   const playlistsData = await api('/api/playlists');
-  $('#view').innerHTML = `<section><div class="sectionhead"><h2>Playlists</h2><button id="new">＋ Playlist</button></div>${playlistsData.length ? playlistsData.map(playlist => `<article class="card"><div class="sectionhead"><b>${esc(playlist.name)}</b><span>${playlist.items.length} Titel</span></div><div class="list">${playlist.items.map(item => `<div class="listrow"><span>${esc(item.title || item.url)} <small>${esc(item.artist || item.source || '')}</small></span><button data-prm="${esc(playlist.id)}" data-pit="${esc(item.id)}" class="danger">Entfernen</button></div>`).join('') || '<p class="muted">Leer.</p>'}</div><button data-pplay="${esc(playlist.id)}">▶ Playlist abspielen</button></article>`).join('') : '<p class="muted">Noch keine Playlists.</p>'}</section>`;
+  $('#view').innerHTML = `<section><div class="sectionhead"><h2>Playlists</h2><button id="new">＋ Playlist</button></div>${playlistsData.length ? playlistsData.map(playlist => `<article class="card"><div class="sectionhead"><b>${esc(playlist.name)}</b><span>${playlist.items.length} Titel</span></div><div class="controls"><button data-pplay="${playlist.id}">▶ Abspielen</button><button data-popen="${playlist.id}">Öffnen</button><button data-pdel="${playlist.id}" class="danger">Löschen</button></div></article>`).join('') : '<p class="muted">Keine Playlists vorhanden.</p>'}</section>`;
   $('#new').onclick = async () => { const name = prompt('Playlist-Name'); if (!name?.trim()) return; try { await post('/api/playlists', { name: name.trim() }); playlists(); } catch (error) { fail(error); } };
-  document.querySelectorAll('[data-pplay]').forEach(button => button.onclick = async () => { try { await post(`/api/playlists/${button.dataset.pplay}/play`); state.tab = 'player'; await load(); player(); } catch (error) { fail(error); } });
-  document.querySelectorAll('[data-prm]').forEach(button => button.onclick = async () => { try { await del(`/api/playlists/${button.dataset.prm}/items/${button.dataset.pit}`); playlists(); } catch (error) { fail(error); } });
+  document.querySelectorAll('[data-pplay]').forEach(button => button.onclick = async () => { try { await post(`/api/playlists/${button.dataset.pplay}/play`); await load(); player(); } catch (error) { fail(error); } });
+  document.querySelectorAll('[data-popen]').forEach(button => button.onclick = () => openPlaylist(button.dataset.popen));
+  document.querySelectorAll('[data-pdel]').forEach(button => button.onclick = async () => { try { await del(`/api/playlists/${button.dataset.pdel}`); playlists(); } catch (error) { fail(error); } });
 }
-
-function setSelectValue(select, value, label = value) {
-  if (!select || !value) return;
-  if (![...select.options].some(option => option.value === value)) select.add(new Option(label || value, value));
-  select.value = value;
+async function openPlaylist(id) {
+  const data = await api('/api/playlists');
+  const playlist = data.find(item => item.id === id);
+  if (!playlist) return;
+  $('#view').innerHTML = `<section><div class="sectionhead"><h2>${esc(playlist.name)}</h2><div class="controls"><button id="backPl">← Zurück</button><button id="playPl">▶ Playlist abspielen</button></div></div><div class="list">${playlist.items.map((item, index) => `<div class="listrow"><span><b>${index + 1}.</b> ${esc(item.title)}</span><div class="controls"><button data-prm="${index}" class="danger">Entfernen</button></div></div>`).join('') || '<p class="muted">Playlist ist leer.</p>'}</div></section>`;
+  $('#backPl').onclick = playlists;
+  $('#playPl').onclick = async () => { try { await post(`/api/playlists/${playlist.id}/play`); await load(); player(); } catch (error) { fail(error); } };
+  document.querySelectorAll('[data-prm]').forEach(button => button.onclick = async () => { try { await del(`/api/playlists/${playlist.id}/items/${button.dataset.prm}`); await openPlaylist(id); } catch (error) { fail(error); } });
 }
 
 async function connections() {
-  const [discord, ts3] = await Promise.all([api('/api/discord'), api('/api/ts3')]);
-  state.discord = discord; state.ts3 = ts3;
-  $('#view').innerHTML = `<section><div class="sectionhead"><h2>Discord</h2><span class="muted">Bot, Server und Voice-Kanal direkt verwalten</span></div><div class="card discord-editor"><div class="grid"><label>Instanz-ID<input id="did" placeholder="leer = neue Instanz"></label><label>Name<input id="dn" placeholder="Discord-Instanz"></label><label>Bot-Token<input id="dt" type="password" placeholder="beim Bearbeiten leer lassen"></label><label>Bot-ID / Client-ID<div class="input-action"><input id="dc" inputmode="numeric" placeholder="17–20 Ziffern"><button id="dinvite" title="Einladungslink erstellen">↗</button></div></label><label>Discord-Server<div class="input-action"><select id="dg"><option value="">Server auswählen</option></select><button id="dgrefresh" title="Discord-Server aktualisieren">↻</button></div></label><label>Voice-Kanal<div class="input-action"><select id="dv"><option value="">Voice-Kanal auswählen</option></select><button id="dvrefresh" title="Voice-Kanäle aktualisieren">↻</button></div></label><label>Prefix<input id="dp" value="!"></label><label class="checklabel"><input id="dintent" type="checkbox"> Message Content Intent</label><label class="checklabel"><input id="de" type="checkbox" checked> Aktiv</label></div><div class="controls"><button id="dadd">Bot zum Discord hinzufügen</button><button id="dlink">Einladungslink erstellen</button><button id="ds">Speichern</button><button id="dconnect">Verbinden</button><button id="dreconnect">Neu verbinden</button><button id="dnew">Neu</button></div><p id="dinviteText" class="muted"></p></div><div>${discord.map(item => `<article class="card"><div class="sectionhead"><b>${esc(item.name)}</b><span>${item.enabled ? 'aktiv' : 'inaktiv'}</span></div><small>Bot-ID ${esc(item.clientId || '-')} · Server ${esc(item.guildId || '-')} · Voice ${esc(item.channelId || '-')}</small><div class="controls"><button data-de="${esc(item.id)}">Bearbeiten</button><button data-dco="${esc(item.id)}">Verbinden</button><button data-dre="${esc(item.id)}">Neu verbinden</button><button data-djo="${esc(item.id)}">Voice beitreten</button><button data-dd="${esc(item.id)}">Trennen</button><button data-dinvite="${esc(item.clientId || '')}">Einladungslink</button><button data-dx="${esc(item.id)}" class="danger">Entfernen</button></div></article>`).join('') || '<p class="muted">Keine Discord-Instanz.</p>'}</div></section><section><h2>TeamSpeak 3</h2><div class="card"><div class="grid"><input id="tid" placeholder="ID (leer = neu)"><input id="tn" placeholder="Name"><input id="th" placeholder="Host"><input id="tp" type="number" value="9987"><input id="tni" placeholder="Nickname"><input id="tpa" type="password" placeholder="Passwort"><input id="tch" placeholder="Standard-Channel"><label><input id="te" type="checkbox"> Aktiv</label></div><button id="ts">Speichern</button></div><div>${ts3.map(item => `<article class="card"><div class="sectionhead"><b>${esc(item.name)}</b><span>${item.connected ? 'verbunden' : 'getrennt'}</span></div><small>${esc(item.host)}:${esc(item.port)} · Channel ${esc(item.channel || '-')}</small><div class="controls"><button data-te="${esc(item.id)}">Bearbeiten</button><button data-tc="${esc(item.id)}">Verbinden</button><button data-td="${esc(item.id)}">Trennen</button></div></article>`).join('') || '<p class="muted">Keine TS3-Instanz.</p>'}</div></section>`;
-  $('#dadd').onclick = () => { const url = inviteUrl($('#dc').value); if (!url) return note('Bitte zuerst eine gültige Bot-ID / Client-ID eintragen.'); window.open(url, '_blank', 'noopener,noreferrer'); };
-  $('#dlink').onclick = async () => { const url = inviteUrl($('#dc').value); if (!url) return note('Bitte zuerst eine gültige Bot-ID / Client-ID eintragen.'); $('#dinviteText').textContent = url; await copyText(url); };
-  $('#dinvite').onclick = async () => { const url = inviteUrl($('#dc').value); if (!url) return note('Bitte zuerst eine gültige Bot-ID / Client-ID eintragen.'); $('#dinviteText').textContent = url; await copyText(url); };
-  $('#ds').onclick = saveDiscord;
-  $('#dconnect').onclick = async () => { try { if (!$('#did').value) return note('Erst speichern, dann verbinden.'); await post(`/api/discord/${$('#did').value}/connect`); note('Discord verbunden.'); await loadGuilds(); } catch (error) { fail(error); } };
-  $('#dreconnect').onclick = async () => { try { if (!$('#did').value) return note('Erst eine Discord-Instanz auswählen.'); await post(`/api/discord/${$('#did').value}/disconnect`); await post(`/api/discord/${$('#did').value}/connect`); note('Discord neu verbunden.'); await loadGuilds(); } catch (error) { fail(error); } };
-  $('#dnew').onclick = resetDiscordForm;
-  $('#dgrefresh').onclick = loadGuilds;
-  $('#dvrefresh').onclick = () => loadChannels(true);
-  $('#ts').onclick = saveTS;
-  document.querySelectorAll('[data-de]').forEach(button => button.onclick = () => editDiscord(button.dataset.de));
-  document.querySelectorAll('[data-dco]').forEach(button => button.onclick = async () => { try { await post(`/api/discord/${button.dataset.dco}/connect`); note('Discord verbunden.'); editDiscord(button.dataset.dco); await loadGuilds(); } catch (error) { fail(error); } });
-  document.querySelectorAll('[data-dre]').forEach(button => button.onclick = async () => { try { await post(`/api/discord/${button.dataset.dre}/disconnect`); await post(`/api/discord/${button.dataset.dre}/connect`); note('Discord neu verbunden.'); editDiscord(button.dataset.dre); await loadGuilds(); } catch (error) { fail(error); } });
-  document.querySelectorAll('[data-djo]').forEach(button => button.onclick = async () => { try { await post(`/api/discord/${button.dataset.djo}/join`); note('Voice verbunden.'); } catch (error) { fail(error); } });
-  document.querySelectorAll('[data-dd]').forEach(button => button.onclick = async () => { try { await post(`/api/discord/${button.dataset.dd}/disconnect`); await connections(); } catch (error) { fail(error); } });
-  document.querySelectorAll('[data-dinvite]').forEach(button => button.onclick = async () => { const url = inviteUrl(button.dataset.dinvite); if (!url) return note('Keine gültige Bot-ID gespeichert.'); await copyText(url); });
-  document.querySelectorAll('[data-dx]').forEach(button => button.onclick = async () => { if (!confirm('Discord-Instanz entfernen?')) return; try { await del(`/api/discord/${button.dataset.dx}`); await connections(); } catch (error) { fail(error); } });
-  document.querySelectorAll('[data-te]').forEach(button => button.onclick = () => editTS(button.dataset.te));
-  document.querySelectorAll('[data-tc]').forEach(button => button.onclick = async () => { try { await post(`/api/ts3/${button.dataset.tc}/connect`); await connections(); } catch (error) { fail(error); } });
-  document.querySelectorAll('[data-td]').forEach(button => button.onclick = async () => { try { await post(`/api/ts3/${button.dataset.td}/disconnect`); await connections(); } catch (error) { fail(error); } });
-}
-function resetDiscordForm() {
-  ['did', 'dn', 'dt', 'dc'].forEach(id => { if ($('#' + id)) $('#' + id).value = ''; });
-  if ($('#dp')) $('#dp').value = '!';
-  if ($('#dg')) $('#dg').innerHTML = '<option value="">Server auswählen</option>';
-  if ($('#dv')) $('#dv').innerHTML = '<option value="">Voice-Kanal auswählen</option>';
-  if ($('#dintent')) $('#dintent').checked = false;
-  if ($('#de')) $('#de').checked = true;
-  if ($('#dinviteText')) $('#dinviteText').textContent = '';
-}
-function editDiscord(id) {
-  const item = state.discord.find(value => value.id === id); if (!item) return;
-  $('#did').value = item.id; $('#dn').value = item.name || ''; $('#dt').value = ''; $('#dc').value = item.clientId || ''; $('#dp').value = item.prefix || '!'; $('#dintent').checked = item.messageContentIntent === true; $('#de').checked = item.enabled !== false;
-  setSelectValue($('#dg'), item.guildId || '', item.guildId || '');
-  setSelectValue($('#dv'), item.channelId || '', item.channelId || '');
-  const url = inviteUrl(item.clientId); $('#dinviteText').textContent = url;
-  scrollTo(0, 0);
-}
-async function saveDiscord() {
-  try {
-    await post('/api/discord', { id: $('#did').value, name: $('#dn').value, token: $('#dt').value, clientId: $('#dc').value, guildId: $('#dg').value, channelId: $('#dv').value, prefix: $('#dp').value, messageContentIntent: $('#dintent').checked, enabled: $('#de').checked });
-    note('Discord gespeichert.'); await connections();
-  } catch (error) { fail(error); }
-}
-async function loadGuilds() {
-  try {
-    const id = $('#did')?.value; if (!id) return note('Erst eine gespeicherte Discord-Instanz auswählen.');
-    const guilds = await api(`/api/discord/${id}/guilds`);
-    const select = $('#dg'); select.innerHTML = '<option value="">Server auswählen</option>'; guilds.forEach(item => select.add(new Option(item.name, item.id)));
-    select.value = state.discord.find(item => item.id === id)?.guildId || select.value;
-    if (select.value) await loadChannels(false);
-    note(guilds.length ? `${guilds.length} Discord-Server geladen.` : 'Der Bot ist mit keinem Discord-Server verbunden.');
-  } catch (error) { fail(error); }
-}
-async function loadChannels(showNotice = true) {
-  try {
-    const id = $('#did')?.value; const guildId = $('#dg')?.value;
-    if (!id || !guildId) return note('Discord-Instanz und Server auswählen.');
-    const channels = await api(`/api/discord/${id}/guilds/${guildId}/channels`);
-    const select = $('#dv'); const previous = state.discord.find(item => item.id === id)?.channelId || select.value;
-    select.innerHTML = '<option value="">Voice-Kanal auswählen</option>'; channels.forEach(item => select.add(new Option(item.name, item.id))); select.value = previous;
-    if (showNotice) note(channels.length ? `${channels.length} Voice-Kanäle geladen.` : 'Keine Voice-Kanäle gefunden.');
-  } catch (error) { fail(error); }
-}
-function editTS(id) {
-  const item = state.ts3.find(value => value.id === id); if (!item) return;
-  $('#tid').value = item.id; $('#tn').value = item.name || ''; $('#th').value = item.host || ''; $('#tp').value = item.port || 9987; $('#tni').value = item.nickname || 'MusikBot187'; $('#tpa').value = ''; $('#tch').value = item.channel || ''; $('#te').checked = item.enabled === true; scrollTo(0, 0);
-}
-async function saveTS() {
-  try {
-    const id = $('#tid').value || crypto.randomUUID();
-    await put('/api/ts3', { instances: [...state.ts3.filter(item => item.id !== id), { id, name: $('#tn').value.trim() || 'TS3', host: $('#th').value.trim(), port: Number($('#tp').value || 9987), nickname: $('#tni').value.trim() || 'MusikBot187', password: $('#tpa').value || '', channel: $('#tch').value.trim(), enabled: $('#te').checked }] });
-    note('TS3 gespeichert.'); await connections();
-  } catch (error) { fail(error); }
-}
-async function playFile(file) {
-  try { await post('/api/play', { items: [{ id: crypto.randomUUID(), title: file.name, url: file.path, source: 'file' }] }); note(`„${file.name}“ zur Wiedergabe hinzugefügt.`); await load(); player(); } catch (error) { fail(error); }
+  const discord = await api('/api/discord');
+  const ts3 = await api('/api/ts3');
+  state.discord = discord;
+  state.ts3 = ts3;
+  $('#view').innerHTML = `<section><div class="sectionhead"><h2>Discord</h2><button id="addDiscord">＋ Instanz</button></div><div class="list">${discord.map(item => `<div class="listrow"><span>💬 <b>${esc(item.name)}</b><small>${item.connected ? 'Verbunden' : 'Nicht verbunden'}</small></span><div class="controls"><button data-dedit="${item.id}">Bearbeiten</button><button data-dinvite="${item.id}">Einladungslink</button><button data-dconnect="${item.id}">Verbinden</button><button data-ddel="${item.id}" class="danger">Löschen</button></div></div>`).join('') || '<p class="muted">Keine Discord-Instanzen.</p>'}</div></section><section><div class="sectionhead"><h2>TeamSpeak 3</h2><button id="addTs3">＋ Instanz</button></div><div class="list">${ts3.map(item => `<div class="listrow"><span>🎧 <b>${esc(item.name)}</b><small>${item.connected ? 'Verbunden' : 'Nicht verbunden'}</small></span><div class="controls"><button data-tedit="${item.id}">Bearbeiten</button><button data-tconnect="${item.id}">Verbinden</button><button data-tdel="${item.id}" class="danger">Löschen</button></div></div>`).join('') || '<p class="muted">Keine TeamSpeak-Instanzen.</p>'}</div></section>`;
+  $('#addDiscord').onclick = () => editDiscord(null);
+  $('#addTs3').onclick = () => editTs3(null);
+  document.querySelectorAll('[data-dedit]').forEach(button => button.onclick = () => editDiscord(button.dataset.dedit));
+  document.querySelectorAll('[data-tedit]').forEach(button => button.onclick = () => editTs3(button.dataset.tedit));
+  document.querySelectorAll('[data-dinvite]').forEach(button => { button.onclick = () => { const item = discord.find(x => x.id === button.dataset.dinvite); const url = inviteUrl(item?.clientId); if (!url) return note('Bitte zuerst eine gültige Discord-Client-ID speichern.'); void copyText(url); }; });
+  document.querySelectorAll('[data-dconnect]').forEach(button => button.onclick = async () => { try { await post(`/api/discord/${button.dataset.dconnect}/connect`); await connections(); } catch (error) { fail(error); } });
+  document.querySelectorAll('[data-ddel]').forEach(button => button.onclick = async () => { try { await del(`/api/discord/${button.dataset.ddel}`); await connections(); } catch (error) { fail(error); } });
+  document.querySelectorAll('[data-tconnect]').forEach(button => button.onclick = async () => { try { await post(`/api/ts3/${button.dataset.tconnect}/connect`); await connections(); } catch (error) { fail(error); } });
+  document.querySelectorAll('[data-tdel]').forEach(button => button.onclick = async () => { try { await del(`/api/ts3/${button.dataset.tdel}`); await connections(); } catch (error) { fail(error); } });
 }
 
+async function editDiscord(id) {
+  const item = id ? state.discord.find(x => x.id === id) : { id: crypto.randomUUID(), name: 'Discord', clientId: '', prefix: '!' };
+  $('#view').innerHTML = `<section><div class="sectionhead"><h2>Discord-Instanz</h2><button id="back">← Zurück</button></div><div class="grid"><label>Name<input id="dn" value="${esc(item.name)}"></label><label>Client-ID<input id="did" value="${esc(item.clientId || '')}"></label><label>Bot-Token<input id="dt" type="password" placeholder="${item.hasToken ? 'Gespeichert' : ''}"></label><label>Prefix<input id="dp" value="${esc(item.prefix || '!')}"></label><label>Discord-Server<select id="dg"><option value="">Discord-Server auswählen</option></select><button id="dgrefresh">↻ Server aktualisieren</button></label><label>Voice-Kanal<select id="dv"><option value="">Voice-Kanal auswählen</option></select><button id="dvrefresh">↻ Kanäle aktualisieren</button></label></div><div class="controls"><button id="saveDiscord">💾 Speichern</button><button id="connectDiscord">🔌 Verbinden</button></div></section>`;
+  $('#back').onclick = connections;
+  $('#saveDiscord').onclick = async () => {
+    try {
+      await put(`/api/discord/${item.id}`, { id: item.id, name: $('#dn').value, clientId: $('#did').value, token: $('#dt').value || undefined, prefix: $('#dp').value, guildId: $('#dg').value, voiceChannelId: $('#dv').value });
+      note('Discord-Instanz gespeichert.'); await connections();
+    } catch (error) { fail(error); }
+  };
+  $('#connectDiscord').onclick = async () => { try { await post(`/api/discord/${item.id}/connect`); note('Verbindung gestartet.'); await connections(); } catch (error) { fail(error); } };
+}
+async function editTs3(id) {
+  const item = id ? state.ts3.find(x => x.id === id) : { id: crypto.randomUUID(), name: 'TeamSpeak 3', host: '', port: 10011, username: '', serverId: 1 };
+  $('#view').innerHTML = `<section><div class="sectionhead"><h2>TeamSpeak 3</h2><button id="back">← Zurück</button></div><div class="grid"><label>Name<input id="tn" value="${esc(item.name)}"></label><label>Host<input id="th" value="${esc(item.host || '')}"></label><label>Port<input id="tp" type="number" value="${Number(item.port) || 10011}"></label><label>Username<input id="tu" value="${esc(item.username || '')}"></label><label>Passwort<input id="tw" type="password" placeholder="${item.hasPassword ? 'Gespeichert' : ''}"></label><label>Server-ID<input id="ts" type="number" value="${Number(item.serverId) || 1}"></label></div><div class="controls"><button id="saveTs3">💾 Speichern</button><button id="connectTs3">🔌 Verbinden</button></div></section>`;
+  $('#back').onclick = connections;
+  $('#saveTs3').onclick = async () => { try { await put(`/api/ts3/${item.id}`, { id: item.id, name: $('#tn').value, host: $('#th').value, port: Number($('#tp').value), username: $('#tu').value, password: $('#tw').value || undefined, serverId: Number($('#ts').value) }); note('TeamSpeak-Instanz gespeichert.'); await connections(); } catch (error) { fail(error); } };
+  $('#connectTs3').onclick = async () => { try { await post(`/api/ts3/${item.id}/connect`); note('Verbindung gestartet.'); await connections(); } catch (error) { fail(error); } };
+}
 async function system() {
   const [systemData, networkData, storage, files, health, snapshot] = await Promise.all([api('/api/system'), api('/api/network'), api('/api/storage'), api('/api/files'), api('/api/health'), api('/api/state')]);
   state.monitor.system = systemData; state.monitor.network = networkData;
@@ -320,6 +275,19 @@ function admin() {
 function loginView() {
   stopTimers();
   $('#app').innerHTML = `<main class="login"><h1>MusikBot187</h1><p>Admin-Anmeldung</p><form id="loginForm"><input id="user" autocomplete="username" placeholder="Benutzername" required><input id="pass" type="password" autocomplete="current-password" placeholder="Passwort" required><button type="submit">Anmelden</button></form><p id="setupHint" class="muted"></p></main>`;
-  $('#loginForm').onsubmit = async event => { event.preventDefault(); try { const result = await api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: $('#user').value, password: $('#pass').value }) }); state.token = result.token; state.user = result.user; window.MusikBotFetch?.setAuth?.(`Bearer ${state.token}`); state.tab = 'player'; await render(); } catch (error) { note(error.message || 'Anmeldung fehlgeschlagen.'); } };
+  $('#loginForm').onsubmit = async event => {
+    event.preventDefault();
+    const name = $('#user').value.trim();
+    const password = $('#pass').value;
+    try {
+      const result = await api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, password }) });
+      state.token = result.token;
+      state.user = result.user;
+      window.MusikBotFetch?.setAuth?.(`Bearer ${state.token}`);
+      window.MusikBotLoginBootstrap?.clearSession?.();
+      state.tab = 'player';
+      await render();
+    } catch (error) { note(error.message || 'Anmeldung fehlgeschlagen.'); }
+  };
 }
 (async () => { try { const setup = await api('/api/setup'); if (setup.initialized) loginView(); else window.location.hash.startsWith('#setup=') ? await import('/setup-security.js').then(mod => mod?.default?.()) : loginView(); } catch { loginView(); } })();
