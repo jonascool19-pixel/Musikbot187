@@ -9,7 +9,10 @@ const RECOVERY_DELAYS = [2000, 5000, 10000, 20000];
 const MAX_QUEUE_ITEMS = 100;
 const MAX_YTDLP_STDERR = 256 * 1024;
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/151.0 Safari/537.36";
-const YOUTUBE_EXTRACTOR_ARGS = "youtube:player_client=default,web_embedded";
+// Force the no-PO-token YouTube client. A multi-client chain can still select
+// ANDROID_VR for the final GVS URL and produce a 403 even when web_embedded
+// was selected for the player response.
+const YOUTUBE_EXTRACTOR_ARGS = "youtube:player_client=web_embedded";
 
 function clampVolume(value) { const n = Number(value); return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0; }
 function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
