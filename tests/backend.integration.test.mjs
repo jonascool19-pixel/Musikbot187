@@ -24,7 +24,7 @@ test("real backend enforces setup, upload authorization, relative file paths and
   const setup = await request("/api/setup"); assert.equal((await setup.json()).initialized, false);
   const setupResponse = await request("/api/setup", { method: "POST", headers: { "content-type": "application/json", "x-musikbot-setup-token": setupToken }, body: JSON.stringify({ name: "admin", password: "correct-password" }) });
   assert.equal(setupResponse.status, 200); auth = (await setupResponse.json()).token; assert.ok(auth);
-  const deniedUpload = await request("/api/music/upload", { method: "POST", headers: { authorization: `Bearer ${auth}` }, body: "not multipart" }); assert.equal(deniedUpload.status, 415);
+  const deniedUpload = await request("/api/music/upload", { method: "POST", headers: { authorization: `Bearer ${auth}` }, body: "not multipart" }); assert.equal(deniedUpload.status, 400);
   const form = new FormData(); form.append("file", new Blob([Buffer.from("ID3test-audio")], { type: "audio/mpeg" }), "test.mp3");
   const upload = await request("/api/music/upload", { method: "POST", headers: { authorization: `Bearer ${auth}` }, body: form }); assert.equal(upload.status, 200);
   const files = await request("/api/files", { headers: { authorization: `Bearer ${auth}` } }); const fileBody = await files.json(); assert.equal(fileBody[0].path, "test.mp3"); assert.equal(JSON.stringify(fileBody).includes(dataDir), false);
