@@ -1,10 +1,12 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, 'audit/**']
   pull_request:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,7 +15,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: cd backend && npm install --no-audit --no-fund
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: test -f backend/package-lock.json
+      - run: cd backend && npm ci --no-fund
+      - run: cd backend && npm audit --omit=dev --audit-level=high
       - run: cd backend && npm test
       - run: cd backend && npx playwright install --with-deps chromium
       - run: cd backend && npm run test:browser
@@ -22,43 +28,32 @@ jobs:
       - run: node --check backend/src/server.js
       - run: node --check backend/src/player.js
       - run: node --check backend/src/media.js
+      - run: node --check backend/src/source-policy.js
+      - run: node --check backend/src/egress-proxy.js
       - run: node --check backend/src/discord.js
       - run: node --check backend/src/ts3.js
       - run: node --check backend/src/store.js
+      - run: node --check backend/src/secrets.js
       - run: node --check backend/src/system.js
+      - run: node --check install/control-daemon.js
+      - run: node --check frontend/fetch-layer.js
       - run: node --check frontend/app.js
       - run: node --check frontend/errorlog.js
       - run: node --check frontend/enhancements.js
       - run: node --check frontend/music-ui.js
+      - run: node --check frontend/system-cleanup.js
       - run: node --check frontend/themes.js
-      - run: grep -F 'errorlog.js' frontend/index.html
-      - run: grep -F 'music-ui.js' frontend/index.html
-      - run: grep -F 'themes.js' frontend/index.html
-      - run: grep -F 'releases/latest/download/yt-dlp' install-stable.sh
-      - run: grep -F 'ExecStart=/usr/bin/node $APP/backend/src/server.js' install-stable.sh
-      - name: Validate installer security configuration
-        run: |
-          grep -F 'SERVICE_USER="musikbot187"' install-stable.sh
-          grep -F 'User=$SERVICE_USER' install-stable.sh
-          grep -F 'UMask=0077' install-stable.sh
-          grep -F 'NoNewPrivileges=false' install-stable.sh
-          grep -F 'PrivateDevices=true' install-stable.sh
-          grep -F 'ProtectSystem=strict' install-stable.sh
-          grep -F 'ProtectHome=true' install-stable.sh
-          grep -F 'ProtectKernelModules=true' install-stable.sh
-          grep -F 'ProtectKernelTunables=true' install-stable.sh
-          grep -F 'ProtectControlGroups=true' install-stable.sh
-          grep -F 'RestrictSUIDSGID=true' install-stable.sh
-          grep -F 'LockPersonality=true' install-stable.sh
-          grep -F 'RestrictRealtime=true' install-stable.sh
-          grep -F 'SystemCallArchitectures=native' install-stable.sh
-          grep -F 'ReadWritePaths=$DATA' install-stable.sh
-          grep -F 'visudo -cf /etc/sudoers.d/musikbot187' install-stable.sh
-          grep -F 'MUSIKBOT187_CONTROL' install-stable.sh
-          grep -F 'systemd als PID 1' install-stable.sh
-          grep -F 'cgroups/systemd' install-stable.sh
-          grep -F 'systemctl reboot' install/control.sh
-          grep -F 'systemctl poweroff' install/control.sh
+      - run: grep -F 'fetch-layer.js' frontend/index.html
+      - run: grep -F 'releases/download/' install-stable.sh
+      - run: grep -F 'sha256sum -c' install-stable.sh
+      - run: grep -F 'git -C "$APP" fetch --depth 1 origin "$REF"' install-stable.sh
+      - run: grep -F 'NoNewPrivileges=true' install-stable.sh
+      - run: grep -F 'CapabilityBoundingSet=' install-stable.sh
+      - run: '! grep -F "NOPASSWD" install-stable.sh'
+      - run: '! grep -F "sudoers.d/musikbot187" install-stable.sh'
+      - run: grep -F 'ReadWritePaths=$DATA' install-stable.sh
+      - run: grep -F 'MUSIKBOT187_CONTROL_SOCKET' install-stable.sh
+      - run: grep -F 'Requires=musikbot187-control.service' install-stable.sh
       - name: Build Ubuntu 24.04 systemd installer test image
         run: |
           cat > /tmp/Dockerfile.musikbot187 <<'DOCKERFILE'
@@ -100,29 +95,20 @@ jobs:
             grep -F "User=musikbot187" /etc/systemd/system/musikbot187.service
             grep -F "ProtectSystem=strict" /etc/systemd/system/musikbot187.service
             grep -F "ProtectHome=true" /etc/systemd/system/musikbot187.service
-            grep -F "NoNewPrivileges=false" /etc/systemd/system/musikbot187.service
+            grep -F "NoNewPrivileges=true" /etc/systemd/system/musikbot187.service
+            grep -F "CapabilityBoundingSet=" /etc/systemd/system/musikbot187.service
             grep -F "PrivateDevices=true" /etc/systemd/system/musikbot187.service
             grep -F "UMask=0077" /etc/systemd/system/musikbot187.service
-            visudo -cf /etc/sudoers.d/musikbot187
-            grep -F "musikbot187 ALL=(root) NOPASSWD" /etc/sudoers.d/musikbot187
+            test -f /etc/systemd/system/musikbot187-control.service
+            systemctl is-active --quiet musikbot187-control.service
             systemctl is-active --quiet musikbot187
             test "$(systemctl show -p User --value musikbot187)" = musikbot187
             ready=0
             for i in {1..30}; do
-              if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3000/ >/dev/null; then
-                ready=1
-                break
-              fi
+              if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3000/ >/dev/null; then ready=1; break; fi
               sleep 1
             done
-            if [[ "$ready" -ne 1 ]]; then
-              echo "MusikBot187 HTTP readiness timeout"
-              systemctl status musikbot187 --no-pager || true
-              journalctl -u musikbot187 --no-pager -n 100 || true
-              ss -lntp || true
-              exit 1
-            fi
-            runuser -u musikbot187 -- /usr/bin/sudo /usr/local/sbin/musikbot187-control restart-bot
+            test "$ready" -eq 1
           '
       - name: Ubuntu 24.04 CT-style preflight
         run: |
