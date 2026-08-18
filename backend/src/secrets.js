@@ -1,5 +1,5 @@
 import { randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
-import { access, readFile, writeFile, chmod } from "node:fs/promises";
+import { readFile, writeFile, chmod, mkdir } from "node:fs/promises";
 import path from "node:path";
 
 const DATA_DIR = path.resolve(process.env.MUSIKBOT187_DATA_DIR || path.resolve(process.cwd(), "../data"));
@@ -13,6 +13,7 @@ async function key() {
     if (data.length === 32) return (cachedKey = data);
   } catch {}
   const generated = randomBytes(32);
+  await mkdir(DATA_DIR, { recursive: true });
   await writeFile(KEY_FILE, generated, { mode: 0o600 });
   try { await chmod(KEY_FILE, 0o600); } catch {}
   cachedKey = generated;
