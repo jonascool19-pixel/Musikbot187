@@ -11,7 +11,7 @@ export function discordIntents(prefix = "", messageContentIntent = false) {
 }
 export function discordCommandAllowed(interaction, guildId) { return Boolean(interaction?.guildId && guildId && interaction.guildId === guildId); }
 class Runtime {
-  constructor(cfg) { this.cfg = cfg; this.client = new Client({ intents: discordIntents(cfg.prefix, cfg.messageContentIntent) }); this.connecting = false; this.reconnecting = false; this.reconnectAttempt = 0; this.reconnectTimer = null; this.voiceRecovering = false; this.voiceRecoveryTimer = null; }
+  constructor(cfg) { this.cfg = cfg; this.client = new Client({ intents: discordIntents(cfg.prefix, cfg.messageContentIntent) }); this.connecting = false; this.reconnecting = false; this.reconnectAttempt = 0; this.reconnectTimer = null; this.voiceRecovering = false; this.voiceRecoveryTimer = null; this.missingStreamLogged = false; }
 }
 function commands() {
   return [
@@ -70,6 +70,15 @@ export class DiscordManager {
           if (previousGuildId && previousGuildId !== runtime.cfg.guildId) await rest.put(Routes.applicationGuildCommands(runtime.client.user.id, previousGuildId), { body: [] });
           if (runtime.cfg.guildId) await rest.put(Routes.applicationGuildCommands(runtime.client.user.id, runtime.cfg.guildId), { body: commands() });
         } catch (e) { this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: Command-Registrierung fehlgeschlagen: ${e.message || e}`); }
+      }
+      const settings = this.music.settings || {};
+      if (settings.outputType === "discord" && settings.outputId === cfg.id && cfg.guildId && cfg.channelId) {
+        try {
+          await this.join(cfg.id);
+          this.music.emit("diagnostic", `Discord Voice ${cfg.name}: Automatisch dem konfigurierten Voice-Kanal beigetreten.`);
+        } catch (e) {
+          this.music.emit("diagnostic", `Discord Voice ${cfg.name}: Auto-Join fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
     });
     runtime.client.on("error", (error) => { this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: ${error instanceof Error ? error.message : String(error)}`); });
@@ -139,8 +148,21 @@ export class DiscordManager {
       this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Verbindung verloren; Wiederverbindung in 5s.`);
     });
     runtime.player = createAudioPlayer(); runtime.voice.subscribe(runtime.player); runtime.stream = new PassThrough({ highWaterMark: 256 * 1024 }); runtime.player.play(createAudioResource(runtime.stream, { inputType: StreamType.Raw }));
+    runtime.missingStreamLogged = false;
   }
-  writeAudio(data, id) { const stream = this.map.get(id)?.stream; if (!stream || stream.destroyed) return; if (stream.writableLength > 1024 * 1024) return; stream.write(data); }
+  writeAudio(data, id) {
+    const runtime = this.map.get(id);
+    const stream = runtime?.stream;
+    if (!runtime || !stream || stream.destroyed) {
+      if (runtime && !runtime.missingStreamLogged) {
+        runtime.missingStreamLogged = true;
+        this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Kein aktiver Audio-Stream. Voice-Kanal wird nicht beliefert.`);
+      }
+      return;
+    }
+    if (stream.writableLength > 1024 * 1024) return;
+    stream.write(data);
+  }
   guilds(id) { const r = this.map.get(id); return r && r.client.isReady() ? [...r.client.guilds.cache.values()].map((g) => ({ id: g.id, name: g.name })) : []; }
   channels(id, guildId) { const g = this.map.get(id)?.client.guilds.cache.get(guildId); return g ? [...g.channels.cache.values()].filter((c) => c.type === ChannelType.GuildVoice).map((c) => ({ id: c.id, name: c.name })) : []; }
   status() { return [...this.map.values()].map((r) => ({ id: r.cfg.id, name: r.cfg.name, enabled: r.cfg.enabled, connected: Boolean(r.client.isReady()), connecting: Boolean(r.connecting || r.reconnecting), guildId: r.cfg.guildId, channelId: r.cfg.channelId, inviteUrl: r.cfg.clientId && /^\d{17,20}$/.test(r.cfg.clientId) ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(r.cfg.clientId)}&scope=bot%20applications.commands&permissions=36700160` : "", messageContentIntent: Boolean(r.cfg.messageContentIntent), voiceConnected: Boolean(r.voice && (r.voice.state.status === VoiceConnectionStatus.Ready || r.voice.state.status === VoiceConnectionStatus.Signalling)) })); }
