@@ -13,8 +13,8 @@
     '/api/ts3': 2000
   };
 
-  const cloneJsonResponse = (value) => new Response(JSON.stringify(value), {
-    status: 200,
+  const cloneJsonResponse = (value, status = 200) => new Response(JSON.stringify(value), {
+    status,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
   });
 
@@ -33,28 +33,61 @@
     const ttl = TTL[key.split('|', 1)[0]];
     const now = Date.now();
     const hit = cache.get(key);
-    if (hit && now - hit.time < ttl) return cloneJsonResponse(hit.value);
     if (hit?.pending) return cloneJsonResponse(await hit.pending);
+    if (hit && now - hit.time < ttl) return cloneJsonResponse(hit.value, hit.status || 200);
 
     const pending = baseFetch(input, init).then(async response => {
       const body = await response.json().catch(() => ({}));
-      if (response.ok) cache.set(key, { time: Date.now(), value: body });
+      if (response.ok) cache.set(key, { time: Date.now(), value: body, status: response.status });
       else cache.delete(key);
-      return body;
+      return { body, status: response.status };
     }).finally(() => {
       const current = cache.get(key);
       if (current?.pending) delete current.pending;
     });
     cache.set(key, { time: now, value: null, pending });
-    const body = await pending;
-    return cloneJsonResponse(body);
+    const result = await pending;
+    return cloneJsonResponse(result.body, result.status);
   };
 
   cachedFetch.__musikbotPerformance = true;
   transport.nativeFetch = cachedFetch;
-  window.__musikbotInvalidateReadCache = (paths = []) => {
+
+  const invalidate = (paths = []) => {
     for (const key of cache.keys()) {
       if (!paths.length || paths.some(path => key.startsWith(`${path}|`))) cache.delete(key);
     }
   };
+  window.__musikbotInvalidateReadCache = invalidate;
+
+  document.addEventListener('change', async event => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || input.id !== 'vol') return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const value = Number(input.value);
+    const token = transport.getAuth?.() || '';
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    if (token) headers.set('Authorization', token);
+    try {
+      const response = await baseFetch('/api/play/volume', { method: 'POST', headers, body: JSON.stringify({ value }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw Error(body.error || `HTTP ${response.status}`);
+      invalidate(['/api/state']);
+      const meta = document.querySelector('.now span');
+      if (meta) meta.textContent = `${body.paused ? '⏸ Pausiert' : '▶ Bereit'} · ${body.volume}% · ${body.mode} · ${body.outputType || ''}`;
+      const out = document.querySelector('#vo');
+      if (out) out.textContent = `${value}%`;
+      const notice = document.querySelector('#notice');
+      if (notice) {
+        notice.textContent = `Lautstärke ${value}%`;
+        notice.classList.add('show');
+        clearTimeout(window.__musikbotVolumeNotice);
+        window.__musikbotVolumeNotice = setTimeout(() => notice.classList.remove('show'), 900);
+      }
+    } catch (error) {
+      const notice = document.querySelector('#notice');
+      if (notice) { notice.textContent = error.message || String(error); notice.classList.add('show'); }
+    }
+  }, true);
 })();
