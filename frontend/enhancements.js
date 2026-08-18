@@ -11,7 +11,7 @@
     if (!auth()) return null;
     try {
       const state = await api('/api/state'); const health = await api('/api/health');
-      const needsConnections = ['connections', 'admin'].includes(document.body.dataset.currentTab || '') || Boolean(q('#enhancedOutput'));
+      const needsConnections = ['connections', 'admin', 'design'].includes(document.body.dataset.currentTab || '') || Boolean(q('#enhancedOutput'));
       const [discord, ts3] = needsConnections ? await Promise.all([api('/api/discord'), api('/api/ts3')]) : [[], []];
       return { state, health, discord, ts3 };
     } catch { return null; }
@@ -56,8 +56,25 @@
   function renderDiscordIntentToggle() { const form = q('#dp')?.closest('.grid'); if (!form) return; let label = q('#dintent')?.closest('label'); if (!label) { label = document.createElement('label'); label.className = 'checklabel'; label.innerHTML = '<input id="dintent" type="checkbox"> Message Content Intent für Prefix Commands'; form.appendChild(label); } const id = q('#did')?.value; const current = (window.__musikbotDiscord || []).find?.(x => x.id === id); if (current && q('#dintent')) q('#dintent').checked = current.messageContentIntent === true; }
   async function saveDiscordWithIntent() { const id = q('#did')?.value || ''; const body = { id, name:q('#dn')?.value || '', token:q('#dt')?.value || '', clientId:q('#dc')?.value || '', guildId:q('#dg')?.value || '', channelId:q('#dv')?.value || '', prefix:q('#dp')?.value || '', enabled:q('#de')?.checked !== false, messageContentIntent:q('#dintent')?.checked === true }; await api('/api/discord', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }); note('Discord gespeichert.'); q('[data-tab="connections"]')?.click(); }
   document.addEventListener('click', event => { const connectionTab = event.target.closest?.('[data-tab="connections"]'); if (connectionTab) { requestAnimationFrame(() => requestAnimationFrame(() => renderDiscordIntentToggle())); } const button = event.target.closest?.('#ds'); if (!button) return; renderDiscordIntentToggle(); event.preventDefault(); event.stopImmediatePropagation(); saveDiscordWithIntent().catch(error => note(error.message)); }, true);
-  const observer = new MutationObserver(() => { renderDiscordIntentToggle(); preserveGeneralThemeSave(); renderNetworkPercent(); }); observer.observe(document.documentElement, { childList:true, subtree:true }); window.__musikbotRegisterCleanup?.(() => observer.disconnect());
-  const timer = setInterval(refresh, 10000); window.__musikbotRegisterCleanup?.(() => clearInterval(timer));
-  const start = () => { if (!q('#app')) return setTimeout(start, 250); void refresh(); }; start();
-  async function refresh() { const data = await snapshot(); if (!data) return; window.__musikbotLastSnapshot = data; window.__musikbotDiscord = data.discord; try { window.__musikbotLastNetwork = await api('/api/network'); } catch {} document.body.dataset.currentTab = document.querySelector('nav .navbtn.active')?.dataset.tab || document.body.dataset.currentTab || ''; renderControls(data); renderDiscordDots(data); renderThemePanel(data.state); preserveGeneralThemeSave(); renderDiscordIntentToggle(); renderNetworkPercent(); if (data.state?.settings) applyTheme(data.state.settings.theme || 'dark', data.state.settings.accentColor || window.MusikBotThemes?.customAccent?.() || ''); }
+  function installDesignTab() {
+    const nav = document.querySelector('nav'); if (!nav || nav.querySelector('[data-tab="design"]')) return;
+    const button = document.createElement('button'); button.className = 'navbtn'; button.dataset.tab = 'design'; button.textContent = '🎨 Design';
+    const anchor = nav.querySelector('[data-tab="playlists"]'); if (anchor?.nextSibling) nav.insertBefore(button, anchor.nextSibling); else nav.insertBefore(button, nav.firstChild);
+    button.onclick = openDesign;
+  }
+  async function openDesign() {
+    document.querySelectorAll('nav .navbtn').forEach(button => button.classList.remove('active')); q('nav [data-tab="design"]')?.classList.add('active'); document.body.dataset.currentTab = 'design';
+    try {
+      const data = await api('/api/state'); const settings = data.settings || {}; const theme = settings.theme || 'dark'; const accent = settings.accentColor || window.MusikBotThemes?.customAccent?.() || '#0b69b3';
+      q('#view').innerHTML = `<section><div class="sectionhead"><div><h2>🎨 Design</h2><small>Theme, Hell/Dunkel-Modus und Akzentfarbe</small></div></div><div class="theme-grid"><label>Theme<select id="designTheme">${window.MusikBotThemes?.options?.() || ''}</select></label><label>Akzentfarbe<input id="designAccent" type="color" value="${esc(accent)}"></label><button id="designReset">Akzentfarbe zurücksetzen</button><button id="designSave">Design speichern</button></div></section>`;
+      q('#designTheme').value = theme; q('#designTheme').onchange = () => applyTheme(q('#designTheme').value, q('#designAccent').value); q('#designAccent').oninput = e => applyTheme(q('#designTheme').value, e.target.value);
+      q('#designReset').onclick = () => { q('#designAccent').value = '#0b69b3'; applyTheme(q('#designTheme').value, '#0b69b3'); };
+      q('#designSave').onclick = async () => { try { const nextTheme = q('#designTheme').value; const nextAccent = q('#designAccent').value; await put('/api/settings', { theme: nextTheme, accentColor: nextAccent }); applyTheme(nextTheme, nextAccent); note('Design gespeichert.'); } catch (error) { note(error.message || String(error)); } };
+      applyTheme(theme, accent);
+    } catch (error) { note(error.message || String(error)); }
+  }
+  const observer = new MutationObserver(() => { renderDiscordIntentToggle(); preserveGeneralThemeSave(); renderNetworkPercent(); installDesignTab(); }); observer.observe(document.documentElement, { childList:true, subtree:true }); window.__musikbotRegisterCleanup?.(() => observer.disconnect());
+  const timer = setInterval(() => { void refresh().catch(error => console.warn('MusikBot187 enhancement refresh:', error)); }, 10000); window.__musikbotRegisterCleanup?.(() => clearInterval(timer));
+  const start = () => { if (!q('#app')) return setTimeout(start, 250); void refresh().catch(error => console.warn('MusikBot187 enhancement start:', error)); }; start();
+  async function refresh() { const data = await snapshot(); if (!data) return; window.__musikbotLastSnapshot = data; window.__musikbotDiscord = data.discord; try { window.__musikbotLastNetwork = await api('/api/network'); } catch {} document.body.dataset.currentTab = document.querySelector('nav .navbtn.active')?.dataset.tab || document.body.dataset.currentTab || ''; renderControls(data); renderDiscordDots(data); renderThemePanel(data.state); preserveGeneralThemeSave(); renderDiscordIntentToggle(); renderNetworkPercent(); installDesignTab(); if (data.state?.settings) applyTheme(data.state.settings.theme || 'dark', data.state.settings.accentColor || window.MusikBotThemes?.customAccent?.() || ''); }
 })();
