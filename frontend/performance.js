@@ -18,6 +18,20 @@
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
   });
 
+  const invalidate = (paths = []) => {
+    for (const key of cache.keys()) {
+      if (!paths.length || paths.some(path => key.startsWith(`${path}|`))) cache.delete(key);
+    }
+  };
+
+  const invalidateForWrite = path => {
+    if (path.startsWith('/api/discord')) return invalidate(['/api/discord', '/api/state']);
+    if (path.startsWith('/api/ts3')) return invalidate(['/api/ts3', '/api/state']);
+    if (path.startsWith('/api/settings')) return invalidate(['/api/state', '/api/discord', '/api/ts3']);
+    if (path.startsWith('/api/play')) return invalidate(['/api/state']);
+    if (path.startsWith('/api/logout')) return invalidate();
+  };
+
   const keyFor = (input, init) => {
     const url = typeof input === 'string' ? input : input?.url || '';
     if (init?.method && String(init.method).toUpperCase() !== 'GET') return null;
@@ -28,6 +42,14 @@
   };
 
   const cachedFetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input?.url || '';
+    const method = String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    const path = new URL(url, window.location.href).pathname;
+    if (method !== 'GET') {
+      try { const response = await baseFetch(input, init); invalidateForWrite(path); return response; }
+      catch (error) { throw error; }
+    }
+
     const key = keyFor(input, init);
     if (!key) return baseFetch(input, init);
     const ttl = TTL[key.split('|', 1)[0]];
@@ -52,12 +74,6 @@
 
   cachedFetch.__musikbotPerformance = true;
   transport.nativeFetch = cachedFetch;
-
-  const invalidate = (paths = []) => {
-    for (const key of cache.keys()) {
-      if (!paths.length || paths.some(path => key.startsWith(`${path}|`))) cache.delete(key);
-    }
-  };
   window.__musikbotInvalidateReadCache = invalidate;
 
   document.addEventListener('change', async event => {
