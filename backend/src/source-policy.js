@@ -40,12 +40,12 @@ async function resolvePublicHost(hostname, label) {
   return [...firstSet];
 }
 
-async function rejectRedirect(value, label) {
+async function rejectRedirect(value, label, allowRedirect = false) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 2500);
   try {
     const response = await fetch(value, { method: "HEAD", redirect: "manual", signal: controller.signal });
-    if (response.status >= 300 && response.status < 400) throw new Error(`${label}-URL darf nicht umleiten`);
+    if (response.status >= 300 && response.status < 400 && !allowRedirect) throw new Error(`${label}-URL darf nicht umleiten`);
   } catch (error) {
     if (error instanceof Error && (error.message.includes("darf nicht umleiten") || error.name === "AbortError")) {
       if (error.message.includes("darf nicht umleiten")) throw error;
@@ -55,14 +55,14 @@ async function rejectRedirect(value, label) {
   } finally { clearTimeout(timer); }
 }
 
-async function validateHttpTarget(value, label) {
+async function validateHttpTarget(value, label, { allowRedirect = false } = {}) {
   let parsed;
   try { parsed = new URL(value); } catch { throw new Error(`Ungültige ${label}-URL`); }
   if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error(`${label}-URL muss HTTP(S) ohne Zugangsdaten sein`);
   const hostname = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
   if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || (net.isIP(hostname) && blockedAddress(hostname))) throw new Error(`${label}-URL zeigt auf ein nicht erlaubtes Netzwerkziel`);
   if (!net.isIP(hostname)) await resolvePublicHost(hostname, label);
-  await rejectRedirect(parsed.toString(), label);
+  await rejectRedirect(parsed.toString(), label, allowRedirect);
 }
 
 export async function validatePlaybackItem(item, dataDirectory) {
@@ -79,7 +79,7 @@ export async function validatePlaybackItem(item, dataDirectory) {
     return { ...item, source, url: path.relative(root, target) || path.basename(target) };
   }
   if (source === "direct" || source === "radio") {
-    await validateHttpTarget(value, source === "radio" ? "Radio" : "Direkte Audio");
+    await validateHttpTarget(value, source === "radio" ? "Radio" : "Direkte Audio", { allowRedirect: source === "radio" });
     return { ...item, source, url: value };
   }
   if (source === "youtube") {
@@ -95,7 +95,7 @@ export async function validatePlaybackItem(item, dataDirectory) {
 }
 
 export async function revalidatePlaybackTarget(item, dataDirectory) {
-  if (item?.source === "direct" || item?.source === "radio") await validateHttpTarget(String(item.url), item.source === "radio" ? "Radio" : "Direkte Audio");
+  if (item?.source === "direct" || item?.source === "radio") await validateHttpTarget(String(item.url), item.source === "radio" ? "Radio" : "Direkte Audio", { allowRedirect: item.source === "radio" });
   if (item?.source === "file") await validatePlaybackItem(item, dataDirectory);
 }
 
