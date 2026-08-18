@@ -89,11 +89,10 @@ Im Dashboard unter **Verbindungen → Discord** können mehrere Discord-Instanze
 3. Die Discord-App über den Einladungslink zum gewünschten Server hinzufügen.
 4. Server und Voice-Kanal auswählen.
 5. Auf **Speichern** klicken.
-6. Danach einmal auf einen **anderen Tab** in der Seitenleiste klicken.
-7. Anschließend wieder auf **Verbindungen → Discord** zurückgehen.
-8. Die gespeicherte Discord-Instanz und ihre aktualisierten Felder werden dort angezeigt und können weiterbearbeitet werden.
+6. Die Instanzliste wird anschließend automatisch neu aufgebaut und die neue Instanz sollte direkt sichtbar sein.
+7. Die Instanz kann danach ohne Seitenreload weiterbearbeitet werden.
 
-Dieser zusätzliche Tab-Wechsel ist im aktuellen UI-Zustand ein bekannter Darstellungs-Workaround: Die Konfiguration wird beim Speichern persistiert; die sichtbare Instanzliste aktualisiert sich zuverlässig nach dem erneuten Öffnen des Verbindungs-Tabs.
+Wenn ein Browser einen veralteten JavaScript-Stand aus dem Cache verwendet, einmal **Strg+F5** ausführen.
 
 ### Message Content Intent
 
@@ -111,7 +110,7 @@ Auf dem frisch erstellten Container als Root oder mit einem Benutzer mit `sudo`-
 sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-latest.sh | sudo bash
 ```
 
-Der Einstieg lädt den aktuellen `main`-Stand. Damit werden keine alten fest eingebauten Audit-Revisionen ausgewählt, solange `main` der Standard-Ref des Installers bleibt.
+Der Einstieg und auch der direkte `install.sh`-Kompatibilitätsweg laden standardmäßig den aktuellen **`main`-Stand**. Der Stable-Installer verwendet ebenfalls `main` als Standard-Ref, sodass kein alter fest eingebauter Audit-Commit als Fallback mehr verwendet wird.
 
 Der eigentliche Stable-Installer richtet unter anderem ein:
 
@@ -140,11 +139,10 @@ http://SERVER-IP:3000/
 2. Den ersten Admin-Benutzer anlegen.
 3. Im Dashboard unter **Verbindungen → Discord** eine Discord-Instanz konfigurieren.
 4. Bot hinzufügen, Server und Voice-Kanal auswählen und die Instanz speichern.
-5. Einmal auf einen anderen Tab wechseln und anschließend **Verbindungen → Discord** erneut öffnen, damit die aktualisierte Instanzdarstellung sicher neu aufgebaut wird.
-6. Falls Prefix Commands benötigt werden, Message Content Intent für die Discord-App ausdrücklich freigeben und im Dashboard aktivieren.
-7. Unter **Musik** eigene Audiodateien direkt aus dem Browser hochladen und anschließend abspielen oder einer Playlist hinzufügen.
-8. Unter **🎨 Design** Theme und Akzentfarbe auswählen.
-9. Anschließend Player, Netzwerk-Monitoring und Systemdaten testen.
+5. Falls Prefix Commands benötigt werden, Message Content Intent für die Discord-App ausdrücklich freigeben und im Dashboard aktivieren.
+6. Unter **Musik** eigene Audiodateien direkt aus dem Browser hochladen und anschließend abspielen oder einer Playlist hinzufügen.
+7. Unter **🎨 Design** Theme und Akzentfarbe auswählen.
+8. Anschließend Player, Netzwerk-Monitoring und Systemdaten testen.
 
 ## Zielplattform
 
@@ -183,7 +181,8 @@ Der aktuelle Stand enthält unter anderem:
 - Netzwerkverkehrs-Monitoring mit RX/TX-Zählern und ehrlichen Auslastungswerten
 - saubere Setup-Übernahme
 - TS3-Verbindungs-Timeouts und Fehlerlogging
-- Frontend ohne rekursive globale DOM-Observer für Navigation/Enhancements
+- Frontend ohne globale rekursive Observer für die gesamte Seite
+- gezielte DOM-Beobachtung nur dort, wo sie für dynamische Player-Elemente erforderlich ist
 - Einzel-Refresh-Schutz im Dashboard gegen überlappende Async-Aktualisierungen
 
 ## Teststatus
@@ -199,5 +198,6 @@ Der aktuelle `main`-Stand enthält die CI-Kette mit:
 - Ubuntu-24.04-CT-Style-Preflight
 - Regressionstests für Passwort-Salts, private Netzwerkbereiche, Discord-Intents und Admin-/Power-Control
 - Regressionstests für Monitoring, Discord-Verwaltungsoberfläche, Instanzkontrollen, Theme-System und Musikbibliothek
+- CI-Concurrency, damit pro Ref nur der aktuelle Lauf weiterläuft und alte queued Läufe automatisch abgebrochen werden
 
-Die aktuelle Fix-Runde muss nach den letzten Frontend-, Player- und Playlist-Änderungen noch einmal vollständig über GitHub Actions verifiziert werden.
+Der aktuelle Fix-Stand sollte nach dem Aufräumen der alten GitHub-Runner-Warteschlange erneut vollständig über GitHub Actions verifiziert werden.
