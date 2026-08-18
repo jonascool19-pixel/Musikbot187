@@ -21,6 +21,14 @@ function cpuCapacity() {
   return Math.max(1, os.cpus().length);
 }
 
+const CPU_CAPACITY = cpuCapacity();
+const HOST_CPUS = os.cpus().length;
+const lastNetwork = new Map();
+const linkSpeedCache = new Map();
+const networkCache = new Map();
+const NETWORK_CACHE_MS = 750;
+const LINK_SPEED_CACHE_MS = 15_000;
+
 function cpuUsage() {
   try {
     const text = readFileSync('/sys/fs/cgroup/cpu.stat', 'utf8');
@@ -60,14 +68,13 @@ function parseProcNetDev(text) {
 
 let lastCpu = cpuUsage();
 let lastTime = process.hrtime.bigint();
-const lastNetwork = new Map();
 
 export function systemInfo() {
   const now = process.hrtime.bigint();
   const currentUsage = cpuUsage();
   const elapsed = Number(now - lastTime) / 1e9;
   const used = currentUsage !== null && lastCpu !== null ? Math.max(0, currentUsage - lastCpu) : 0;
-  const cpuPercent = calculateCpuPercent(used, elapsed, cpuCapacity());
+  const cpuPercent = calculateCpuPercent(used, elapsed, CPU_CAPACITY);
   lastCpu = currentUsage;
   lastTime = now;
   const memory = memoryInfo();
@@ -77,65 +84,86 @@ export function systemInfo() {
     arch: process.arch,
     node: process.version,
     uptime: os.uptime(),
-    cpus: cpuCapacity(),
-    hostCpus: os.cpus().length,
+    cpus: CPU_CAPACITY,
+    hostCpus: HOST_CPUS,
     cpuPercent: Number(cpuPercent.toFixed(1)),
     memory,
     load: os.loadavg()
   };
 }
 
+async function linkSpeedMbps(name) {
+  const cached = linkSpeedCache.get(name);
+  const now = Date.now();
+  if (cached && now - cached.time < LINK_SPEED_CACHE_MS) return cached.value;
+  let value = 0;
+  try {
+    value = Number((await readFile(`/sys/class/net/${name}/speed`, 'utf8')).trim());
+    if (!Number.isFinite(value) || value <= 0) value = 0;
+  } catch {}
+  linkSpeedCache.set(name, { time: now, value });
+  return value;
+}
+
 export async function networkInfo(selectedName = '') {
-  let traffic = [];
-  try { traffic = parseProcNetDev(await readFile('/proc/net/dev', 'utf8')); } catch {}
-  const now = process.hrtime.bigint();
-  const addresses = Object.entries(os.networkInterfaces()).map(([name, values]) => ({
-    name,
-    addresses: (values || []).map(v => ({ address: v.address, family: v.family, internal: v.internal }))
-  }));
-  const selectedAddresses = selectNetworkInterfaces(addresses, selectedName);
-  const selectedNames = new Set(selectedAddresses.map(x => x.name));
-  const measuredTraffic = selectedName ? traffic.filter(x => selectedNames.has(x.name)) : traffic;
-  const totalRxBytes = measuredTraffic.reduce((sum, x) => sum + x.rxBytes, 0);
-  const totalTxBytes = measuredTraffic.reduce((sum, x) => sum + x.txBytes, 0);
-  const key = selectedName || '*';
-  const previous = lastNetwork.get(key);
-  const elapsed = previous ? Math.max(0.001, Number(now - previous.time) / 1e9) : 0;
-  const rxBytesPerSecond = previous ? Math.max(0, (totalRxBytes - previous.rxBytes) / elapsed) : 0;
-  const txBytesPerSecond = previous ? Math.max(0, (totalTxBytes - previous.txBytes) / elapsed) : 0;
-  lastNetwork.set(key, { time: now, rxBytes: totalRxBytes, txBytes: totalTxBytes });
+  const cacheKey = selectedName || '*';
+  const cached = networkCache.get(cacheKey);
+  const nowMs = Date.now();
+  if (cached && nowMs - cached.time < NETWORK_CACHE_MS) return cached.value;
 
-  let totalLinkMbps = 0;
-  const interfaces = [];
-  for (const item of selectedAddresses) {
-    const stat = traffic.find(x => x.name === item.name);
-    let linkMbps = 0;
-    try {
-      linkMbps = Number((await readFile(`/sys/class/net/${item.name}/speed`, 'utf8')).trim());
-      if (!Number.isFinite(linkMbps) || linkMbps <= 0) linkMbps = 0;
-    } catch {}
-    totalLinkMbps += linkMbps;
-    interfaces.push({ ...item, rxBytes: stat?.rxBytes || 0, txBytes: stat?.txBytes || 0, linkSpeedMbps: linkMbps });
-  }
+  const promise = (async () => {
+    let traffic = [];
+    try { traffic = parseProcNetDev(await readFile('/proc/net/dev', 'utf8')); } catch {}
+    const now = process.hrtime.bigint();
+    const addresses = Object.entries(os.networkInterfaces()).map(([name, values]) => ({
+      name,
+      addresses: (values || []).map(v => ({ address: v.address, family: v.family, internal: v.internal }))
+    }));
+    const selectedAddresses = selectNetworkInterfaces(addresses, selectedName);
+    const selectedNames = new Set(selectedAddresses.map(x => x.name));
+    const measuredTraffic = selectedName ? traffic.filter(x => selectedNames.has(x.name)) : traffic;
+    const totalRxBytes = measuredTraffic.reduce((sum, x) => sum + x.rxBytes, 0);
+    const totalTxBytes = measuredTraffic.reduce((sum, x) => sum + x.txBytes, 0);
+    const key = selectedName || '*';
+    const previous = lastNetwork.get(key);
+    const elapsed = previous ? Math.max(0.001, Number(now - previous.time) / 1e9) : 0;
+    const rxBytesPerSecond = previous ? Math.max(0, (totalRxBytes - previous.rxBytes) / elapsed) : 0;
+    const txBytesPerSecond = previous ? Math.max(0, (totalTxBytes - previous.txBytes) / elapsed) : 0;
+    lastNetwork.set(key, { time: now, rxBytes: totalRxBytes, txBytes: totalTxBytes });
 
-  const capacityBps = totalLinkMbps * 1000000 / 8;
-  const rxUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((rxBytesPerSecond / capacityBps * 100).toFixed(2))) : null;
-  const txUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((txBytesPerSecond / capacityBps * 100).toFixed(2))) : null;
-  const totalUtilizationPercent = capacityBps > 0 ? Math.min(100, Number(((rxBytesPerSecond + txBytesPerSecond) / capacityBps * 100).toFixed(2))) : null;
+    const interfaces = [];
+    const speeds = await Promise.all(selectedAddresses.map(async item => ({ name: item.name, value: await linkSpeedMbps(item.name) })));
+    const speedMap = new Map(speeds.map(x => [x.name, x.value]));
+    let totalLinkMbps = 0;
+    for (const item of selectedAddresses) {
+      const stat = traffic.find(x => x.name === item.name);
+      const linkMbps = speedMap.get(item.name) || 0;
+      totalLinkMbps += linkMbps;
+      interfaces.push({ ...item, rxBytes: stat?.rxBytes || 0, txBytes: stat?.txBytes || 0, linkSpeedMbps: linkMbps });
+    }
 
-  return {
-    hostname: os.hostname(),
-    interfaces,
-    totalRxBytes,
-    totalTxBytes,
-    rxBytesPerSecond,
-    txBytesPerSecond,
-    rxUtilizationPercent,
-    txUtilizationPercent,
-    totalUtilizationPercent,
-    linkSpeedMbps: totalLinkMbps || null,
-    measuredSeconds: elapsed
-  };
+    const capacityBps = totalLinkMbps * 1000000 / 8;
+    const rxUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((rxBytesPerSecond / capacityBps * 100).toFixed(2))) : null;
+    const txUtilizationPercent = capacityBps > 0 ? Math.min(100, Number((txBytesPerSecond / capacityBps * 100).toFixed(2))) : null;
+    const totalUtilizationPercent = capacityBps > 0 ? Math.min(100, Number(((rxBytesPerSecond + txBytesPerSecond) / capacityBps * 100).toFixed(2))) : null;
+
+    return {
+      hostname: os.hostname(),
+      interfaces,
+      totalRxBytes,
+      totalTxBytes,
+      rxBytesPerSecond,
+      txBytesPerSecond,
+      rxUtilizationPercent,
+      txUtilizationPercent,
+      totalUtilizationPercent,
+      linkSpeedMbps: totalLinkMbps || null,
+      measuredSeconds: elapsed
+    };
+  })();
+
+  networkCache.set(cacheKey, { time: nowMs, value: promise });
+  try { return await promise; } catch (error) { networkCache.delete(cacheKey); throw error; }
 }
 
 export async function storageInfo(dir) {
