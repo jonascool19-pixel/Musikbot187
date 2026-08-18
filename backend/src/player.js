@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { spawn } from "node:child_process";
-import { validatePlaybackItem, revalidatePlaybackTarget } from "./source-policy.js";
+import { validatePlaybackItem, revalidatePlaybackTarget, validateResolvedMediaUrl } from "./source-policy.js";
 import { EgressProxy } from "./egress-proxy.js";
 
 const YTDLP = process.env.MUSIKBOT187_YTDLP || "yt-dlp";
@@ -153,6 +153,7 @@ export class Player extends EventEmitter {
     if (this.resolver === p) this.resolver = null;
     const url = out.trim().split(/\r?\n/)[0];
     if (!url) throw new Error("yt-dlp hat keine abspielbare URL geliefert");
+    await validateResolvedMediaUrl(url);
     return url;
   }
 
