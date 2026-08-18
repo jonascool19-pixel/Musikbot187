@@ -9,6 +9,7 @@ const RECOVERY_DELAYS = [2000, 5000, 10000, 20000];
 const MAX_QUEUE_ITEMS = 100;
 const MAX_YTDLP_STDERR = 256 * 1024;
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/151.0 Safari/537.36";
+const YOUTUBE_EXTRACTOR_ARGS = "youtube:player_client=default,web_embedded";
 
 function clampVolume(value) { const n = Number(value); return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0; }
 function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -33,6 +34,16 @@ function normalizeItem(item) {
     return { ...item, url: "https://stream.bigfm.de/rlp/aac-128/stream.bigfm.de/" };
   }
   return item;
+}
+function ytdlpArgs(input, output = null) {
+  const args = ["--no-playlist", "--no-warnings", "--js-runtimes", "node", "--force-ipv4", "--add-header", `User-Agent: ${USER_AGENT}`];
+  const isYoutube = String(input).startsWith("ytsearch") || /(?:youtube\.com|youtu\.be)\//i.test(String(input));
+  if (String(input).startsWith("ytsearch")) args.push("--default-search", "ytsearch1");
+  if (isYoutube) args.push("--extractor-args", YOUTUBE_EXTRACTOR_ARGS);
+  args.push("-f", "bestaudio/best");
+  if (output) args.push("-o", output);
+  args.push(input);
+  return args;
 }
 
 export class Player extends EventEmitter {
@@ -109,14 +120,9 @@ export class Player extends EventEmitter {
   }
 
   async enqueue(items, { playNow = false } = {}) {
-    const clean = Array.isArray(items)
-      ? items.filter(x => x && typeof x.url === "string" && x.url.trim()).slice(0, MAX_QUEUE_ITEMS)
-      : [];
+    const clean = Array.isArray(items) ? items.filter(x => x && typeof x.url === "string" && x.url.trim()).slice(0, MAX_QUEUE_ITEMS) : [];
     const validated = [];
-    for (const raw of clean) {
-      const item = normalizeItem(raw);
-      validated.push(await validatePlaybackItem(item, this.dataDirectory));
-    }
+    for (const raw of clean) validated.push(await validatePlaybackItem(normalizeItem(raw), this.dataDirectory));
     if (playNow) {
       this.generation++;
       for (const child of [this.resolver, this.ff]) if (child) try { child.kill("SIGTERM"); } catch {}
@@ -135,10 +141,8 @@ export class Player extends EventEmitter {
 
   async resolve(item) {
     const input = String(item.url);
-    const args = ["--no-playlist", "--no-warnings", "--js-runtimes", "node", "--force-ipv4", "--add-header", `User-Agent: ${USER_AGENT}`];
-    if (item.source === "spotify" || input.startsWith("ytsearch")) args.push("--default-search", "ytsearch1");
-    if (item.source === "youtube" || input.startsWith("ytsearch")) args.push("--extractor-args", "youtube:player_client=web_safari");
-    args.push("-f", "bestaudio/best", "-g", input);
+    const args = ytdlpArgs(input);
+    args.splice(args.indexOf("-f"), 2, "-f", "bestaudio/best", "-g");
     const p = this.spawnFn(YTDLP, args, { stdio: ["ignore", "pipe", "pipe"] });
     this.resolver = p;
     let out = "", err = "", settled = false;
@@ -159,11 +163,7 @@ export class Player extends EventEmitter {
 
   async playYtdlp(item, run) {
     const input = String(item.url);
-    const args = ["--no-playlist", "--no-warnings", "--js-runtimes", "node", "--force-ipv4", "--add-header", `User-Agent: ${USER_AGENT}`, "-f", "bestaudio/best", "-o", "-"];
-    if (item.source === "spotify" || input.startsWith("ytsearch")) args.push("--default-search", "ytsearch1");
-    if (item.source === "youtube" || input.startsWith("ytsearch")) args.push("--extractor-args", "youtube:player_client=web_safari");
-    args.push(input);
-
+    const args = ytdlpArgs(input, "-");
     const yt = this.spawnFn(YTDLP, args, { stdio: ["ignore", "pipe", "pipe"] });
     const ffArgs = ["-hide_banner", "-loglevel", "error", "-nostdin", "-i", "pipe:0", "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "pipe:1"];
     const ff = this.spawnFn(FFMPEG, ffArgs, { stdio: ["pipe", "pipe", "pipe"] });
@@ -179,10 +179,7 @@ export class Player extends EventEmitter {
         try { ff.kill("SIGTERM"); } catch {}
       }
     });
-    if (this.paused) {
-      try { yt.kill("SIGSTOP"); } catch {}
-      try { ff.kill("SIGSTOP"); } catch {}
-    }
+    if (this.paused) { try { yt.kill("SIGSTOP"); } catch {} try { ff.kill("SIGSTOP"); } catch {} }
     ff.stdout.on("data", d => { if (run === this.generation && this.ff === ff) this.emit("audio", scalePcm16(Buffer.from(d), this.volume)); });
     ff.stderr.on("data", d => { if (run === this.generation && this.ff === ff) { const message = String(d).trim(); if (message) this.emit("diagnostic", message.slice(0, 1000)); } });
     const code = await new Promise(resolve => { ff.on("error", () => resolve(-1)); ff.on("close", value => resolve(value)); });
@@ -197,9 +194,7 @@ export class Player extends EventEmitter {
     const item = normalizeItem(rawItem);
     await revalidatePlaybackTarget(item, this.dataDirectory);
     if (run !== this.generation) return "cancelled";
-    if (item.source === "youtube" || item.source === "spotify" || String(item.url).startsWith("ytsearch")) {
-      return this.playYtdlp(item, run);
-    }
+    if (item.source === "youtube" || item.source === "spotify" || String(item.url).startsWith("ytsearch")) return this.playYtdlp(item, run);
     const source = item.source === "radio" || item.source === "file" || item.source === "direct" ? String(item.url) : await this.resolve(item);
     const ffArgs = ["-hide_banner", "-loglevel", "error", "-nostdin"];
     if (item.source !== "file") ffArgs.push("-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_at_eof", "1", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "4xx,5xx", "-reconnect_delay_max", "5");
@@ -228,9 +223,7 @@ export class Player extends EventEmitter {
         if (result === "ended") return true;
         if (result === "cancelled") return false;
         this.emit("diagnostic", `Wiederverbindungsversuch ${attempt + 1} fehlgeschlagen.`);
-      } catch (error) {
-        this.emit("diagnostic", `Wiederverbindungsversuch ${attempt + 1} fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`.slice(0, 1000));
-      }
+      } catch (error) { this.emit("diagnostic", `Wiederverbindungsversuch ${attempt + 1} fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`.slice(0, 1000)); }
     }
     return false;
   }
