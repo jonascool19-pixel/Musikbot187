@@ -36,4 +36,16 @@ test("real backend enforces setup, upload authorization, relative file paths and
   const afterLogout = await request("/api/state", { headers: { authorization: `Bearer ${auth}` } }); assert.equal(afterLogout.status, 401);
 });
 
-after(async () => { if (!child.killed) child.kill("SIGTERM"); await new Promise(resolve => child.once("exit", resolve)); await rm(dataDir, { recursive: true, force: true }); });
+after(async () => {
+  if (child.exitCode === null && !child.signalCode) {
+    child.kill("SIGTERM");
+    await new Promise(resolve => {
+      const timer = setTimeout(() => {
+        if (child.exitCode === null && !child.signalCode) child.kill("SIGKILL");
+        resolve();
+      }, 1500);
+      child.once("exit", () => { clearTimeout(timer); resolve(); });
+    });
+  }
+  await rm(dataDir, { recursive: true, force: true });
+});
