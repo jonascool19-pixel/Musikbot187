@@ -45,13 +45,13 @@
   const formatRate = value => `${formatBytes(value)}/s`;
   function renderNetworkPercent() {
     const network = window.__musikbotLastNetwork; if (!network) return; const percent = value => Number.isFinite(value) ? `${value.toFixed(2)} %` : 'n/a';
-    if (q('#topNetRx')) q('#topNetRx').textContent = `RX ${percent(network.rxUtilizationPercent)} · ${formatRate(network.rxBytesPerSecond)}`;
-    if (q('#topNetTx')) q('#topNetTx').textContent = `TX ${percent(network.txUtilizationPercent)} · ${formatRate(network.txBytesPerSecond)}`;
-    if (q('#topNetTotal')) q('#topNetTotal').textContent = `${percent(network.totalUtilizationPercent)} · ${formatBytes(network.totalRxBytes + network.totalTxBytes)}`;
-    if (q('#sysNetRx')) q('#sysNetRx').textContent = `${percent(network.rxUtilizationPercent)} · ${formatRate(network.rxBytesPerSecond)}`;
-    if (q('#sysNetTx')) q('#sysNetTx').textContent = `${percent(network.txUtilizationPercent)} · ${formatRate(network.txBytesPerSecond)}`;
-    if (q('#sysNetTotal')) q('#sysNetTotal').textContent = `${percent(network.totalUtilizationPercent)} · ${formatBytes(network.totalRxBytes)} RX · ${formatBytes(network.totalTxBytes)} TX`;
-    if (q('#sysLoad')) q('#sysLoad').textContent = `${q('#sysLoad').textContent.replace(/\s*·?\s*Host-Load$/, '')} · Host-Load`;
+    const setIfChanged = (selector, value) => { const node = q(selector); if (node && node.textContent !== value) node.textContent = value; };
+    setIfChanged('#topNetRx', `RX ${percent(network.rxUtilizationPercent)} · ${formatRate(network.rxBytesPerSecond)}`);
+    setIfChanged('#topNetTx', `TX ${percent(network.txUtilizationPercent)} · ${formatRate(network.txBytesPerSecond)}`);
+    setIfChanged('#topNetTotal', `${percent(network.totalUtilizationPercent)} · ${formatBytes(network.totalRxBytes + network.totalTxBytes)}`);
+    setIfChanged('#sysNetRx', `${percent(network.rxUtilizationPercent)} · ${formatRate(network.rxBytesPerSecond)}`);
+    setIfChanged('#sysNetTx', `${percent(network.txUtilizationPercent)} · ${formatRate(network.txBytesPerSecond)}`);
+    setIfChanged('#sysNetTotal', `${percent(network.totalUtilizationPercent)} · ${formatBytes(network.totalRxBytes)} RX · ${formatBytes(network.totalTxBytes)} TX`);
   }
   function renderDiscordIntentToggle() { const form = q('#dp')?.closest('.grid'); if (!form) return; let label = q('#dintent')?.closest('label'); if (!label) { label = document.createElement('label'); label.className = 'checklabel'; label.innerHTML = '<input id="dintent" type="checkbox"> Message Content Intent für Prefix Commands'; form.appendChild(label); } const id = q('#did')?.value; const current = (window.__musikbotDiscord || []).find?.(x => x.id === id); if (current && q('#dintent')) q('#dintent').checked = current.messageContentIntent === true; }
   async function saveDiscordWithIntent() { const id = q('#did')?.value || ''; const body = { id, name:q('#dn')?.value || '', token:q('#dt')?.value || '', clientId:q('#dc')?.value || '', guildId:q('#dg')?.value || '', channelId:q('#dv')?.value || '', prefix:q('#dp')?.value || '', enabled:q('#de')?.checked !== false, messageContentIntent:q('#dintent')?.checked === true }; await api('/api/discord', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }); note('Discord gespeichert.'); q('[data-tab="connections"]')?.click(); }
@@ -73,8 +73,9 @@
       applyTheme(theme, accent);
     } catch (error) { note(error.message || String(error)); }
   }
-  const observer = new MutationObserver(() => { renderDiscordIntentToggle(); preserveGeneralThemeSave(); renderNetworkPercent(); installDesignTab(); }); observer.observe(document.documentElement, { childList:true, subtree:true }); window.__musikbotRegisterCleanup?.(() => observer.disconnect());
-  const timer = setInterval(() => { void refresh().catch(error => console.warn('MusikBot187 enhancement refresh:', error)); }, 10000); window.__musikbotRegisterCleanup?.(() => clearInterval(timer));
-  const start = () => { if (!q('#app')) return setTimeout(start, 250); void refresh().catch(error => console.warn('MusikBot187 enhancement start:', error)); }; start();
+  const timer = setInterval(() => { void refresh().catch(error => console.warn('MusikBot187 enhancement refresh:', error)); }, 10000);
+  window.__musikbotRegisterCleanup?.(() => clearInterval(timer));
+  const start = () => { if (!q('#app')) return setTimeout(start, 250); installDesignTab(); void refresh().catch(error => console.warn('MusikBot187 enhancement start:', error)); };
+  start();
   async function refresh() { const data = await snapshot(); if (!data) return; window.__musikbotLastSnapshot = data; window.__musikbotDiscord = data.discord; try { window.__musikbotLastNetwork = await api('/api/network'); } catch {} document.body.dataset.currentTab = document.querySelector('nav .navbtn.active')?.dataset.tab || document.body.dataset.currentTab || ''; renderControls(data); renderDiscordDots(data); renderThemePanel(data.state); preserveGeneralThemeSave(); renderDiscordIntentToggle(); renderNetworkPercent(); installDesignTab(); if (data.state?.settings) applyTheme(data.state.settings.theme || 'dark', data.state.settings.accentColor || window.MusikBotThemes?.customAccent?.() || ''); }
 })();
