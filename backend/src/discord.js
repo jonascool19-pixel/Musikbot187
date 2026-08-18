@@ -11,7 +11,7 @@ export function discordIntents(prefix = "", messageContentIntent = false) {
 }
 export function discordCommandAllowed(interaction, guildId) { return Boolean(interaction?.guildId && guildId && interaction.guildId === guildId); }
 class Runtime {
-  constructor(cfg) { this.cfg = cfg; this.client = new Client({ intents: discordIntents(cfg.prefix, cfg.messageContentIntent) }); this.connecting = false; this.reconnecting = false; this.reconnectAttempt = 0; this.reconnectTimer = null; this.voiceRecovering = false; this.voiceRecoveryTimer = null; this.missingStreamLogged = false; }
+  constructor(cfg) { this.cfg = cfg; this.client = new Client({ intents: discordIntents(cfg.prefix, cfg.messageContentIntent) }); this.connecting = false; this.reconnecting = false; this.reconnectAttempt = 0; this.reconnectTimer = null; this.voiceRecovering = false; this.voiceRecoveryTimer = null; this.missingStreamLogged = false; this.lastVolume = null; }
 }
 function commands() {
   return [
@@ -147,7 +147,7 @@ export class DiscordManager {
       runtime.voiceRecoveryTimer.unref?.();
       this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Verbindung verloren; Wiederverbindung in 5s.`);
     });
-    runtime.player = createAudioPlayer(); runtime.voice.subscribe(runtime.player); runtime.stream = new PassThrough({ highWaterMark: 32 * 1024 }); runtime.player.play(createAudioResource(runtime.stream, { inputType: StreamType.Raw }));
+    runtime.player = createAudioPlayer(); runtime.voice.subscribe(runtime.player); runtime.stream = new PassThrough({ highWaterMark: 32 * 1024 }); runtime.lastVolume = this.music.volume; runtime.player.play(createAudioResource(runtime.stream, { inputType: StreamType.Raw }));
     runtime.missingStreamLogged = false;
   }
   resetAudioStream(id) {
@@ -157,6 +157,7 @@ export class DiscordManager {
       runtime.player?.stop?.();
       runtime.stream?.end();
       runtime.stream = new PassThrough({ highWaterMark: 32 * 1024 });
+      runtime.lastVolume = this.music.volume;
       runtime.player = createAudioPlayer();
       runtime.voice.subscribe(runtime.player);
       runtime.player.play(createAudioResource(runtime.stream, { inputType: StreamType.Raw }));
@@ -167,7 +168,8 @@ export class DiscordManager {
   }
   writeAudio(data, id) {
     const runtime = this.map.get(id);
-    const stream = runtime?.stream;
+    if (runtime && Number.isFinite(this.music.volume) && runtime.lastVolume !== this.music.volume) this.resetAudioStream(id);
+    const stream = this.map.get(id)?.stream;
     if (!runtime || !stream || stream.destroyed) {
       if (runtime && !runtime.missingStreamLogged) {
         runtime.missingStreamLogged = true;
