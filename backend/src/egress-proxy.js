@@ -18,6 +18,14 @@ async function resolvePublic(host) {
   if (net.isIP(name)) { if (blocked(name)) throw new Error('Proxy-Ziel ist nicht erlaubt'); return name; }
   const rows = await dns.lookup(name, { all: true, verbatim: true }); if (!rows.length || rows.some(x => blocked(x.address))) throw new Error('Proxy-Ziel ist nicht erlaubt'); return rows[0].address;
 }
+function parseConnectTarget(raw) {
+  const value = String(raw || '');
+  const bracketed = value.match(/^\[([^\]]+)\]:(\d+)$/);
+  if (bracketed) return { host: bracketed[1], port: Number(bracketed[2]) };
+  const plain = value.match(/^([^:]+):(\d+)$/);
+  if (plain) return { host: plain[1], port: Number(plain[2]) };
+  return null;
+}
 export class EgressProxy {
   server = null; port = 0;
   async start() {
@@ -36,8 +44,8 @@ export class EgressProxy {
     up.on('timeout', () => up.destroy(new Error('Proxy-Zeitüberschreitung'))); up.on('error', e => res.destroy(e)); req.pipe(up);
   }
   async connect(req,socket,head) {
-    const m = String(req.url || '').match(/^(.+):([0-9]+)$/); if (!m) throw new Error('Proxy-CONNECT-Ziel ungültig'); const host=m[1], port=Number(m[2]); if (port < 1 || port > 65535) throw new Error('Proxy-CONNECT-Port ungültig');
-    const ip = await resolvePublic(host); const up = net.connect({ host: ip, port }); socket.write('HTTP/1.1 200 Connection Established\r\n\r\n'); if (head?.length) up.write(head); socket.pipe(up); up.pipe(socket); const close=()=>{socket.destroy();up.destroy();}; socket.once('error',close); up.once('error',close);
+    const parsed = parseConnectTarget(req.url); if (!parsed || parsed.port < 1 || parsed.port > 65535) throw new Error('Proxy-CONNECT-Ziel ungültig');
+    const ip = await resolvePublic(parsed.host); const up = net.connect({ host: ip, port: parsed.port }); socket.write('HTTP/1.1 200 Connection Established\r\n\r\n'); if (head?.length) up.write(head); socket.pipe(up); up.pipe(socket); const close=()=>{socket.destroy();up.destroy();}; socket.once('error',close); up.once('error',close);
   }
   async stop() { if (!this.server) return; const s=this.server; this.server=null; this.port=0; await new Promise(r => s.close(() => r())); }
 }
