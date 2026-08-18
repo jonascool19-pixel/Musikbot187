@@ -1,6 +1,7 @@
 (() => {
   let timer = null;
   let lastQuery = "";
+
   function bindLiveSearch() {
     const input = document.querySelector("#q");
     const button = document.querySelector("#go");
@@ -24,9 +25,15 @@
       }, 450);
     });
   }
-  document.addEventListener("click", event => {
-    if (event.target?.closest?.('[data-tab="player"]')) window.setTimeout(bindLiveSearch, 50);
-  });
+
+  function onPlayerNavigation(event) {
+    if (event.target?.closest?.('[data-tab="player"]')) window.setTimeout(bindLiveSearch, 80);
+  }
+
+  document.addEventListener("click", onPlayerNavigation);
   window.setTimeout(bindLiveSearch, 300);
-  window.setInterval(bindLiveSearch, 1000);
+  window.__musikbotRegisterCleanup?.(() => {
+    clearTimeout(timer);
+    document.removeEventListener("click", onPlayerNavigation);
+  });
 })();
