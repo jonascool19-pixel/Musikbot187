@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 REPO="https://github.com/jonascool19-pixel/radiobot.git"
-# Override MUSIKBOT187_REF for an explicit release commit/tag. The default is updated with each audited release.
 REF="${MUSIKBOT187_REF:-827f558e2549c061057eb0d3e0039f62faa91a17}"
 APP="/opt/musikbot187"
 DATA="/var/lib/musikbot187"
@@ -43,7 +42,10 @@ if ! $SUDO getent passwd "$SERVICE_USER" >/dev/null; then $SUDO useradd --system
 $SUDO install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA" "$DATA/music"
 $SUDO install -d -m 0755 /usr/local/sbin
 
-$SUDO git clone --depth 1 --branch "$REF" "$REPO" "$APP"
+$SUDO git init "$APP"
+$SUDO git -C "$APP" remote add origin "$REPO"
+$SUDO git -C "$APP" fetch --depth 1 origin "$REF"
+$SUDO git -C "$APP" checkout --detach FETCH_HEAD
 cd "$APP/backend"
 $SUDO npm install --omit=dev --no-audit --no-fund
 $SUDO chown -R "$SERVICE_USER":"$SERVICE_USER" "$APP"
