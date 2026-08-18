@@ -24,35 +24,35 @@
 
   function syncPlayer() {
     const now = document.querySelector('.now');
-    if (!now || document.querySelector('#playlistCurrentAdd')) return;
+    const existing = document.querySelector('#playlistCurrentAdd');
+    if (!now) { existing?.remove(); return; }
+    if (existing && now.contains(existing)) return;
     const title = now.querySelector('strong')?.textContent?.trim();
-    if (!title || title === 'Nichts läuft') return;
+    if (!title || title === 'Nichts läuft') { existing?.remove(); return; }
+    existing?.remove();
     const b=document.createElement('button');
-    b.id='playlistCurrentAdd';
-    b.type='button';
-    b.textContent='＋ Playlist';
-    b.className='playlist-current-add';
-    b.title='Aktuellen Titel zu einer Playlist hinzufügen';
-    b.onclick=addCurrent;
-    now.appendChild(b);
+    b.id='playlistCurrentAdd'; b.type='button'; b.textContent='＋ Playlist'; b.className='playlist-current-add';
+    b.title='Aktuellen Titel zu einer Playlist hinzufügen'; b.onclick=addCurrent; now.appendChild(b);
   }
 
   const onNavigation = event => {
     if(event.target?.closest?.('[data-tab="player"]')) window.setTimeout(syncPlayer,100);
   };
   document.addEventListener('click', onNavigation);
+  let observedView = null;
   let observer = null;
   const attachObserver = () => {
     const view = document.querySelector('#view');
-    if (!view || observer) return;
+    if (!view || observedView === view) { syncPlayer(); return; }
+    observer?.disconnect();
+    observedView = view;
     observer = new MutationObserver(() => syncPlayer());
-    observer.observe(view, { childList:true, subtree:true });
+    observer.observe(view, { childList:true });
     syncPlayer();
   };
   window.setTimeout(attachObserver,350);
   window.__musikbotRegisterCleanup?.(() => {
     document.removeEventListener('click', onNavigation);
-    observer?.disconnect();
-    observer = null;
+    observer?.disconnect(); observer = null; observedView = null;
   });
 })();
