@@ -1,5 +1,5 @@
 (() => {
-  const originalFetch = window.fetch.bind(window);
+  const nativeFetch = window.MusikBotFetch?.nativeFetch || window.fetch.bind(window);
   let latestSearch = [];
 
   function authHeaders(headers = {}) {
@@ -10,7 +10,7 @@
   }
 
   window.fetch = async (...args) => {
-    const response = await originalFetch(...args);
+    const response = await nativeFetch(...args);
     const input = args[0];
     const url = typeof input === 'string' ? input : input?.url || '';
     if (/^\/api\/search(?:\?|$)/.test(url) && response.ok) {
@@ -23,16 +23,14 @@
   };
 
   async function playNow(item) {
-    const stopHeaders = authHeaders();
-    const response = await originalFetch('/api/play/stop', { method: 'POST', headers: stopHeaders });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(body.error || `Stoppen fehlgeschlagen (HTTP ${response.status})`);
-    }
     const playHeaders = authHeaders({ 'Content-Type': 'application/json' });
-    const playResponse = await originalFetch('/api/play', {
-      method: 'POST', headers: playHeaders,
-      body: JSON.stringify({ items: [{ id: item.id || `${Date.now()}`, title: item.title, url: item.url, source: item.source, artist: item.artist || '' }] })
+    const playResponse = await nativeFetch('/api/play', {
+      method: 'POST',
+      headers: playHeaders,
+      body: JSON.stringify({
+        playNow: true,
+        items: [{ id: item.id || `${Date.now()}`, title: item.title, url: item.url, source: item.source, artist: item.artist || '' }]
+      })
     });
     const body = await playResponse.json().catch(() => ({}));
     if (!playResponse.ok) throw new Error(body.error || `HTTP ${playResponse.status}`);
@@ -51,8 +49,7 @@
     if (notice) { notice.textContent = '▶ Wird sofort abgespielt …'; notice.classList.add('show'); }
     try {
       await playNow(item);
-      const refresh = document.querySelector('#refresh');
-      refresh?.click();
+      document.querySelector('#refresh')?.click();
       if (notice) { notice.textContent = `„${item.title}“ wird jetzt abgespielt.`; setTimeout(() => notice.classList.remove('show'), 2500); }
     } catch (error) {
       if (notice) { notice.textContent = error.message || String(error); setTimeout(() => notice.classList.remove('show'), 3500); }
