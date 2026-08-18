@@ -65,7 +65,8 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 - System-Live-Monitoring für CPU, RAM, RX/TX und Gesamtverkehr
 - Live-Aktualisierung der Monitoring-Werte im 1-Sekunden-Takt
 - mehrere Design-Themes inklusive Hell-/Dunkel-Modus
-- frei wählbare Akzentfarbe mit serverseitiger Speicherung
+- eigene Akzentfarbe mit serverseitiger Speicherung
+- eigener **🎨 Design**-Bereich in der Seitenleiste
 - System-, Netzwerk-, Speicher- und Dateiinformationen
 - Diagnosebereich
 - Admin-Bereich
@@ -76,30 +77,28 @@ MusikBot187 ist ein selbst gehosteter Musik- und Radiobot mit Web-Dashboard sowi
 
 ## Installation und Betrieb
 
-Der Stable-Installer ist für Debian/Ubuntu mit `apt-get` ausgelegt. Für den von dir gewünschten Schnellstart wird vor der eigentlichen MusikBot187-Installation das System aktualisiert und `curl` installiert. Voraussetzung ist ein systemd-basiertes Debian/Ubuntu-System; für Proxmox wird ein **Ubuntu-24.04-LXC/CT mit systemd und verfügbaren cgroups** verwendet.
+Der aktuelle Installer ist für Debian/Ubuntu mit `apt-get` ausgelegt. Für den Schnellstart wird vor der eigentlichen MusikBot187-Installation das System aktualisiert und `curl` installiert. Voraussetzung ist ein systemd-basiertes Debian/Ubuntu-System; für Proxmox wird ein **Ubuntu-24.04-LXC/CT mit systemd und verfügbaren cgroups** verwendet.
 
 ### Offizieller Installations-Einzeiler
 
 Auf dem frisch erstellten Container als Root oder mit einem Benutzer mit `sudo`-Rechten:
 
 ```bash
-sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-stable.sh | sudo bash
+sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-latest.sh | sudo bash
 ```
 
-Dieser Einzeiler ist der bevorzugte aktuelle Installationsweg. Der eigentliche Stable-Installer richtet unter anderem ein:
+Dieser Einstieg installiert reproduzierbar den aktuellen freigegebenen Audit-Stand `15e03967c56da52830e36babe7eaeb92275ca73c` inklusive der aktuellen Frontend-Stabilitätsfixes, Theme-Erweiterungen und Installer-Verbesserungen. Der eigentliche Stable-Installer richtet unter anderem ein:
 
 - Node.js 22
 - FFmpeg
-- aktuelle `yt-dlp`-Linux-Binary
+- gepinntes `yt-dlp` mit SHA-256-Prüfung
 - MusikBot187 unter `/opt/musikbot187`
 - Daten und Musikverzeichnis unter `/var/lib/musikbot187`
 - eigenen Systemdienst-Benutzer statt dauerhaftem Root-Betrieb
 - systemd-Service `musikbot187`
 - restriktive systemd-Sandbox
-- begrenzte sudo-Regel für Bot-Start/Stop/Restart sowie explizit die beiden Ubuntu-Power-Aktionen
+- getrennten privilegierten Control-Dienst
 - automatisierten Start des Bots
-
-Für die Dashboard-Power-Control ist `NoNewPrivileges=false` bewusst gesetzt, damit der Service-Benutzer ausschließlich über die eng begrenzte `sudoers`-Regel die freigegebenen systemd-Control-Kommandos ausführen kann. Alle anderen Root-Kommandos bleiben verboten.
 
 Nach erfolgreicher Installation zeigt der Installer die Dashboard-Adresse und einen **einmaligen Einrichtungslink mit Installer-Token** an. Der Einrichtungslink wird nur für die Ersteinrichtung benötigt.
 
@@ -117,7 +116,7 @@ http://SERVER-IP:3000/
 4. Bot hinzufügen, Server und Voice-Kanal auswählen und die Instanz speichern/verbinden.
 5. Falls Prefix Commands benötigt werden, Message Content Intent für die Discord-App ausdrücklich freigeben und im Dashboard aktivieren.
 6. Unter **Musik** eigene Audiodateien direkt aus dem Browser hochladen und anschließend abspielen oder einer Playlist hinzufügen.
-7. Unter **Admin → Design** Theme und Akzentfarbe auswählen.
+7. Unter **🎨 Design** Theme und Akzentfarbe auswählen.
 8. Anschließend Player, Netzwerk-Monitoring und Systemdaten testen.
 
 ## Zielplattform
@@ -143,8 +142,8 @@ Der aktuelle Stand enthält unter anderem:
 - individuelle zufällige Salt-Werte für Passwort-Hashes
 - Migration älterer Passwort-Hashes beim erfolgreichen Login
 - separaten systemd-Service-User
-- restriktive systemd-Sandbox; `NoNewPrivileges` bleibt für die begrenzte Power-Control-Kompatibilität deaktiviert
-- eng begrenzte sudo-Regel nur für definierte Bot-/Ubuntu-Control-Kommandos
+- restriktive systemd-Sandbox
+- getrennten privilegierten Control-Dienst
 - Validierung von Audioquellen
 - Schutz lokaler Audiopfade inklusive Symlink-Prüfung
 - Uploads ausschließlich in das konfigurierte Musikverzeichnis
@@ -157,10 +156,12 @@ Der aktuelle Stand enthält unter anderem:
 - Netzwerkverkehrs-Monitoring mit RX/TX-Zählern und ehrlichen Auslastungswerten
 - saubere Setup-Übernahme
 - TS3-Verbindungs-Timeouts und Fehlerlogging
+- Frontend ohne rekursive globale DOM-Observer für Navigation/Enhancements
+- Einzel-Refresh-Schutz im Dashboard gegen überlappende Async-Aktualisierungen
 
 ## Teststatus
 
-Der aktuelle `main`-Stand enthält die vollständige CI-Kette mit:
+Der aktuelle `main`-Stand enthält die CI-Kette mit:
 
 - Backend-Regressionstests
 - Playwright-/Chromium-Browser-Test inklusive Musikbibliothek und Theme-Auswahl
@@ -170,6 +171,6 @@ Der aktuelle `main`-Stand enthält die vollständige CI-Kette mit:
 - echter Installerlauf in isolierter Ubuntu-24.04-Umgebung
 - Ubuntu-24.04-CT-Style-Preflight
 - Regressionstests für Passwort-Salts, private Netzwerkbereiche, Discord-Intents und Admin-/Power-Control
-- Regressionstests für 1-Sekunden-Monitoring, Discord-Verwaltungsoberfläche, Instanzkontrollen, Theme-System und Musikbibliothek
+- Regressionstests für Monitoring, Discord-Verwaltungsoberfläche, Instanzkontrollen, Theme-System und Musikbibliothek
 
-Die aktuelle Fix-Runde ist für den nächsten vollständigen GitHub-Actions-Lauf vorbereitet.
+Die aktuelle Fix-Runde muss nach den letzten Frontend-Stabilitätsänderungen noch einmal vollständig über GitHub Actions verifiziert werden.
