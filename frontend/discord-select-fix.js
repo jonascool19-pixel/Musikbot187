@@ -23,6 +23,12 @@
     } else console.error(error);
   }
 
+  function inviteUrl(clientId) {
+    const id = String(clientId || '').trim();
+    if (!/^\d{17,20}$/.test(id)) return '';
+    return `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(id)}&scope=bot%20applications.commands&permissions=3148800`;
+  }
+
   function replaceOptions(select, items, placeholder, selected = '') {
     if (!select) return;
     const previous = selected || select.value || '';
@@ -32,9 +38,7 @@
       fragment.append(new Option(item.name || item.id, String(item.id)));
     }
     select.replaceChildren(fragment);
-    if (previous && [...select.options].some(option => option.value === previous)) {
-      select.value = previous;
-    }
+    if (previous && [...select.options].some(option => option.value === previous)) select.value = previous;
   }
 
   async function resolveInstanceId() {
@@ -85,9 +89,9 @@
     }
   }
 
-  async function saveDiscordCanonically() {
+  function discordBody() {
     const clientId = document.querySelector('#did')?.value?.trim() || '';
-    const body = {
+    return {
       name: String(document.querySelector('#dn')?.value || 'Discord').trim().slice(0, 128),
       clientId,
       token: document.querySelector('#dt')?.value || undefined,
@@ -97,21 +101,83 @@
       enabled: true,
       messageContentIntent: document.querySelector('#dintent')?.checked === true
     };
+  }
 
+  async function saveDiscordCanonically() {
     const saved = await request('/api/discord', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(discordBody())
     });
-
     const notice = document.querySelector('#notice');
     if (notice) {
       notice.textContent = 'Discord-Instanz gespeichert.';
       notice.classList.add('show');
     }
-
     document.querySelector('[data-tab="connections"]')?.click();
     return saved;
+  }
+
+  async function addBot() {
+    const url = inviteUrl(document.querySelector('#did')?.value);
+    if (!url) {
+      showError(new Error('Bitte zuerst eine gültige Discord-Client-ID eintragen.'));
+      document.querySelector('#did')?.focus();
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  async function enterVoiceChat() {
+    let id = document.querySelector('#did')?.value?.trim() || '';
+    if (!id || !/^\d{17,20}$/.test(id)) {
+      showError(new Error('Bitte zuerst eine gültige Discord-Client-ID eintragen.'));
+      document.querySelector('#did')?.focus();
+      return;
+    }
+    const saved = await request('/api/discord', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(discordBody())
+    });
+    id = String(saved?.id || saved?.instance?.id || id);
+    await request(`/api/discord/${encodeURIComponent(id)}/connect`, { method: 'POST' });
+    const notice = document.querySelector('#notice');
+    if (notice) {
+      notice.textContent = 'Voice-Chat-Verbindung wurde gestartet.';
+      notice.classList.add('show');
+    }
+  }
+
+  function ensureActionButtons() {
+    const save = document.querySelector('#saveDiscord');
+    if (!save) return;
+    const controls = save.parentElement;
+    if (!controls) return;
+
+    if (!document.querySelector('#addDiscordBot')) {
+      const button = document.createElement('button');
+      button.id = 'addDiscordBot';
+      button.type = 'button';
+      button.textContent = '🤖 Bot hinzufügen';
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        void addBot();
+      });
+      controls.append(button);
+    }
+
+    if (!document.querySelector('#enterDiscordVoice')) {
+      const button = document.createElement('button');
+      button.id = 'enterDiscordVoice';
+      button.type = 'button';
+      button.textContent = '🎧 Voice-Chat betreten';
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        void enterVoiceChat().catch(showError);
+      });
+      controls.append(button);
+    }
   }
 
   function isButton(target, id) {
@@ -142,4 +208,7 @@
     if (event.target?.id === 'dg') window.__musikbotDiscordGuildId = event.target.value;
     if (event.target?.id === 'dv') window.__musikbotDiscordChannelId = event.target.value;
   }, true);
+
+  new MutationObserver(ensureActionButtons).observe(document.documentElement, { childList: true, subtree: true });
+  ensureActionButtons();
 })();
