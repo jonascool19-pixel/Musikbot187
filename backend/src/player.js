@@ -10,6 +10,20 @@ const MAX_QUEUE_ITEMS = 100;
 const MAX_RESOLVER_OUTPUT = 1024 * 1024;
 function clampVolume(value) { const n = Number(value); return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0; }
 function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function scalePcm16(buffer, volume) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 2) return buffer;
+  const gain = clampVolume(volume) / 100;
+  if (gain === 1) return buffer;
+  if (gain === 0) return Buffer.alloc(buffer.length);
+  const out = Buffer.from(buffer);
+  const alignedLength = out.length - (out.length % 2);
+  for (let i = 0; i < alignedLength; i += 2) {
+    const sample = out.readInt16LE(i);
+    const scaled = Math.max(-32768, Math.min(32767, Math.round(sample * gain)));
+    out.writeInt16LE(scaled, i);
+  }
+  return out;
+}
 
 export class Player extends EventEmitter {
   queue = []; current = null; paused = false; volume; mode; ff = null; resolver = null; generation = 0; spawnFn; settings; egressProxy = ""; proxyServer = null;
@@ -17,7 +31,7 @@ export class Player extends EventEmitter {
   async ensureEgressProxy() { if (this.proxyServer) return this.egressProxy; this.proxyServer = await new EgressProxy().start(); this.egressProxy = this.proxyServer.url; return this.egressProxy; }
   get dataDirectory() { return this.settings.filesDirectory; }
   snapshot() { return { queue: this.queue, current: this.current, paused: this.paused, volume: this.volume, mode: this.mode }; }
-  setVolume(value) { const next = clampVolume(value); if (next === this.volume) return; this.volume = next; if (this.ff && this.current) { const current = this.current; const wasPaused = this.paused; this.generation++; try { this.ff.kill("SIGTERM"); } catch {}; this.ff = null; if (this.queue.length < MAX_QUEUE_ITEMS) this.queue.unshift(current); this.current = null; this.paused = wasPaused; void this.next(); } }
+  setVolume(value) { this.volume = clampVolume(value); this.emit("state"); }
   setMode(mode) { if (["queue", "repeat", "shuffle"].includes(mode)) this.mode = mode; }
   pause() { this.paused = true; if (this.ff) try { this.ff.kill("SIGSTOP"); } catch {} }
   resume() { this.paused = false; if (this.ff) try { this.ff.kill("SIGCONT"); } catch {} }
@@ -26,19 +40,46 @@ export class Player extends EventEmitter {
   skip() { this.generation++; if (this.resolver) { try { this.resolver.kill("SIGTERM"); } catch {}; this.resolver = null; void this.next(); } else if (this.ff) { const old = this.ff; this.ff = null; try { old.kill("SIGTERM"); } catch {}; void this.next(); } else if (this.current) void this.next(); }
   clear() { this.queue = []; this.emit("state"); }
   async remove(index) { if (Number.isInteger(index) && index >= 0 && index < this.queue.length) this.queue.splice(index, 1); this.emit("state"); }
-  async enqueue(items) { const clean = Array.isArray(items) ? items.filter(x => x && typeof x.url === "string" && x.url.trim()).slice(0, Math.max(0, MAX_QUEUE_ITEMS - this.queue.length)) : []; const validated = []; for (const item of clean) validated.push(await validatePlaybackItem(item, this.dataDirectory)); this.queue.push(...validated); if (!this.current) void this.next(); else this.emit("state"); }
+  async enqueue(items, { playNow = false } = {}) {
+    const clean = Array.isArray(items) ? items.filter(x => x && typeof x.url === "string" && x.url.trim()).slice(0, MAX_QUEUE_ITEMS) : [];
+    const validated = [];
+    for (const item of clean) validated.push(await validatePlaybackItem(item, this.dataDirectory));
+    if (playNow) {
+      this.generation++;
+      if (this.resolver) try { this.resolver.kill("SIGTERM"); } catch {}
+      if (this.ff) try { this.ff.kill("SIGTERM"); } catch {}
+      this.resolver = null; this.ff = null; this.queue = validated.slice(0, MAX_QUEUE_ITEMS); this.current = null; this.paused = false; void this.next(); return;
+    }
+    const room = Math.max(0, MAX_QUEUE_ITEMS - this.queue.length);
+    this.queue.push(...validated.slice(0, room));
+    if (!this.current) void this.next(); else this.emit("state");
+  }
   async resolve(item) {
-    const input = String(item.url); if (item.source === "radio" || item.source === "file" || item.source === "direct") return input;
-    const args = ["-g", "-f", "bestaudio/best", "--no-playlist", "--no-warnings"]; if (item.source === "spotify" || input.startsWith("ytsearch")) args.push("--default-search", "ytsearch1"); args.push(input);
+    const input = String(item.url);
+    if (item.source === "radio" || item.source === "file" || item.source === "direct") return input;
+    const args = ["-g", "-f", "bestaudio/best", "--no-playlist", "--no-warnings", "--js-runtimes", "node"];
+    if (item.source === "spotify" || input.startsWith("ytsearch")) args.push("--default-search", "ytsearch1");
+    if (item.source === "youtube" || input.startsWith("ytsearch")) args.push("--extractor-args", "youtube:player_client=default,web_embedded");
+    args.push(input);
     const p = this.spawnFn(YTDLP, args, { stdio: ["ignore", "pipe", "pipe"] }); this.resolver = p; let out = "", err = "", settled = false;
-    await new Promise((resolve, reject) => { const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); fn(value); }; const timer = setTimeout(() => { try { p.kill("SIGTERM"); } catch {}; finish(reject, new Error("Zeitüberschreitung beim Auflösen der Audioquelle")); }, 30000); p.stdout.on("data", d => { if (settled) return; out += String(d); if (Buffer.byteLength(out, "utf8") > MAX_RESOLVER_OUTPUT) { try { p.kill("SIGTERM"); } catch {}; finish(reject, new Error("Aufgelöste Medienquelle ist zu groß")); } }); p.stderr.on("data", d => { err += String(d); if (err.length > 256000) err = err.slice(-256000); }); p.on("error", e => finish(reject, e)); p.on("close", code => code === 0 ? finish(resolve) : finish(reject, new Error(err.trim() || "yt-dlp konnte die Quelle nicht öffnen"))); });
+    await new Promise((resolve, reject) => {
+      const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); fn(value); };
+      const timer = setTimeout(() => { try { p.kill("SIGTERM"); } catch {}; finish(reject, new Error("Zeitüberschreitung beim Auflösen der Audioquelle")); }, 30000);
+      p.stdout.on("data", d => { if (settled) return; out += String(d); if (Buffer.byteLength(out, "utf8") > MAX_RESOLVER_OUTPUT) { try { p.kill("SIGTERM"); } catch {}; finish(reject, new Error("Aufgelöste Medienquelle ist zu groß")); } });
+      p.stderr.on("data", d => { err += String(d); if (err.length > 256000) err = err.slice(-256000); });
+      p.on("error", e => finish(reject, e)); p.on("close", code => code === 0 ? finish(resolve) : finish(reject, new Error(err.trim() || "yt-dlp konnte die Quelle nicht öffnen")));
+    });
     if (this.resolver === p) this.resolver = null; const url = out.trim().split(/\r?\n/)[0]; if (!url) throw new Error("yt-dlp hat keine abspielbare URL geliefert"); await validateResolvedMediaUrl(url); return url;
   }
   async playSource(item, run) {
-    await revalidatePlaybackTarget(item, this.dataDirectory); const source = await this.resolve(item); if (run !== this.generation) return "cancelled"; if (item.source === "direct" || item.source === "radio") await revalidatePlaybackTarget(item, this.dataDirectory); if (item.source === "file") await revalidatePlaybackTarget(item, this.dataDirectory);
-    const ffArgs = ["-hide_banner", "-loglevel", "error", "-nostdin"]; if (item.source !== "file") ffArgs.push("-http_proxy", await this.ensureEgressProxy()); ffArgs.push("-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_at_eof", "1", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "4xx,5xx", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "-af", `volume=${this.volume / 100}`, "pipe:1");
+    await revalidatePlaybackTarget(item, this.dataDirectory); const source = await this.resolve(item); if (run !== this.generation) return "cancelled";
+    if (item.source === "direct" || item.source === "radio") await revalidatePlaybackTarget(item, this.dataDirectory); if (item.source === "file") await revalidatePlaybackTarget(item, this.dataDirectory);
+    const ffArgs = ["-hide_banner", "-loglevel", "error", "-nostdin"];
+    if (item.source !== "file") ffArgs.push("-http_proxy", await this.ensureEgressProxy());
+    ffArgs.push("-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_at_eof", "1", "-reconnect_on_network_error", "1", "-reconnect_on_http_error", "4xx,5xx", "-reconnect_delay_max", "5", "-i", source, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "pipe:1");
     const ff = this.spawnFn(FFMPEG, ffArgs, { stdio: ["ignore", "pipe", "pipe"] }); this.ff = ff; if (this.paused) { try { ff.kill("SIGSTOP"); } catch {} }
-    ff.stdout.on("data", d => { if (run === this.generation && this.ff === ff) this.emit("audio", Buffer.from(d)); }); ff.stderr.on("data", d => { if (run !== this.generation || this.ff !== ff) return; const message = String(d).trim(); if (message) this.emit("diagnostic", message.slice(0, 1000)); });
+    ff.stdout.on("data", d => { if (run === this.generation && this.ff === ff) this.emit("audio", scalePcm16(Buffer.from(d), this.volume)); });
+    ff.stderr.on("data", d => { if (run !== this.generation || this.ff !== ff) return; const message = String(d).trim(); if (message) this.emit("diagnostic", message.slice(0, 1000)); });
     const code = await new Promise(resolve => { ff.on("error", () => resolve(-1)); ff.on("close", code => resolve(code)); }); if (this.ff === ff) this.ff = null; if (run !== this.generation) return "cancelled"; return code === 0 ? "ended" : "failed";
   }
   async recover(item, run, reason) { for (let attempt = 0; attempt < RECOVERY_DELAYS.length; attempt++) { if (run !== this.generation) return false; const delay = RECOVERY_DELAYS[attempt]; this.emit("diagnostic", `Audio-Verbindung verloren (${String(reason).slice(0, 300)}). Wiederverbindung in ${Math.round(delay / 1000)}s – Versuch ${attempt + 1}/${RECOVERY_DELAYS.length}.`); await wait(delay); if (run !== this.generation) return false; try { const result = await this.playSource(item, run); if (result === "ended") return true; if (result === "cancelled") return false; this.emit("diagnostic", `Wiederverbindungsversuch ${attempt + 1} fehlgeschlagen.`); } catch (error) { this.emit("diagnostic", `Wiederverbindungsversuch ${attempt + 1} fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`.slice(0, 1000)); } } return false; }
