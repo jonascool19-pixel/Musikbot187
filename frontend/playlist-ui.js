@@ -49,10 +49,9 @@
   }
 
   async function saveOrder(playlist, items) {
-    // Use the existing public playlist item endpoints so older installations remain compatible.
-    for (const item of playlist.items) await del(`/api/playlists/${encodeURIComponent(playlist.id)}/items/${encodeURIComponent(item.id)}`);
-    if (items.length) await post(`/api/playlists/${encodeURIComponent(playlist.id)}/items`, { items });
-    playlist.items = items;
+    const updated = await put(`/api/playlists/${encodeURIComponent(playlist.id)}`, { items });
+    playlist.items = updated.items;
+    opened = updated;
   }
 
   async function openPlaylist(idValue) {
@@ -62,7 +61,7 @@
 
   async function playPlaylist(playlist) {
     await post(`/api/playlists/${encodeURIComponent(playlist.id)}/play`);
-    note(`„${playlist.name}“ wird abgespielt.`);
+    note(`„${playlist.name}“ wird sofort abgespielt.`);
   }
 
   async function addItemToPlaylist(item) {
@@ -94,7 +93,7 @@
       const name = prompt('Name der neuen Playlist:'); if (!name?.trim()) return;
       try { const p = await post('/api/playlists', { name:name.trim() }); await refresh(); await openPlaylist(p.id); } catch(e) { note(e.message); }
     };
-    view.querySelectorAll('[data-open-pl]').forEach(node => node.onclick = event => { event.stopPropagation(); openPlaylist(node.dataset.openPl); });
+    view.querySelectorAll('[data-open-pl]').forEach(node => node.onclick = event => { event.stopPropagation(); openPlaylist(node.dataset.openPl).catch(e => note(e.message)); });
     view.querySelectorAll('[data-play-pl]').forEach(node => node.onclick = async event => { event.stopPropagation(); const p = cache.find(x => x.id === node.dataset.playPl); if (p) try { await playPlaylist(p); } catch(e) { note(e.message); } });
   }
 
@@ -109,9 +108,9 @@
       const url = prompt('URL / Quelle:'); if (!url?.trim()) return;
       addItemToPlaylist({ id:id(), title:title.trim(), url:url.trim(), source:/^https?:/i.test(url) ? 'direct' : 'youtube' });
     };
-    view.querySelectorAll('[data-up]').forEach(b => b.onclick = async () => { const i=Number(b.dataset.up); if(i<=0)return; try { const items=[...p.items]; [items[i-1],items[i]]=[items[i],items[i-1]]; await saveOrder(p,items); await openPlaylist(p.id); } catch(e){ note(e.message); } });
-    view.querySelectorAll('[data-down]').forEach(b => b.onclick = async () => { const i=Number(b.dataset.down); if(i<0||i>=p.items.length-1)return; try { const items=[...p.items]; [items[i],items[i+1]]=[items[i+1],items[i]]; await saveOrder(p,items); await openPlaylist(p.id); } catch(e){ note(e.message); } });
-    view.querySelectorAll('[data-remove-track]').forEach(b => b.onclick = async () => { try { await del(`/api/playlists/${encodeURIComponent(p.id)}/items/${encodeURIComponent(b.dataset.removeTrack)}`); await openPlaylist(p.id); } catch(e){ note(e.message); } });
+    view.querySelectorAll('[data-up]').forEach(b => b.onclick = async () => { const i=Number(b.dataset.up); if(i<=0)return; try { const items=[...p.items]; [items[i-1],items[i]]=[items[i],items[i-1]]; await saveOrder(p,items); renderDetail(); } catch(e){ note(e.message); } });
+    view.querySelectorAll('[data-down]').forEach(b => b.onclick = async () => { const i=Number(b.dataset.down); if(i<0||i>=p.items.length-1)return; try { const items=[...p.items]; [items[i],items[i+1]]=[items[i+1],items[i]]; await saveOrder(p,items); renderDetail(); } catch(e){ note(e.message); } });
+    view.querySelectorAll('[data-remove-track]').forEach(b => b.onclick = async () => { try { opened = await del(`/api/playlists/${encodeURIComponent(p.id)}/items/${encodeURIComponent(b.dataset.removeTrack)}`); renderDetail(); } catch(e){ note(e.message); } });
   }
 
   async function refresh() { cache = await api('/api/playlists'); renderOverview(); }
