@@ -31,6 +31,6 @@ test("Dashboard exposes current UI endpoints plus browser music library", async 
   for (const text of ["id=\"clock\"", "cpuPercent", "memory.percent", "id=\"topCpu\"", "setInterval(pollMonitor, 1000)"]) assert.ok(ui.includes(text), `Dashboard missing ${text}`);
   for (const tab of ["player", "playlists", "connections", "system", "admin"]) assert.ok(ui.includes(`['${tab}'`), `Dashboard missing ${tab} tab`);
   assert.ok(index.includes('/music-ui.js'), 'Dashboard missing music UI script');
-  for (const text of ["data-tab=\"music\"", "/api/music/upload", "＋ Playlist", "musicUpload", "music-library"]) assert.ok(musicUi.includes(text), `Music UI missing ${text}`);
+  for (const text of ["id: 'music'", "/api/music/upload", "＋ Playlist", "musicUpload", "music-library"]) assert.ok(musicUi.includes(text), `Music UI missing ${text}`);
   for (const text of ["/api/music/upload", "safeMusicPath", "MUSIC_EXTENSIONS", "await request.file()", "/api/music/:name"]) assert.ok(server.includes(text), `Music API missing ${text}`);
 });
