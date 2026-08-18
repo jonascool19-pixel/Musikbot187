@@ -5,18 +5,7 @@
   const originalFetch = window.fetch.bind(window);
 
   const setupHeaders = init => {
-    const headers = new Headers();
-    const source = init?.headers;
-    if (source) {
-      if (source instanceof Headers || source instanceof Request) {
-        const iterable = source instanceof Request ? source.headers : source;
-        iterable.forEach((value, key) => headers.set(key, value));
-      } else if (Array.isArray(source)) {
-        source.forEach(([key, value]) => headers.set(key, value));
-      } else if (typeof source === 'object') {
-        for (const [key, value] of Object.entries(source)) headers.set(key, String(value));
-      }
-    }
+    const headers = new Headers(init?.headers || (init && init.headers ? init.headers : undefined));
     if (setupToken) headers.set('X-MusikBot-Setup-Token', setupToken);
     headers.set('Content-Type', 'application/json');
     return headers;
@@ -60,6 +49,7 @@
     });
   }
 
+  window.MusikBotSetupShow = showSetup;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showSetup, { once: true });
   else showSetup();
 })();
