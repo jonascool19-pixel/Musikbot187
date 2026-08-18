@@ -6,16 +6,12 @@
   const api = (path, options = {}) => { const headers = new Headers(options.headers || {}); const header = auth(); if (header && !headers.has('Authorization')) headers.set('Authorization', header); options.headers = headers; return nativeFetch()(path, options).then(async response => { const body = await response.json().catch(() => ({})); if (!response.ok) throw Error(body.error || `HTTP ${response.status}`); return body; }); };
   const post = (path, body = {}) => api(path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   function note(text) { const node = q('#notice'); if (!node) return; node.textContent = text; node.classList.add('show'); clearTimeout(window.__musikbotMusicNotice); window.__musikbotMusicNotice = setTimeout(() => node.classList.remove('show'), 3500); }
-  function navButton() {
-    const nav = document.querySelector('nav'); if (!nav || nav.querySelector('[data-tab="music"]')) return;
-    const button = document.createElement('button'); button.className = 'navbtn'; button.dataset.tab = 'music'; button.textContent = '🎼 Musik'; button.dataset.extraTab = 'music'; nav.insertBefore(button, nav.querySelector('.danger') || null); button.onclick = () => renderMusic();
-  }
-  function playlistDialog() { return api('/api/playlists').then(playlists => { if (!playlists.length) { note('Keine Playlist vorhanden.'); return null; } const text = playlists.map((p, i) => `${i + 1}: ${p.name}`).join('\n'); const answer = window.prompt(`Playlist auswählen:\n${text}\n\nNummer:`); if (answer === null) return null; return playlists[Number(answer) - 1] || null; }); }
+  async function playlistDialog() { return api('/api/playlists').then(playlists => { if (!playlists.length) { note('Keine Playlist vorhanden.'); return null; } const text = playlists.map((p, i) => `${i + 1}: ${p.name}`).join('\n'); const answer = window.prompt(`Playlist auswählen:\n${text}\n\nNummer:`); if (answer === null) return null; return playlists[Number(answer) - 1] || null; }); }
   async function addToPlaylist(item) { try { const playlist = await playlistDialog(); if (!playlist) return; await post(`/api/playlists/${encodeURIComponent(playlist.id)}/items`, { items: [{ id: crypto.randomUUID(), title: item.title, url: item.url, source: item.source || 'file', artist: item.artist || '' }] }); note(`„${playlist.name}“ wurde hinzugefügt.`); } catch (error) { note(error.message); } }
   async function playFile(file) { try { await post('/api/play', { items: [{ id: crypto.randomUUID(), title: file.name, url: file.name, source: 'file' }] }); note(`„${file.name}“ zur Wiedergabe hinzugefügt.`); } catch (error) { note(error.message); } }
   async function renderMusic() {
     const view = q('#view'); if (!view) return;
-    document.querySelectorAll('.navbtn').forEach(button => button.classList.toggle('active', button.dataset.tab === 'music'));
+    document.querySelectorAll('nav .navbtn').forEach(button => button.classList.toggle('active', button.dataset.extraTab === 'music'));
     try {
       const files = await api('/api/files');
       view.innerHTML = `<section class="music-library"><div class="sectionhead"><div><h2>Musik</h2><small>Eigene Musikdateien im Musikverzeichnis</small></div><button id="musicRefresh">↻ Aktualisieren</button></div><div class="upload-row"><input id="musicUpload" type="file" accept=".mp3,.wav,.flac,.ogg,.opus,.m4a,.aac,.webm,audio/*"><button id="musicUploadButton">⬆ Datei hochladen</button></div><div id="musicList" class="list">${files.length ? files.map(file => `<div class="listrow"><span>🎵 <b>${esc(file.name)}</b></span><div class="controls"><button data-mplay="${esc(file.name)}">▶ Play</button><button data-mpl="${esc(file.name)}">＋ Playlist</button><button data-mdel="${esc(file.name)}" class="danger">Entfernen</button></div></div>`).join('') : '<p class="muted">Noch keine Musik hochgeladen.</p>'}</div></section>`;
@@ -27,8 +23,8 @@
     } catch (error) { note(error.message); }
   }
   function enhanceSearchResults() { document.querySelectorAll('#results .result').forEach(result => { if (result.querySelector('.music-playlist-plus')) return; const buttons = result.querySelector('.controls'); if (!buttons) return; const playlistButton = [...buttons.querySelectorAll('button')].find(button => /Playlist/.test(button.textContent)); if (playlistButton) { playlistButton.classList.add('music-playlist-plus'); playlistButton.textContent = '＋ Playlist'; } }); }
-  const observer = new MutationObserver(() => { navButton(); enhanceSearchResults(); });
-  const start = () => { if (!q('#app')) return setTimeout(start, 250); observer.observe(q('#app'), { childList:true, subtree:true }); navButton(); enhanceSearchResults(); };
-  start();
+  window.__musikbotRegisterCleanup?.(window.MusikBotNavigation?.registerExtraTab({ id: 'music', label: '🎼 Musik', title: 'Eigene Musikdateien verwalten', render: renderMusic }));
+  const observer = new MutationObserver(enhanceSearchResults); observer.observe(document.documentElement, { childList:true, subtree:true });
   window.__musikbotRegisterCleanup?.(() => observer.disconnect());
+  enhanceSearchResults();
 })();
