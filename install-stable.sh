@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 REPO="https://github.com/jonascool19-pixel/radiobot.git"
-REF="${MUSIKBOT187_REF:-baee6a4968acbd5243bf2fda54bdb3628228ca2a}"
+REF="${MUSIKBOT187_REF:-c157bf96c22fa30b2199e71314d8680bfe94f81b}"
 APP="/opt/musikbot187"
 DATA="/var/lib/musikbot187"
 SERVICE_USER="musikbot187"
