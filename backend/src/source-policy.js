@@ -50,7 +50,7 @@ async function validateHttpTarget(value, label) {
 
 function markValidated(item) {
   const normalized = { ...item };
-  Object.defineProperty(normalized, VALIDATED, { value: true, enumerable: false });
+  Object.defineProperty(normalized, VALIDATED, { value: true, enumerable: true });
   return normalized;
 }
 
@@ -72,8 +72,6 @@ export async function validatePlaybackItem(item, dataDirectory) {
 
   if (source === 'direct' || source === 'radio') {
     await validateHttpTarget(value, source === 'radio' ? 'Radio' : 'Direkte Audio');
-    // All external audio is opened through the EgressProxy. That proxy resolves every
-    // actual destination connection again and rejects private/reserved addresses.
     return markValidated({ ...item, source, url: value });
   }
 
