@@ -22,9 +22,15 @@
       document.querySelectorAll('[data-mdel]').forEach(button => button.onclick = async () => { if (!confirm(`„${button.dataset.mdel}“ wirklich entfernen?`)) return; try { await api(`/api/music/${encodeURIComponent(button.dataset.mdel)}`, { method:'DELETE' }); note('Datei entfernt.'); await renderMusic(); } catch (error) { note(error.message); } });
     } catch (error) { note(error.message); }
   }
-  function enhanceSearchResults() { document.querySelectorAll('#results .result').forEach(result => { if (result.querySelector('.music-playlist-plus')) return; const buttons = result.querySelector('.controls'); if (!buttons) return; const playlistButton = [...buttons.querySelectorAll('button')].find(button => /Playlist/.test(button.textContent)); if (playlistButton) { playlistButton.classList.add('music-playlist-plus'); playlistButton.textContent = '＋ Playlist'; } }); }
+  function enhanceSearchResults() {
+    document.querySelectorAll('#results .result').forEach(result => {
+      const buttons = result.querySelector('.controls');
+      if (!buttons) return;
+      const playlistButton = [...buttons.querySelectorAll('button')].find(button => /Playlist/.test(button.textContent));
+      if (playlistButton) playlistButton.classList.add('music-playlist-plus');
+    });
+  }
   window.__musikbotRegisterCleanup?.(window.MusikBotNavigation?.registerExtraTab({ id: 'music', label: '🎼 Musik', title: 'Eigene Musikdateien verwalten', render: renderMusic }));
-  const observer = new MutationObserver(enhanceSearchResults); observer.observe(document.documentElement, { childList:true, subtree:true });
-  window.__musikbotRegisterCleanup?.(() => observer.disconnect());
+  window.__musikbotEnhanceMusicResults = enhanceSearchResults;
   enhanceSearchResults();
 })();
