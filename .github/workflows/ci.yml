@@ -5,6 +5,9 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+concurrency:
+  group: musikbot187-ci-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -25,6 +28,7 @@ jobs:
       - run: cd backend && npm run test:browser
       - run: bash -n install-stable.sh
       - run: bash -n install/control.sh
+      - run: bash -n install.sh
       - run: node --check backend/src/server.js
       - run: node --check backend/src/player.js
       - run: node --check backend/src/media.js
@@ -41,9 +45,19 @@ jobs:
       - run: node --check frontend/errorlog.js
       - run: node --check frontend/enhancements.js
       - run: node --check frontend/music-ui.js
+      - run: node --check frontend/live-search.js
+      - run: node --check frontend/play-now.js
+      - run: node --check frontend/play-current-playlist.js
+      - run: node --check frontend/playlist-ui.js
+      - run: node --check frontend/playlist-ui-bridge.js
+      - run: node --check frontend/setup-security.js
       - run: node --check frontend/system-cleanup.js
       - run: node --check frontend/themes.js
+      - run: node --check frontend/ui-fixes.js
+      - run: node --check frontend/ui-polish.js
+      - run: node --check frontend/uuid-polyfill.js
       - run: grep -F 'fetch-layer.js' frontend/index.html
+      - run: grep -F 'play-current-playlist.js' frontend/index.html
       - run: grep -F 'releases/download/' install-stable.sh
       - run: grep -F 'sha256sum -c' install-stable.sh
       - run: grep -F 'git -C "$APP" fetch --depth 1 origin "$REF"' install-stable.sh
@@ -81,11 +95,11 @@ jobs:
           docker exec musikbot187-ci bash -lc '
             set -euo pipefail
             git clone git://host.docker.internal:29418/radiobot.git /tmp/installer-repo
-            cp /tmp/installer-repo/install-stable.sh /tmp/install-stable.sh
-            sed -i "s#REPO=\"https://github.com/jonascool19-pixel/radiobot.git\"#REPO=\"git://host.docker.internal:29418/radiobot.git\"#" /tmp/install-stable.sh
-            chmod 0755 /tmp/install-stable.sh
-            bash -n /tmp/install-stable.sh
-            /tmp/install-stable.sh
+            cp /tmp/installer-repo/install-latest.sh /tmp/install-latest.sh
+            sed -i "s#https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-stable.sh#file:///tmp/installer-repo/install-stable.sh#" /tmp/install-latest.sh
+            chmod 0755 /tmp/install-latest.sh
+            bash -n /tmp/install-latest.sh
+            /tmp/install-latest.sh
             test "$(. /etc/os-release && echo "$VERSION_ID")" = "24.04"
             test "$(cat /proc/1/comm)" = systemd
             test -d /sys/fs/cgroup
