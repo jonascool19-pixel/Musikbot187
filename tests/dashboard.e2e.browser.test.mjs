@@ -132,7 +132,8 @@ try {
   await userRow.locator('[data-save]').click();
 
   const state = await page.evaluate(async () => {
-    const response = await fetch('/api/state');
+    const session = JSON.parse(sessionStorage.getItem('musikbot187.auth') || 'null');
+    const response = await fetch('/api/state', { headers: { Authorization: `Bearer ${session?.token || ''}` } });
     return response.json();
   });
   assert.equal(state.settings.theme, 'purple');
@@ -141,7 +142,13 @@ try {
   assert.equal(state.settings.mode, 'shuffle');
   assert.equal(state.settings.outputType, 'none');
   assert.equal(state.settings.filesDirectory, 'music');
-  const createdUser = (await page.evaluate(async () => (await fetch('/api/users')).json())).find(user => user.name === 'e2e-user');
+
+  const users = await page.evaluate(async () => {
+    const session = JSON.parse(sessionStorage.getItem('musikbot187.auth') || 'null');
+    const response = await fetch('/api/users', { headers: { Authorization: `Bearer ${session?.token || ''}` } });
+    return response.json();
+  });
+  const createdUser = users.find(user => user.name === 'e2e-user');
   assert.ok(createdUser);
   assert.equal(createdUser.role, 'user');
   assert.ok(createdUser.permissions.includes('music.manage'));
