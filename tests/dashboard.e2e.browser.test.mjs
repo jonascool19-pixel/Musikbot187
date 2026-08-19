@@ -10,7 +10,10 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('../backend/node_modules/playwright');
 const backendDir = process.cwd();
-const nodeBinary = process.env.npm_node_execpath || 'node';
+// Resolve Node through PATH instead of npm_node_execpath. On GitHub-hosted
+// runners npm_node_execpath can point at a tool-cache binary that is not
+// directly spawnable by a child process even though npm itself can execute it.
+const nodeBinary = 'node';
 
 async function freePort() {
   return new Promise((resolve, reject) => {
