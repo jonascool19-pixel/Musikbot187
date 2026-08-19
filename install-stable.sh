@@ -31,7 +31,7 @@ else log_ok "Vorhandenes Node.js $(node --version) verwendet"; fi
 log_step "yt-dlp ${YTDLP_VERSION} installieren und SHA-256 prüfen"; TMP_YTDLP="$(mktemp)"; trap 'rm -f "$TMP_YTDLP"' EXIT; curl -fL "$YTDLP_URL" -o "$TMP_YTDLP"; echo "${YTDLP_SHA256}  ${TMP_YTDLP}" | sha256sum -c -; $SUDO install -o root -g root -m 0755 "$TMP_YTDLP" /usr/local/bin/yt-dlp; command -v yt-dlp >/dev/null; command -v ffmpeg >/dev/null; command -v node >/dev/null; log_ok "yt-dlp und FFmpeg bereit"
 log_step "MusikBot187-Dienst vorbereiten"; SETUP_TOKEN="$(node -e 'const {randomBytes}=require("node:crypto");process.stdout.write(randomBytes(32).toString("hex"))')"; $SUDO systemctl stop musikbot187.service 2>/dev/null || true; $SUDO systemctl stop musikbot187-control.service 2>/dev/null || true; $SUDO rm -rf "$APP"; if ! $SUDO getent passwd "$SERVICE_USER" >/dev/null; then $SUDO useradd --system --home /nonexistent --shell /usr/sbin/nologin "$SERVICE_USER"; fi; $SUDO install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA" "$DATA/music"; $SUDO install -d -m 0755 /usr/local/sbin
 log_step "Repository-Stand ${REF} holen"; $SUDO git init "$APP"; $SUDO git -C "$APP" remote add origin "$REPO"; $SUDO git -C "$APP" fetch --depth 1 origin "$REF"; $SUDO git -C "$APP" checkout --detach FETCH_HEAD
-cd "$APP/backend"; log_step "Produktionsabhängigkeiten installieren"; $SUDO npm install --omit=dev --no-audit --no-fund; $SUDO chown -R "$SERVICE_USER":"$SERVICE_USER" "$APP"; log_ok "MusikBot187-Code installiert"
+cd "$APP/backend"; log_step "Produktionsabhängigkeiten installieren"; $SUDO npm ci --omit=dev --no-audit --no-fund; $SUDO chown -R "$SERVICE_USER":"$SERVICE_USER" "$APP"; log_ok "MusikBot187-Code installiert"
 cat >/tmp/musikbot187.env <<ENV
 MUSIKBOT187_DATA_DIR=$DATA
 MUSIKBOT187_SETUP_TOKEN=$SETUP_TOKEN
@@ -49,6 +49,7 @@ Before=musikbot187.service
 [Service]
 Type=simple
 ExecStart=/usr/bin/node $APP/install/control-daemon.js
+Group=$SERVICE_USER
 Environment=MUSIKBOT187_CONTROL_SOCKET=/run/musikbot187/control.sock
 Environment=MUSIKBOT187_UID=$SERVICE_UID
 Environment=MUSIKBOT187_GID=$SERVICE_GID

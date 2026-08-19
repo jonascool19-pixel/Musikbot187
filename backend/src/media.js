@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { decryptSecret } from "./secrets.js";
 
 const MAX_YTDLP_STDOUT = 4 * 1024 * 1024;
 const MAX_YTDLP_STDERR = 512 * 1024;
@@ -63,7 +64,9 @@ export async function spotifySearch(q, settings) {
   if (!settings.spotifyClientId || !settings.spotifyClientSecret) return [];
   const query = String(q || "").trim().slice(0, 200);
   if (!query) return [];
-  const basic = Buffer.from(`${settings.spotifyClientId}:${settings.spotifyClientSecret}`).toString("base64");
+  const clientSecret = await decryptSecret(settings.spotifyClientSecret);
+  if (!clientSecret) return [];
+  const basic = Buffer.from(`${settings.spotifyClientId}:${clientSecret}`).toString("base64");
   const token = await json("https://accounts.spotify.com/api/token", { method: "POST", headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=client_credentials" });
   const result = await json(`https://api.spotify.com/v1/search?type=track&limit=20&q=${encodeURIComponent(query)}`, { headers: { Authorization: `Bearer ${token.access_token}` } });
   return (result.tracks?.items || []).slice(0, 20).map((x) => ({ id: `spotify:${x.id}`, title: String(x.name || "").slice(0, 300), artist: x.artists?.map((a) => a.name).join(", ").slice(0, 300), url: `ytsearch1:${String(x.name || "").slice(0, 150)} ${String(x.artists?.[0]?.name || "").slice(0, 100)}`, source: "spotify", thumbnail: x.album?.images?.[0]?.url, duration: Math.round((x.duration_ms || 0) / 1000) }));

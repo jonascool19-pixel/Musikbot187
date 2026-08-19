@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {"node": ">=22"},
-  "scripts": {"start":"node src/server.js","test":"node --test --test-force-exit ../tests/smoke.test.mjs ../tests/security.regression.test.mjs ../tests/deep.security.test.mjs ../tests/monitoring.test.mjs ../tests/audit.regression.test.mjs ../tests/backend.integration.test.mjs ../tests/discord.instance-actions.regression.test.mjs ../tests/music.regression.test.mjs","test:first-run":"node --test --test-force-exit ../tests/first-run-login.regression.test.mjs","test:browser":"node ../tests/dashboard.browser.test.mjs && node ../tests/setup.security.test.mjs && node ../tests/discord.instance-actions.regression.test.mjs"},
+  "scripts": {"start":"node src/server.js","test":"node --test --test-force-exit ../tests/smoke.test.mjs ../tests/security.regression.test.mjs ../tests/deep.security.test.mjs ../tests/monitoring.test.mjs ../tests/audit.regression.test.mjs ../tests/backend.integration.test.mjs ../tests/discord.instance-actions.regression.test.mjs ../tests/music.regression.test.mjs ../tests/audit.contract.test.mjs","test:first-run":"node --test --test-force-exit ../tests/first-run-login.regression.test.mjs","test:browser":"node ../tests/dashboard.browser.test.mjs && node ../tests/setup.security.test.mjs && node ../tests/discord.instance-actions.regression.test.mjs"},
   "dependencies": {
     "@discordjs/voice":"^0.19.2",
     "@fastify/cors":"^11.3.0",
