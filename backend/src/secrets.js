@@ -10,7 +10,10 @@ async function key() {
   if (cachedKey) return cachedKey;
   try {
     const data = await readFile(KEY_FILE);
-    if (data.length === 32) return (cachedKey = data);
+    if (data.length === 32) {
+      try { await chmod(KEY_FILE, 0o600); } catch {}
+      return (cachedKey = data);
+    }
   } catch {}
   const generated = randomBytes(32);
   await mkdir(DATA_DIR, { recursive: true });
