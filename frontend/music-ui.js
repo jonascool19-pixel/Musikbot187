@@ -1,8 +1,10 @@
 (() => {
   const nativeFetch = () => window.MusikBotFetch?.nativeFetch || window.fetch.bind(window);
   const auth = () => window.MusikBotFetch?.getAuth?.() || '';
+  const currentUser = () => { try { return JSON.parse(sessionStorage.getItem('musikbot187.auth') || 'null')?.user || null; } catch { return null; } };
+  const can = permission => { const user = currentUser(); return Boolean(user && (user.role === 'admin' || user.permissions?.includes(permission))); };
   const q = selector => document.querySelector(selector);
-  const esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[char]));
+  const esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;', "'":'&#39;' }[char]));
   const api = (path, options = {}) => { const headers = new Headers(options.headers || {}); const header = auth(); if (header && !headers.has('Authorization')) headers.set('Authorization', header); options.headers = headers; return nativeFetch()(path, options).then(async response => { const body = await response.json().catch(() => ({})); if (!response.ok) throw Error(body.error || `HTTP ${response.status}`); return body; }); };
   const post = (path, body = {}) => api(path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   function note(text) { const node = q('#notice'); if (!node) return; node.textContent = text; node.classList.add('show'); clearTimeout(window.__musikbotMusicNotice); window.__musikbotMusicNotice = setTimeout(() => node.classList.remove('show'), 3500); }
@@ -11,6 +13,7 @@
   async function playFile(file) { try { await post('/api/play', { items: [{ id: crypto.randomUUID(), title: file.name, url: file.name, source: 'file' }] }); note(`„${file.name}“ zur Wiedergabe hinzugefügt.`); } catch (error) { note(error.message); } }
   async function renderMusic() {
     const view = q('#view'); if (!view) return;
+    if (!can('music.manage')) { note('Keine Berechtigung für die Musikbibliothek.'); return; }
     document.querySelectorAll('nav .navbtn').forEach(button => button.classList.toggle('active', button.dataset.extraTab === 'music'));
     try {
       const files = await api('/api/files');
@@ -24,13 +27,12 @@
   }
   function enhanceSearchResults() {
     document.querySelectorAll('#results .result').forEach(result => {
-      const buttons = result.querySelector('.controls');
-      if (!buttons) return;
+      const buttons = result.querySelector('.controls'); if (!buttons) return;
       const playlistButton = [...buttons.querySelectorAll('button')].find(button => /Playlist/.test(button.textContent));
       if (playlistButton) playlistButton.classList.add('music-playlist-plus');
     });
   }
-  window.__musikbotRegisterCleanup?.(window.MusikBotNavigation?.registerExtraTab({ id: 'music', label: '🎼 Musik', title: 'Eigene Musikdateien verwalten', render: renderMusic }));
+  if (can('music.manage')) window.__musikbotRegisterCleanup?.(window.MusikBotNavigation?.registerExtraTab({ id: 'music', label: '🎼 Musik', title: 'Eigene Musikdateien verwalten', render: renderMusic }));
   window.__musikbotEnhanceMusicResults = enhanceSearchResults;
   enhanceSearchResults();
 })();

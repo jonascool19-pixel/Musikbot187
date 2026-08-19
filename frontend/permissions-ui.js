@@ -20,7 +20,7 @@
     if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
     return body;
   };
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc = value => String(value ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const observer = new MutationObserver(() => enhance());
   function enhance() {
     const list = document.querySelector('#adminUsersList');
@@ -28,8 +28,6 @@
     for (const row of list.querySelectorAll('.admin-user-row')) {
       if (row.dataset.permissionsEnhanced === '1') continue;
       row.dataset.permissionsEnhanced = '1';
-      const name = row.querySelector('strong')?.textContent || '';
-      row.dataset.userName = name;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'admin-permissions-edit';
@@ -40,10 +38,11 @@
   }
   async function openEditor(row) {
     if (row.querySelector('.admin-permission-editor')) return;
-    const name = row.dataset.userName || '';
+    const id = row.dataset.userId || '';
+    if (!id) return;
     try {
       const users = await api('/api/users');
-      const currentUser = users.find(item => item.name === name);
+      const currentUser = users.find(item => String(item.id) === String(id));
       if (!currentUser) throw new Error('Benutzer nicht gefunden');
       const current = new Set(currentUser.permissions || []);
       const editor = document.createElement('div');
@@ -67,7 +66,7 @@
           const roleLabel = row.querySelector('small');
           if (roleLabel) roleLabel.textContent = result.user.role === 'admin' ? 'Administrator' : 'Benutzer';
           const rights = row.querySelector('.admin-rights');
-          if (rights) rights.innerHTML = (result.user.permissions || []).map(key => `<span>${esc(permissions.find(item => item[0] === key)?.[1] || key)}</span>`).join('');
+          if (rights) rights.textContent = result.user.role === 'admin' ? 'Administrator: alle Berechtigungen' : ((result.user.permissions || []).map(key => permissions.find(item => item[0] === key)?.[1] || key).join(', ') || 'Keine Berechtigungen');
           editor.remove();
           const notice = document.querySelector('#notice');
           if (notice) { notice.textContent = 'Berechtigungen gespeichert.'; notice.classList.add('show'); setTimeout(() => notice.classList.remove('show'), 2500); }
