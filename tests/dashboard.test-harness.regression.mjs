@@ -24,7 +24,7 @@ test('dashboard browser harness targets the current frontend and server contract
   assert.ok(e2e.includes("existsSync('/usr/bin/node')"), 'dashboard E2E must use the runner-safe Node fallback');
   assert.ok(e2e.includes('backend spawn failed:'), 'dashboard E2E must surface child-process spawn failures');
   assert.ok(permissions.includes("existsSync('/usr/bin/node')"), 'permission E2E must use the runner-safe Node fallback');
-  assert.ok(browser.includes('/music-ui-auth.js') || browser.includes('music-ui-auth'), 'browser test must target the current auth-aware music UI');
+  assert.ok(browser.includes('[data-extra-tab=\\"music\\"]'), 'browser test must exercise the current music extra-tab contract');
 
   assert.doesNotMatch(smoke, /removeMusicTab/, 'smoke test still expects the retired removeMusicTab contract');
   assert.ok(smoke.includes('__musikbotSyncMusicTab'), 'smoke test must verify the current music auth lifecycle');
