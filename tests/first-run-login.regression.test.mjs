@@ -1,33 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdtemp, rm } from 'node:fs/promises';
-import { accessSync, constants } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const backendDir = path.resolve(process.cwd(), 'backend');
-
-function resolveNodeExecutable() {
-  const candidates = [
-    process.env.NODE_BINARY,
-    (() => {
-      try { return execFileSync('bash', ['-lc', 'command -v node'], { encoding: 'utf8' }).trim(); } catch { return ''; }
-    })(),
-    '/usr/bin/node',
-    process.execPath
-  ].filter(Boolean);
-  for (const candidate of candidates) {
-    try {
-      accessSync(candidate, constants.X_OK);
-      return candidate;
-    } catch {}
-  }
-  throw new Error(`No executable Node.js binary found; process.execPath=${process.execPath}`);
-}
-
-const nodeExecutable = resolveNodeExecutable();
+const nodeExecutable = process.env.NODE_BINARY || process.execPath;
 const nodePath = path.dirname(nodeExecutable);
 
 async function waitForHealth(baseUrl, child) {
@@ -47,10 +27,12 @@ async function waitForHealth(baseUrl, child) {
 }
 
 function startServer(dataDir, port, setupToken) {
-  return spawn(nodeExecutable, ['src/server.js'], {
+  const shell = process.env.SHELL || '/bin/bash';
+  return spawn(shell, ['-lc', 'exec "$NODE_BINARY" src/server.js'], {
     cwd: backendDir,
     env: {
       ...process.env,
+      NODE_BINARY: nodeExecutable,
       PATH: `${nodePath}${path.delimiter}${process.env.PATH || ''}`,
       HOST: '127.0.0.1',
       PORT: String(port),
