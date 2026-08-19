@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('../backend/node_modules/playwright');
-const backendDir = join(process.cwd(), 'backend');
+const backendDir = process.cwd();
 
 async function freePort() {
   return new Promise((resolve, reject) => {
