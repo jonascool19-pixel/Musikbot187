@@ -30,9 +30,10 @@ test("dashboard contains one-second live monitoring, Discord controls, power con
   const music = await readFile(new URL("../frontend/music-ui.js", import.meta.url), "utf8");
   const themes = await readFile(new URL("../frontend/themes.js", import.meta.url), "utf8");
   const server = await readFile(new URL("../backend/src/server.js", import.meta.url), "utf8");
+  const discordActions = await readFile(new URL("../frontend/discord-instance-actions.js", import.meta.url), "utf8");
   assert.match(app, /setInterval\(pollMonitor,\s*1000\)/);
   for (const marker of ["id=\"topCpu\"", "id=\"topRam\"", "id=\"topNetRx\"", "id=\"topNetTx\"", "id=\"topNetTotal\""]) assert.ok(app.includes(marker), `Dashboard missing ${marker}`);
-  for (const marker of ["id=\"dadd\"", "id=\"dlink\"", "id=\"ds\"", "id=\"dconnect\"", "id=\"dreconnect\"", "id=\"dg\"", "id=\"dgrefresh\"", "id=\"dv\"", "id=\"dvrefresh\""]) assert.ok(app.includes(marker), `Discord UI missing ${marker}`);
+  for (const marker of ["data-dbot-invite", "data-dvoice-join", "data-dguild", "data-dguild-refresh", "data-dchannel", "data-dchannel-refresh"]) assert.ok(discordActions.includes(marker), `Discord UI missing ${marker}`);
   assert.match(enhancement, /enhancedOutput/);
   assert.match(enhancement, /restart-system/);
   assert.match(enhancement, /shutdown-system/);
