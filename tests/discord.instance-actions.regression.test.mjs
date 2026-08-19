@@ -16,12 +16,12 @@ test('Discord instance card actions stay on the instance card and use canonical 
   assert.match(helper, /Discord-Server auswählen/);
   assert.match(helper, /Voice-Kanal auswählen/);
   assert.match(helper, /window\.open\(url, '_blank'/);
-  assert.match(helper, /\/api\/discord\/\$\{encodeURIComponent\(item\.id\)\}\/connect/);
-  assert.match(helper, /\/api\/discord\/\$\{encodeURIComponent\(item\.id\)\}\/guilds/);
-  assert.match(helper, /\/api\/discord\/\$\{encodeURIComponent\(item\.id\)\}\/guilds\/\$\{encodeURIComponent\(guildId\)\}\/channels/);
-  assert.match(helper, /\/api\/discord\/\$\{encodeURIComponent\(item\.id\)\}\/join/);
+  assert.match(helper, /\/api\/discord\/\$\{encodeURIComponent\((?:item\.id|id)\)\}\/connect/);
+  assert.match(helper, /\/api\/discord\/\$\{encodeURIComponent\((?:item\.id|id)\)\}\/guilds/);
+  assert.match(helper, /\/api\/discord\/\$\{encodeURIComponent\((?:item\.id|id)\)\}\/guilds\/\$\{encodeURIComponent\(guildId\)\}\/channels/);
+  assert.match(helper, /\/api\/discord\/\$\{encodeURIComponent\((?:item\.id|id)\)\}\/join/);
   assert.match(helper, /request\('\/api\/discord'/);
-  assert.match(helper, /ensureConnected\(item\.id\)/);
+  assert.match(helper, /ensureConnected\((?:item\.id|id)\)/);
   assert.match(helper, /data-discord-direct-actions/);
   assert.match(helper, /new MutationObserver\(scheduleDecorate\)/);
   assert.doesNotMatch(helper, /void loadGuilds\(row, item, guildSelect, status\)/);
