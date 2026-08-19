@@ -7,6 +7,10 @@ import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const backendDir = path.resolve(process.cwd(), 'backend');
+// Resolve Node through PATH instead of relying on the absolute process.execPath.
+// GitHub-hosted runners can relocate/retire the tool-cache binary while a test
+// process is spawning a child, which otherwise surfaces as ENOENT.
+const nodeExecutable = process.env.NODE_BINARY || 'node';
 
 async function waitForHealth(baseUrl, child) {
   const deadline = Date.now() + 10_000;
@@ -25,7 +29,7 @@ async function waitForHealth(baseUrl, child) {
 }
 
 function startServer(dataDir, port, setupToken) {
-  return spawn(process.execPath, ['src/server.js'], {
+  return spawn(nodeExecutable, ['src/server.js'], {
     cwd: backendDir,
     env: {
       ...process.env,
