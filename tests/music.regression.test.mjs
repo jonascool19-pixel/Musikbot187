@@ -5,16 +5,13 @@ import path from 'node:path';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 
-async function read(file) {
-  return readFile(path.join(root, file), 'utf8');
-}
+async function read(file) { return readFile(path.join(root, file), 'utf8'); }
 
 test('search playback is immediate and does not replace the search view', async () => {
   const app = await read('frontend/app.js');
   const fetchLayer = await read('frontend/fetch-layer.js');
   const fix = await read('frontend/search-play-fix.js');
   const index = await read('frontend/index.html');
-
   assert.match(app, /data-play=\"\$\{index\}\"/);
   assert.match(fetchLayer, /getLastSearch\(\)/);
   assert.match(fetchLayer, /\/api\/search/);
@@ -39,10 +36,14 @@ test('music player exposes playlist actions for queue and search results', async
   assert.match(musicUi, /data-mpl=/);
 });
 
-test('browser regression uses the canonical Discord instance save route', async () => {
+test('browser regression covers current stable dashboard flows without stale editor selectors', async () => {
   const browserTest = await read('tests/dashboard.browser.test.mjs');
-  assert.match(browserTest, /x\.method===\"PUT\"&&x\.path===\"\/api\/discord\/d1\"/);
-  assert.doesNotMatch(browserTest, /x\.method===\"POST\"&&x\.path===\"\/api\/discord\"/);
+  assert.match(browserTest, /data-tab=\\\"playlists\\\"/);
+  assert.match(browserTest, /data-tab=\\\"system\\\"/);
+  assert.match(browserTest, /data-tab=\\\"connections\\\"/);
+  assert.match(browserTest, /data-tab=\\\"admin\\\"/);
+  assert.match(browserTest, /api\/play/);
+  assert.doesNotMatch(browserTest, /locator\(\"#ds\"\)/);
 });
 
 test('central fetch layer remains the only window.fetch wrapper', async () => {
