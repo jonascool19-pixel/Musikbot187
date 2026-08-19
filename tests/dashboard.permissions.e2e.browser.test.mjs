@@ -6,11 +6,12 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('../backend/node_modules/playwright');
-const backendDir = join(process.cwd(), 'backend');
-const nodeBinary = process.env.npm_node_execpath || 'node';
+const backendDir = process.cwd();
+const nodeBinary = existsSync('/usr/bin/node') ? '/usr/bin/node' : 'node';
 
 async function freePort() {
   return new Promise((resolve, reject) => {
@@ -32,8 +33,11 @@ function startServer(dataDir, port, setupToken) {
 }
 
 async function waitForHealth(baseUrl, child) {
+  let spawnError = null;
+  child.once('error', error => { spawnError = error; });
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
+    if (spawnError) throw new Error(`backend spawn failed: ${spawnError.message}`);
     if (child.exitCode !== null) throw new Error(`backend exited with ${child.exitCode}`);
     try { if ((await fetch(`${baseUrl}/api/health`)).ok) return; } catch {}
     await sleep(100);
