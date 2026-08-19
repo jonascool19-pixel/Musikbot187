@@ -7,11 +7,35 @@ import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const backendDir = path.resolve(process.cwd(), 'backend');
-// Prefer an explicitly supplied binary, otherwise use the exact Node executable
-// running this test. Prepending its directory to PATH also makes child-process
-// resolution robust on hosted runners with relocated tool-cache installations.
 const nodeExecutable = process.env.NODE_BINARY || process.execPath;
-const nodePath = path.dirname(nodeExecutable);
+
+async function spawnNode(args, options) {
+  const candidates = [nodeExecutable];
+  if (nodeExecutable !== 'node') candidates.push('node');
+
+  let lastError;
+  for (const executable of candidates) {
+    const child = spawn(executable, args, options);
+    const result = await new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        fn(value);
+      };
+      child.once('spawn', () => finish(resolve, child));
+      child.once('error', error => finish(reject, error));
+    }).catch(error => {
+      lastError = error;
+      return null;
+    });
+
+    if (result) return result;
+    if (lastError?.code !== 'ENOENT') throw lastError;
+  }
+
+  throw lastError || new Error('unable to spawn Node.js');
+}
 
 async function waitForHealth(baseUrl, child) {
   const deadline = Date.now() + 10_000;
@@ -30,11 +54,10 @@ async function waitForHealth(baseUrl, child) {
 }
 
 function startServer(dataDir, port, setupToken) {
-  return spawn(nodeExecutable, ['src/server.js'], {
+  return spawnNode(['src/server.js'], {
     cwd: backendDir,
     env: {
       ...process.env,
-      PATH: `${nodePath}${path.delimiter}${process.env.PATH || ''}`,
       HOST: '127.0.0.1',
       PORT: String(port),
       MUSIKBOT187_DATA_DIR: dataDir,
@@ -72,7 +95,7 @@ test('first-run setup credentials remain usable through a fresh login and restar
   let child;
   let child2;
   try {
-    child = startServer(dataDir, port, token);
+    child = await startServer(dataDir, port, token);
     await waitForHealth(baseUrl, child);
 
     const setup = await postJson(`${baseUrl}/api/setup`, { name: 'admin', password: 'correct-password' }, {
@@ -95,7 +118,7 @@ test('first-run setup credentials remain usable through a fresh login and restar
     await stopServer(child);
     child = null;
 
-    child2 = startServer(dataDir, port, token);
+    child2 = await startServer(dataDir, port, token);
     await waitForHealth(baseUrl, child2);
     const restartLogin = await postJson(`${baseUrl}/api/login`, { name: 'admin', password: 'correct-password' });
     assert.equal(restartLogin.status, 200);
