@@ -16,6 +16,12 @@
   function saveAuth(value) {
     if (!value?.token || !value?.user) return;
     sessionStorage.setItem(KEY, JSON.stringify({ token: value.token, user: value.user, createdAt: Date.now() }));
+    window.dispatchEvent(new CustomEvent('musikbot:auth-changed', { detail: { user: value.user } }));
+  }
+
+  function clearAuth() {
+    sessionStorage.removeItem(KEY);
+    window.dispatchEvent(new CustomEvent('musikbot:auth-changed', { detail: { user: null } }));
   }
 
   function withAuth(init = {}, auth) {
@@ -24,7 +30,7 @@
     return { ...init, headers };
   }
 
-  window.MusikBotAuthSession = { readAuth, saveAuth, clear: () => sessionStorage.removeItem(KEY) };
+  window.MusikBotAuthSession = { readAuth, saveAuth, clear: clearAuth };
 
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input?.url || '';
@@ -48,7 +54,7 @@
       } catch {}
     }
 
-    if (pathname === '/api/logout' && response.ok) sessionStorage.removeItem(KEY);
+    if (pathname === '/api/logout' && response.ok) clearAuth();
     return response;
   };
 })();
