@@ -34,6 +34,8 @@ test("Dashboard exposes current UI endpoints plus browser music library", async 
   assert.ok(index.includes('/music-ui-auth.js'), 'Dashboard missing auth-aware music UI script');
   assert.ok(!index.includes('/music-ui.js'), 'Dashboard still loads legacy music UI script');
   for (const text of ["id: 'music'", "/api/music/upload", "＋ Playlist", "musicUpload", "music-library"]) assert.ok(musicUi.includes(text), `Music UI missing ${text}`);
-  for (const text of ["musikbot:auth-changed", "music.manage", "registerMusicTab", "removeMusicTab"]) assert.ok(musicUiAuth.includes(text), `Music auth UI missing ${text}`);
+  for (const text of ["musikbot:auth-changed", "music.manage", "registerExtraTab", "__musikbotSyncMusicTab"]) assert.ok(musicUiAuth.includes(text), `Music auth UI missing ${text}`);
+  assert.ok(musicUiAuth.includes("unregisterMusicTab = null"), 'Music auth UI missing unregister lifecycle state');
+  assert.ok(musicUiAuth.includes("unregisterMusicTab()"), 'Music auth UI missing tab cleanup');
   for (const text of ["/api/music/upload", "safeMusicPath", "MUSIC_EXTENSIONS", "await request.file()", "/api/music/:name"]) assert.ok(server.includes(text), `Music API missing ${text}`);
 });
