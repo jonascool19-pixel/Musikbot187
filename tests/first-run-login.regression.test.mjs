@@ -7,10 +7,11 @@ import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const backendDir = path.resolve(process.cwd(), 'backend');
-// Resolve Node through PATH instead of relying on the absolute process.execPath.
-// GitHub-hosted runners can relocate/retire the tool-cache binary while a test
-// process is spawning a child, which otherwise surfaces as ENOENT.
-const nodeExecutable = process.env.NODE_BINARY || 'node';
+// Prefer an explicitly supplied binary, otherwise use the exact Node executable
+// running this test. Prepending its directory to PATH also makes child-process
+// resolution robust on hosted runners with relocated tool-cache installations.
+const nodeExecutable = process.env.NODE_BINARY || process.execPath;
+const nodePath = path.dirname(nodeExecutable);
 
 async function waitForHealth(baseUrl, child) {
   const deadline = Date.now() + 10_000;
@@ -33,6 +34,7 @@ function startServer(dataDir, port, setupToken) {
     cwd: backendDir,
     env: {
       ...process.env,
+      PATH: `${nodePath}${path.delimiter}${process.env.PATH || ''}`,
       HOST: '127.0.0.1',
       PORT: String(port),
       MUSIKBOT187_DATA_DIR: dataDir,
