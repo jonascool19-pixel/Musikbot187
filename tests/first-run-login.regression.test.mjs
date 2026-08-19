@@ -1,16 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, rm } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const backendDir = path.resolve(process.cwd(), 'backend');
-// Prefer an explicitly supplied binary, otherwise use the exact Node executable
-// running this test. Prepending its directory to PATH also makes child-process
-// resolution robust on hosted runners with relocated tool-cache installations.
-const nodeExecutable = process.env.NODE_BINARY || process.execPath;
+
+function resolveNodeExecutable() {
+  const candidates = [
+    process.env.NODE_BINARY,
+    (() => {
+      try { return execFileSync('bash', ['-lc', 'command -v node'], { encoding: 'utf8' }).trim(); } catch { return ''; }
+    })(),
+    '/usr/bin/node',
+    process.execPath
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      require('node:fs').accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {}
+  }
+  throw new Error(`No executable Node.js binary found; process.execPath=${process.execPath}`);
+}
+
+const nodeExecutable = resolveNodeExecutable();
 const nodePath = path.dirname(nodeExecutable);
 
 async function waitForHealth(baseUrl, child) {
