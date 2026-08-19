@@ -1,11 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { access, mkdtemp, rm } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { accessSync, constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { execFileSync } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const backendDir = path.resolve(process.cwd(), 'backend');
@@ -21,7 +20,7 @@ function resolveNodeExecutable() {
   ].filter(Boolean);
   for (const candidate of candidates) {
     try {
-      require('node:fs').accessSync(candidate, constants.X_OK);
+      accessSync(candidate, constants.X_OK);
       return candidate;
     } catch {}
   }
