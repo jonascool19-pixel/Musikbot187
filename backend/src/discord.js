@@ -3,36 +3,378 @@ import { StreamType, VoiceConnectionStatus, createAudioPlayer, createAudioResour
 import { PassThrough } from "node:stream";
 
 const GATEWAY_RETRY_MS = [5000, 10000, 20000, 30000, 60000];
-export function discordIntents(prefix = "", messageContentIntent = false) { const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]; if (Boolean(messageContentIntent) && String(prefix || "").trim()) intents.push(GatewayIntentBits.MessageContent); return intents; }
-export function discordCommandAllowed(interaction, guildId) { return Boolean(interaction?.guildId && guildId && interaction.guildId === guildId); }
-class Runtime { constructor(cfg) { this.cfg = cfg; this.client = new Client({ intents: discordIntents(cfg.prefix, cfg.messageContentIntent) }); this.connecting = false; this.reconnecting = false; this.reconnectAttempt = 0; this.reconnectTimer = null; this.voiceRecovering = false; this.voiceRecoveryTimer = null; this.missingStreamLogged = false; this.lastVolume = null; this.resource = null; this.audioResetting = false; } }
-function commands() { return [new SlashCommandBuilder().setName("play").setDescription("Musik abspielen").addStringOption(o => o.setName("suche").setDescription("Titel, Interpret oder URL").setRequired(true)), new SlashCommandBuilder().setName("pause").setDescription("Musik pausieren"), new SlashCommandBuilder().setName("resume").setDescription("Wiedergabe fortsetzen"), new SlashCommandBuilder().setName("skip").setDescription("Aktuellen Titel überspringen"), new SlashCommandBuilder().setName("stop").setDescription("Wiedergabe stoppen"), new SlashCommandBuilder().setName("volume").setDescription("Lautstärke setzen").addIntegerOption(o => o.setName("wert").setDescription("0 bis 100").setRequired(true).setMinValue(0).setMaxValue(100)), new SlashCommandBuilder().setName("queue").setDescription("Warteschlange anzeigen")].map(x => x.toJSON()); }
-function makePlayItem(query) { const value = String(query).trim().slice(0, 512); const direct = /^https?:\/\//i.test(value); if (!direct) return { id: Date.now().toString(), title: value, url: `ytsearch1:${value}`, source: "youtube" }; const youtube = /(?:youtube\.com|youtu\.be)\//i.test(value); return { id: Date.now().toString(), title: value.slice(0, 300), url: value, source: youtube ? "youtube" : "direct" }; }
+
+export function discordIntents(prefix = "", messageContentIntent = false) {
+  const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates];
+  if (Boolean(messageContentIntent) && String(prefix || "").trim()) intents.push(GatewayIntentBits.MessageContent);
+  return intents;
+}
+
+export function discordCommandAllowed(interaction, guildId) {
+  return Boolean(interaction?.guildId && guildId && interaction.guildId === guildId);
+}
+
+class Runtime {
+  constructor(cfg) {
+    this.cfg = cfg;
+    this.client = new Client({ intents: discordIntents(cfg.prefix, cfg.messageContentIntent) });
+    this.connecting = false;
+    this.reconnecting = false;
+    this.reconnectAttempt = 0;
+    this.reconnectTimer = null;
+    this.voiceRecovering = false;
+    this.voiceRecoveryTimer = null;
+    this.missingStreamLogged = false;
+    this.lastVolume = null;
+    this.resource = null;
+    this.audioResetting = false;
+  }
+}
+
+function commands() {
+  return [
+    new SlashCommandBuilder().setName("play").setDescription("Musik abspielen").addStringOption(o => o.setName("suche").setDescription("Titel, Interpret oder URL").setRequired(true)),
+    new SlashCommandBuilder().setName("pause").setDescription("Musik pausieren"),
+    new SlashCommandBuilder().setName("resume").setDescription("Wiedergabe fortsetzen"),
+    new SlashCommandBuilder().setName("skip").setDescription("Aktuellen Titel überspringen"),
+    new SlashCommandBuilder().setName("stop").setDescription("Wiedergabe stoppen und Queue leeren"),
+    new SlashCommandBuilder().setName("clear").setDescription("Warteschlange leeren"),
+    new SlashCommandBuilder().setName("volume").setDescription("Lautstärke setzen").addIntegerOption(o => o.setName("wert").setDescription("0 bis 100").setRequired(true).setMinValue(0).setMaxValue(100)),
+    new SlashCommandBuilder().setName("queue").setDescription("Warteschlange anzeigen"),
+    new SlashCommandBuilder().setName("nowplaying").setDescription("Aktuellen Titel anzeigen"),
+    new SlashCommandBuilder().setName("help").setDescription("Discord-Steuerung anzeigen")
+  ].map(x => x.toJSON());
+}
+
+function makePlayItem(query) {
+  const value = String(query).trim().slice(0, 512);
+  const direct = /^https?:\/\//i.test(value);
+  if (!direct) return { id: Date.now().toString(), title: value, url: `ytsearch1:${value}`, source: "youtube" };
+  const youtube = /(?:youtube\.com|youtu\.be)\//i.test(value);
+  return { id: Date.now().toString(), title: value.slice(0, 300), url: value, source: youtube ? "youtube" : "direct" };
+}
+
+function formatQueue(items) {
+  const lines = Array.isArray(items) ? items.map((x, index) => `${index + 1}. ${String(x.title || x.url || "Unbekannt")}`) : [];
+  return lines.join("\n").slice(0, 1900) || "Queue ist leer.";
+}
+
+function helpText() {
+  return [
+    "🎵 **MusikBot187 Discord-Steuerung**",
+    "`/play suche:<Titel/URL>` – Musik sofort abspielen",
+    "`/pause` – pausieren",
+    "`/resume` – fortsetzen",
+    "`/skip` – nächsten Titel starten",
+    "`/stop` – Wiedergabe stoppen und Queue leeren",
+    "`/clear` – nur Queue leeren",
+    "`/volume wert:<0-100>` – Lautstärke ändern",
+    "`/queue` – Warteschlange anzeigen",
+    "`/nowplaying` – aktuellen Titel anzeigen"
+  ].join("\n");
+}
+
 export class DiscordManager {
-  constructor(music) { this.music = music; this.map = new Map(); this.music.on("volume", () => { for (const id of this.map.keys()) this.applyVolume(id); }); this.music.on("audio-reset", () => { for (const id of this.map.keys()) this.resetAudioStream(id); }); }
-  scheduleGatewayReconnect(runtime) { if (!runtime || runtime.reconnectTimer || runtime.reconnecting || !runtime.cfg.enabled) return; runtime.reconnecting = true; const delay = GATEWAY_RETRY_MS[Math.min(runtime.reconnectAttempt, GATEWAY_RETRY_MS.length - 1)]; runtime.reconnectAttempt += 1; runtime.reconnectTimer = setTimeout(() => { runtime.reconnectTimer = null; this.connect(runtime.cfg).then(() => { runtime.reconnectAttempt = 0; runtime.reconnecting = false; this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: Gateway wieder verbunden.`); }).catch(error => { runtime.reconnecting = false; this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: Wiederverbindung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`); if (this.map.get(runtime.cfg.id) === runtime) this.scheduleGatewayReconnect(runtime); }); }, delay); runtime.reconnectTimer.unref?.(); this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: Gateway getrennt; Wiederverbindung in ${Math.round(delay / 1000)}s.`); }
+  constructor(music) {
+    this.music = music;
+    this.map = new Map();
+    this.music.on("volume", () => { for (const id of this.map.keys()) this.applyVolume(id); });
+    this.music.on("audio-reset", () => { for (const id of this.map.keys()) this.resetAudioStream(id); });
+  }
+
+  scheduleGatewayReconnect(runtime) {
+    if (!runtime || runtime.reconnectTimer || runtime.reconnecting || !runtime.cfg.enabled) return;
+    runtime.reconnecting = true;
+    const delay = GATEWAY_RETRY_MS[Math.min(runtime.reconnectAttempt, GATEWAY_RETRY_MS.length - 1)];
+    runtime.reconnectAttempt += 1;
+    runtime.reconnectTimer = setTimeout(() => {
+      runtime.reconnectTimer = null;
+      this.connect(runtime.cfg).then(() => {
+        runtime.reconnectAttempt = 0;
+        runtime.reconnecting = false;
+        this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: Gateway wieder verbunden.`);
+      }).catch(error => {
+        runtime.reconnecting = false;
+        this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: Wiederverbindung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+        if (this.map.get(runtime.cfg.id) === runtime) this.scheduleGatewayReconnect(runtime);
+      });
+    }, delay);
+    runtime.reconnectTimer.unref?.();
+    this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: Gateway getrennt; Wiederverbindung in ${Math.round(delay / 1000)}s.`);
+  }
+
   async connect(cfg) {
-    const existing = this.map.get(cfg.id); if (existing?.connecting) throw new Error("Discord-Instanz verbindet bereits"); const previousGuildId = existing?.cfg?.guildId || ""; await this.disconnect(cfg.id); if (!cfg.enabled) throw new Error("Instanz ist ausgeschaltet"); if (!cfg.token) throw new Error("Bot-Token fehlt"); const runtime = new Runtime(cfg); runtime.connecting = true; this.map.set(cfg.id, runtime);
-    runtime.client.on("ready", async () => { runtime.connecting = false; runtime.reconnectAttempt = 0; runtime.reconnecting = false; if (runtime.client.user) { const rest = new REST({ version: "10" }).setToken(cfg.token); try { if (previousGuildId && previousGuildId !== runtime.cfg.guildId) await rest.put(Routes.applicationGuildCommands(runtime.client.user.id, previousGuildId), { body: [] }); if (runtime.cfg.guildId) await rest.put(Routes.applicationGuildCommands(runtime.client.user.id, runtime.cfg.guildId), { body: commands() }); } catch (e) { this.music.emit("diagnostic", `Discord ${cfg.name}: Command-Registrierung fehlgeschlagen: ${e.message || e}`); } } const settings = this.music.settings || {}; if (settings.outputType === "discord" && settings.outputId === cfg.id && cfg.guildId && cfg.channelId) { try { await this.join(cfg.id); this.music.emit("diagnostic", `Discord Voice ${cfg.name}: Automatisch dem konfigurierten Voice-Kanal beigetreten.`); } catch (e) { this.music.emit("diagnostic", `Discord Voice ${cfg.name}: Auto-Join fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`); } } });
-    runtime.client.on("error", error => this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: ${error instanceof Error ? error.message : String(error)}`)); runtime.client.on("shardDisconnect", () => { runtime.connecting = false; this.scheduleGatewayReconnect(runtime); }); runtime.client.on("shardResume", () => { runtime.reconnecting = false; runtime.reconnectAttempt = 0; });
-    runtime.client.on("interactionCreate", interaction => { if (!interaction.isChatInputCommand()) return; if (!discordCommandAllowed(interaction, runtime.cfg.guildId)) { void interaction.reply({ content: "Dieser Bot-Befehl ist für diesen Discord-Server nicht freigeschaltet.", ephemeral: true }).catch(() => {}); return; } this.handleSlash(interaction).catch(e => this.replyError(interaction, e)); });
-    runtime.client.on("messageCreate", message => { if (!runtime.cfg.messageContentIntent || !runtime.cfg.prefix) return; if (message.author.bot || !message.guild || !runtime.cfg.guildId || message.guild.id !== runtime.cfg.guildId || !message.content || !message.content.startsWith(runtime.cfg.prefix)) return; const parts = message.content.slice(runtime.cfg.prefix.length).trim().split(/\s+/); const command = parts.shift()?.toLowerCase(); try { if (command === "play") return void this.music.enqueue([makePlayItem(parts.join(" "))], { playNow: true }).catch(e => message.reply(`Fehler: ${e instanceof Error ? e.message : String(e)}`).catch(() => {})); if (command === "pause") this.music.pause(); else if (command === "resume") this.music.resume(); else if (command === "skip") this.music.skip(); else if (command === "stop") this.music.stop(); else if (command === "volume" && parts[0] !== undefined) this.music.setVolume(Number(parts[0])); else if (command === "queue") void message.reply(this.music.queue.map(x => x.title).join("\n").slice(0, 1900) || "Queue ist leer.").catch(() => {}); } catch (e) { void message.reply(`Fehler: ${e instanceof Error ? e.message : String(e)}`).catch(() => {}); } });
-    try { await runtime.client.login(cfg.token); runtime.connecting = false; } catch (e) { runtime.connecting = false; const invalidToken = e?.code === "TokenInvalid" || /token is invalid/i.test(String(e?.message || e)); if (invalidToken) { this.map.delete(cfg.id); try { await runtime.client.destroy(); } catch {} throw new Error("Discord-Token ist ungültig"); } this.scheduleGatewayReconnect(runtime); throw new Error(e?.message || String(e)); }
+    const existing = this.map.get(cfg.id);
+    if (existing?.connecting) throw new Error("Discord-Instanz verbindet bereits");
+    const previousGuildId = existing?.cfg?.guildId || "";
+    await this.disconnect(cfg.id);
+    if (!cfg.enabled) throw new Error("Instanz ist ausgeschaltet");
+    if (!cfg.token) throw new Error("Bot-Token fehlt");
+
+    const runtime = new Runtime(cfg);
+    runtime.connecting = true;
+    this.map.set(cfg.id, runtime);
+
+    runtime.client.on("ready", async () => {
+      runtime.connecting = false;
+      runtime.reconnectAttempt = 0;
+      runtime.reconnecting = false;
+      if (runtime.client.user) {
+        const rest = new REST({ version: "10" }).setToken(cfg.token);
+        try {
+          if (previousGuildId && previousGuildId !== runtime.cfg.guildId) await rest.put(Routes.applicationGuildCommands(runtime.client.user.id, previousGuildId), { body: [] });
+          if (runtime.cfg.guildId) await rest.put(Routes.applicationGuildCommands(runtime.client.user.id, runtime.cfg.guildId), { body: commands() });
+        } catch (e) {
+          this.music.emit("diagnostic", `Discord ${cfg.name}: Command-Registrierung fehlgeschlagen: ${e.message || e}`);
+        }
+      }
+      const settings = this.music.settings || {};
+      if (settings.outputType === "discord" && settings.outputId === cfg.id && cfg.guildId && cfg.channelId) {
+        try {
+          await this.join(cfg.id);
+          this.music.emit("diagnostic", `Discord Voice ${cfg.name}: Automatisch dem konfigurierten Voice-Kanal beigetreten.`);
+        } catch (e) {
+          this.music.emit("diagnostic", `Discord Voice ${cfg.name}: Auto-Join fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+    });
+
+    runtime.client.on("error", error => this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: ${error instanceof Error ? error.message : String(error)}`));
+    runtime.client.on("shardDisconnect", () => { runtime.connecting = false; this.scheduleGatewayReconnect(runtime); });
+    runtime.client.on("shardResume", () => { runtime.reconnecting = false; runtime.reconnectAttempt = 0; });
+
+    runtime.client.on("interactionCreate", interaction => {
+      if (!interaction.isChatInputCommand()) return;
+      if (!discordCommandAllowed(interaction, runtime.cfg.guildId)) {
+        void interaction.reply({ content: "Dieser Bot-Befehl ist für diesen Discord-Server nicht freigeschaltet.", ephemeral: true }).catch(() => {});
+        return;
+      }
+      this.handleSlash(interaction).catch(e => this.replyError(interaction, e));
+    });
+
+    runtime.client.on("messageCreate", message => {
+      if (!runtime.cfg.messageContentIntent || !runtime.cfg.prefix) return;
+      if (message.author.bot || !message.guild || !runtime.cfg.guildId || message.guild.id !== runtime.cfg.guildId || !message.content || !message.content.startsWith(runtime.cfg.prefix)) return;
+      const parts = message.content.slice(runtime.cfg.prefix.length).trim().split(/\s+/);
+      const command = parts.shift()?.toLowerCase();
+      try {
+        if (command === "play") return void this.music.enqueue([makePlayItem(parts.join(" "))], { playNow: true }).catch(e => message.reply(`Fehler: ${e instanceof Error ? e.message : String(e)}`).catch(() => {}));
+        if (command === "pause") this.music.pause();
+        else if (command === "resume") this.music.resume();
+        else if (command === "skip") this.music.skip();
+        else if (command === "stop") this.music.stop();
+        else if (command === "clear") this.music.clear();
+        else if (command === "volume" && parts[0] !== undefined) this.music.setVolume(Number(parts[0]));
+        else if (command === "queue") void message.reply(formatQueue(this.music.queue)).catch(() => {});
+        else if (command === "nowplaying") void message.reply(this.music.current?.title ? `🎵 **${this.music.current.title}**` : "🎵 Aktuell läuft nichts.").catch(() => {});
+        else if (command === "help") void message.reply(helpText()).catch(() => {});
+      } catch (e) {
+        void message.reply(`Fehler: ${e instanceof Error ? e.message : String(e)}`).catch(() => {});
+      }
+    });
+
+    try {
+      await runtime.client.login(cfg.token);
+      runtime.connecting = false;
+    } catch (e) {
+      runtime.connecting = false;
+      const invalidToken = e?.code === "TokenInvalid" || /token is invalid/i.test(String(e?.message || e));
+      if (invalidToken) {
+        this.map.delete(cfg.id);
+        try { await runtime.client.destroy(); } catch {}
+        throw new Error("Discord-Token ist ungültig");
+      }
+      this.scheduleGatewayReconnect(runtime);
+      throw new Error(e?.message || String(e));
+    }
   }
-  async handleSlash(interaction) { switch (interaction.commandName) { case "play": { const q = interaction.options.getString("suche", true).slice(0, 512); await this.music.enqueue([makePlayItem(q)], { playNow: true }); return interaction.reply(`▶️ **${q}** wird jetzt abgespielt.`); } case "pause": this.music.pause(); return interaction.reply("⏸️ Pausiert."); case "resume": this.music.resume(); return interaction.reply("▶️ Fortgesetzt."); case "skip": this.music.skip(); return interaction.reply("⏭️ Übersprungen."); case "stop": this.music.stop(); return interaction.reply("⏹️ Gestoppt."); case "volume": { const value = interaction.options.getInteger("wert", true); this.music.setVolume(value); return interaction.reply(`🔊 Lautstärke: **${value}%**`); } case "queue": return interaction.reply(this.music.queue.map(x => x.title).join("\n").slice(0, 1900) || "Queue ist leer."); } }
-  async replyError(interaction, error) { const text = `Fehler: ${error instanceof Error ? error.message : String(error)}`.slice(0, 1900); if (interaction.replied || interaction.deferred) await interaction.followUp({ content: text, ephemeral: true }); else await interaction.reply({ content: text, ephemeral: true }); }
-  async disconnect(id) { const runtime = this.map.get(id); if (!runtime) return; if (runtime.reconnectTimer) clearTimeout(runtime.reconnectTimer); runtime.reconnectTimer = null; runtime.reconnecting = false; if (runtime.voiceRecoveryTimer) clearTimeout(runtime.voiceRecoveryTimer); runtime.voiceRecoveryTimer = null; runtime.voiceRecovering = false; try { runtime.voice?.removeAllListeners("stateChange"); runtime.voice?.destroy(); runtime.player?.stop?.(); runtime.stream?.end(); await runtime.client.destroy(); } finally { this.map.delete(id); } }
-  applyVolume(id) { if (!this.map.has(id)) return; const runtime = this.map.get(id); if (!runtime?.resource?.volume) return; const value = Math.max(0, Math.min(100, Number(this.music.volume) || 0)); runtime.resource.volume.setVolume(value / 100); runtime.lastVolume = value; }
-  createAudioPipeline(runtime) { runtime.player?.stop?.(); runtime.stream?.removeAllListeners?.(); runtime.stream?.destroy?.(); runtime.player = createAudioPlayer(); runtime.player.on("error", error => this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: AudioPlayer-Fehler: ${error instanceof Error ? error.message : String(error)}`)); runtime.player.on("stateChange", (_oldState, newState) => { if (newState.status === AudioPlayerStatus.Idle && runtime.stream && !runtime.stream.destroyed) this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: AudioPlayer wurde Idle.`); }); runtime.voice.subscribe(runtime.player); runtime.stream = new PassThrough({ highWaterMark: 1024 * 1024 }); runtime.stream.on("error", error => this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: AudioStream-Fehler: ${error instanceof Error ? error.message : String(error)}`)); runtime.resource = createAudioResource(runtime.stream, { inputType: StreamType.Raw, inlineVolume: true }); runtime.player.play(runtime.resource); this.applyVolume(runtime.cfg.id); runtime.missingStreamLogged = false; runtime.audioResetting = false; }
-  ensureAudioPipeline(id) { const runtime = this.map.get(id); if (!runtime || !runtime.client.isReady() || !runtime.voice || !runtime.cfg.guildId || !runtime.cfg.channelId) return null; if (runtime.audioResetting) return runtime; if (!runtime.stream || runtime.stream.destroyed || !runtime.player || !runtime.resource) { runtime.audioResetting = true; try { this.createAudioPipeline(runtime); this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiostream automatisch wiederhergestellt.`); } catch (error) { runtime.audioResetting = false; this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiostream-Wiederherstellung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`); return null; } } return runtime; }
+
+  async handleSlash(interaction) {
+    await interaction.deferReply();
+    let response;
+    switch (interaction.commandName) {
+      case "play": {
+        const q = interaction.options.getString("suche", true).slice(0, 512);
+        await this.music.enqueue([makePlayItem(q)], { playNow: true });
+        response = `▶️ **${q}** wird jetzt abgespielt.`;
+        break;
+      }
+      case "pause": this.music.pause(); response = "⏸️ Pausiert."; break;
+      case "resume": this.music.resume(); response = "▶️ Fortgesetzt."; break;
+      case "skip": this.music.skip(); response = "⏭️ Übersprungen."; break;
+      case "stop": this.music.stop(); response = "⏹️ Gestoppt und Queue geleert."; break;
+      case "clear": this.music.clear(); response = "🗑️ Queue geleert."; break;
+      case "volume": {
+        const value = interaction.options.getInteger("wert", true);
+        this.music.setVolume(value);
+        response = `🔊 Lautstärke: **${value}%**`;
+        break;
+      }
+      case "queue": response = formatQueue(this.music.queue); break;
+      case "nowplaying": response = this.music.current?.title ? `🎵 **${this.music.current.title}**` : "🎵 Aktuell läuft nichts."; break;
+      case "help": response = helpText(); break;
+      default: response = "Unbekannter Discord-Befehl.";
+    }
+    return interaction.editReply(response);
+  }
+
+  async replyError(interaction, error) {
+    const text = `Fehler: ${error instanceof Error ? error.message : String(error)}`.slice(0, 1900);
+    if (interaction.replied || interaction.deferred) await interaction.editReply(text);
+    else await interaction.reply({ content: text, ephemeral: true });
+  }
+
+  async disconnect(id) {
+    const runtime = this.map.get(id);
+    if (!runtime) return;
+    if (runtime.reconnectTimer) clearTimeout(runtime.reconnectTimer);
+    runtime.reconnectTimer = null;
+    runtime.reconnecting = false;
+    if (runtime.voiceRecoveryTimer) clearTimeout(runtime.voiceRecoveryTimer);
+    runtime.voiceRecoveryTimer = null;
+    runtime.voiceRecovering = false;
+    try {
+      runtime.voice?.removeAllListeners("stateChange");
+      runtime.voice?.destroy();
+      runtime.player?.stop?.();
+      runtime.stream?.end();
+      await runtime.client.destroy();
+    } finally {
+      this.map.delete(id);
+    }
+  }
+
+  applyVolume(id) {
+    if (!this.map.has(id)) return;
+    const runtime = this.map.get(id);
+    if (!runtime?.resource?.volume) return;
+    const value = Math.max(0, Math.min(100, Number(this.music.volume) || 0));
+    runtime.resource.volume.setVolume(value / 100);
+    runtime.lastVolume = value;
+  }
+
+  createAudioPipeline(runtime) {
+    runtime.player?.stop?.();
+    runtime.stream?.removeAllListeners?.();
+    runtime.stream?.destroy?.();
+    runtime.player = createAudioPlayer();
+    runtime.player.on("error", error => this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: AudioPlayer-Fehler: ${error instanceof Error ? error.message : String(error)}`));
+    runtime.player.on("stateChange", (_oldState, newState) => {
+      if (newState.status === AudioPlayerStatus.Idle && runtime.stream && !runtime.stream.destroyed) this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: AudioPlayer wurde Idle.`);
+    });
+    runtime.voice.subscribe(runtime.player);
+    runtime.stream = new PassThrough({ highWaterMark: 1024 * 1024 });
+    runtime.stream.on("error", error => this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: AudioStream-Fehler: ${error instanceof Error ? error.message : String(error)}`));
+    runtime.resource = createAudioResource(runtime.stream, { inputType: StreamType.Raw, inlineVolume: true });
+    runtime.player.play(runtime.resource);
+    this.applyVolume(runtime.cfg.id);
+    runtime.missingStreamLogged = false;
+    runtime.audioResetting = false;
+  }
+
+  ensureAudioPipeline(id) {
+    const runtime = this.map.get(id);
+    if (!runtime || !runtime.client.isReady() || !runtime.voice || !runtime.cfg.guildId || !runtime.cfg.channelId) return null;
+    if (runtime.audioResetting) return runtime;
+    if (!runtime.stream || runtime.stream.destroyed || !runtime.player || !runtime.resource) {
+      runtime.audioResetting = true;
+      try {
+        this.createAudioPipeline(runtime);
+        this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiostream automatisch wiederhergestellt.`);
+      } catch (error) {
+        runtime.audioResetting = false;
+        this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiostream-Wiederherstellung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+        return null;
+      }
+    }
+    return runtime;
+  }
+
   async join(id) {
-    const runtime = this.map.get(id); if (!runtime || !runtime.client.isReady()) throw new Error("Instanz nicht verbunden. Erst verbinden."); if (!runtime.cfg.guildId || !runtime.cfg.channelId) throw new Error("Bitte zuerst Discord-Server und Voice-Kanal auswählen"); const guild = runtime.client.guilds.cache.get(runtime.cfg.guildId); if (!guild) throw new Error("Discord-Server wurde nicht gefunden"); const channel = guild.channels.cache.get(runtime.cfg.channelId); if (!channel || channel.type !== ChannelType.GuildVoice) throw new Error("Der ausgewählte Voice-Kanal wurde nicht gefunden");
-    if (runtime.voiceRecoveryTimer) clearTimeout(runtime.voiceRecoveryTimer); runtime.voiceRecoveryTimer = null; runtime.voiceRecovering = false; if (runtime.voice) { runtime.voice.removeAllListeners("stateChange"); runtime.voice.destroy(); } runtime.player?.stop?.(); runtime.stream?.destroy?.(); runtime.player = null; runtime.stream = null; runtime.resource = null;
-    runtime.voice = joinVoiceChannel({ guildId: guild.id, channelId: channel.id, adapterCreator: guild.voiceAdapterCreator }); runtime.voice.on("stateChange", (_oldState, newState) => { if (newState.status !== VoiceConnectionStatus.Disconnected || runtime.voiceRecovering) return; runtime.voiceRecovering = true; runtime.voiceRecoveryTimer = setTimeout(() => { runtime.voiceRecoveryTimer = null; this.join(id).catch(error => { runtime.voiceRecovering = false; this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Wiederverbindung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`); }); }, 5000); runtime.voiceRecoveryTimer.unref?.(); this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Verbindung verloren; Wiederverbindung in 5s.`); }); this.createAudioPipeline(runtime);
+    const runtime = this.map.get(id);
+    if (!runtime || !runtime.client.isReady()) throw new Error("Instanz nicht verbunden. Erst verbinden.");
+    if (!runtime.cfg.guildId || !runtime.cfg.channelId) throw new Error("Bitte zuerst Discord-Server und Voice-Kanal auswählen");
+    const guild = runtime.client.guilds.cache.get(runtime.cfg.guildId);
+    if (!guild) throw new Error("Discord-Server wurde nicht gefunden");
+    const channel = guild.channels.cache.get(runtime.cfg.channelId);
+    if (!channel || channel.type !== ChannelType.GuildVoice) throw new Error("Der ausgewählte Voice-Kanal wurde nicht gefunden");
+
+    if (runtime.voiceRecoveryTimer) clearTimeout(runtime.voiceRecoveryTimer);
+    runtime.voiceRecoveryTimer = null;
+    runtime.voiceRecovering = false;
+    if (runtime.voice) {
+      runtime.voice.removeAllListeners("stateChange");
+      runtime.voice.destroy();
+    }
+    runtime.player?.stop?.();
+    runtime.stream?.destroy?.();
+    runtime.player = null;
+    runtime.stream = null;
+    runtime.resource = null;
+
+    runtime.voice = joinVoiceChannel({ guildId: guild.id, channelId: channel.id, adapterCreator: guild.voiceAdapterCreator });
+    runtime.voice.on("stateChange", (_oldState, newState) => {
+      if (newState.status !== VoiceConnectionStatus.Disconnected || runtime.voiceRecovering) return;
+      runtime.voiceRecovering = true;
+      runtime.voiceRecoveryTimer = setTimeout(() => {
+        runtime.voiceRecoveryTimer = null;
+        this.join(id).catch(error => {
+          runtime.voiceRecovering = false;
+          this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Wiederverbindung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+        });
+      }, 5000);
+      runtime.voiceRecoveryTimer.unref?.();
+      this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Verbindung verloren; Wiederverbindung in 5s.`);
+    });
+    this.createAudioPipeline(runtime);
   }
-  resetAudioStream(id) { const runtime = this.map.get(id); if (!runtime || !runtime.voice || !runtime.client.isReady() || !runtime.cfg.guildId || !runtime.cfg.channelId) return; try { this.createAudioPipeline(runtime); this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiostream für Titelwechsel zurückgesetzt.`); } catch (error) { this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiopuffer konnte nicht zurückgesetzt werden: ${error instanceof Error ? error.message : String(error)}`); } }
-  writeAudio(data, id) { const runtime = this.ensureAudioPipeline(id); if (!runtime) return; if (Number.isFinite(this.music.volume) && runtime.lastVolume !== this.music.volume) this.applyVolume(id); const stream = runtime.stream; if (!stream || stream.destroyed) return; if (stream.writableLength > 4 * 1024 * 1024) { this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiopuffer ist überlastet; Backpressure greift.`); return; } stream.write(data); }
-  guilds(id) { const r = this.map.get(id); return r && r.client.isReady() ? [...r.client.guilds.cache.values()].map(g => ({ id: g.id, name: g.name })) : []; }
-  channels(id, guildId) { const g = this.map.get(id)?.client.guilds.cache.get(guildId); return g ? [...g.channels.cache.values()].filter(c => c.type === ChannelType.GuildVoice).map(c => ({ id: c.id, name: c.name })) : []; }
-  status() { return [...this.map.values()].map(r => ({ id: r.cfg.id, name: r.cfg.name, enabled: r.cfg.enabled, connected: Boolean(r.client.isReady()), connecting: Boolean(r.connecting || r.reconnecting), guildId: r.cfg.guildId, channelId: r.cfg.channelId, inviteUrl: r.cfg.clientId && /^\d{17,20}$/.test(r.cfg.clientId) ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(r.cfg.clientId)}&scope=bot%20applications.commands&permissions=36700160` : "", messageContentIntent: Boolean(r.cfg.messageContentIntent), voiceConnected: Boolean(r.voice && (r.voice.state.status === VoiceConnectionStatus.Ready || r.voice.state.status === VoiceConnectionStatus.Signalling)) })); }
+
+  resetAudioStream(id) {
+    const runtime = this.map.get(id);
+    if (!runtime || !runtime.voice || !runtime.client.isReady() || !runtime.cfg.guildId || !runtime.cfg.channelId) return;
+    try {
+      this.createAudioPipeline(runtime);
+      this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiostream für Titelwechsel zurückgesetzt.`);
+    } catch (error) {
+      this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiopuffer konnte nicht zurückgesetzt werden: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  writeAudio(data, id) {
+    const runtime = this.ensureAudioPipeline(id);
+    if (!runtime) return;
+    if (Number.isFinite(this.music.volume) && runtime.lastVolume !== this.music.volume) this.applyVolume(id);
+    const stream = runtime.stream;
+    if (!stream || stream.destroyed) return;
+    if (stream.writableLength > 4 * 1024 * 1024) {
+      this.music.emit("diagnostic", `Discord Voice ${runtime.cfg.name}: Audiopuffer ist überlastet; Backpressure greift.`);
+      return;
+    }
+    stream.write(data);
+  }
+
+  guilds(id) {
+    const r = this.map.get(id);
+    return r && r.client.isReady() ? [...r.client.guilds.cache.values()].map(g => ({ id: g.id, name: g.name })) : [];
+  }
+
+  channels(id, guildId) {
+    const g = this.map.get(id)?.client.guilds.cache.get(guildId);
+    return g ? [...g.channels.cache.values()].filter(c => c.type === ChannelType.GuildVoice).map(c => ({ id: c.id, name: c.name })) : [];
+  }
+
+  status() {
+    return [...this.map.values()].map(r => ({
+      id: r.cfg.id,
+      name: r.cfg.name,
+      enabled: r.cfg.enabled,
+      connected: Boolean(r.client.isReady()),
+      connecting: Boolean(r.connecting || r.reconnecting),
+      guildId: r.cfg.guildId,
+      channelId: r.cfg.channelId,
+      inviteUrl: r.cfg.clientId && /^\d{17,20}$/.test(r.cfg.clientId) ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(r.cfg.clientId)}&scope=bot%20applications.commands&permissions=36700160` : "",
+      messageContentIntent: Boolean(r.cfg.messageContentIntent),
+      voiceConnected: Boolean(r.voice && (r.voice.state.status === VoiceConnectionStatus.Ready || r.voice.state.status === VoiceConnectionStatus.Signalling))
+    }));
+  }
 }
