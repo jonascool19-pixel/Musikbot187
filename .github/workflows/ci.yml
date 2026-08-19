@@ -40,6 +40,7 @@ jobs:
       - run: node --check backend/src/store.js
       - run: node --check backend/src/secrets.js
       - run: node --check backend/src/system.js
+      - run: node --check backend/src/permissions.js
       - run: node --check install/control-daemon.js
       - run: node --check frontend/fetch-layer.js
       - run: node --check frontend/app.js
@@ -56,9 +57,13 @@ jobs:
       - run: node --check frontend/themes.js
       - run: node --check frontend/ui-fixes.js
       - run: node --check frontend/ui-polish.js
+      - run: node --check frontend/permissions-ui.js
+      - run: node --check frontend/admin-overhaul.js
       - run: node --check frontend/uuid-polyfill.js
       - run: grep -F 'fetch-layer.js' frontend/index.html
       - run: grep -F 'performance.js' frontend/index.html
+      - run: grep -F 'permissions-ui.js' frontend/index.html
+      - run: grep -F 'admin-overhaul.js' frontend/index.html
       - run: grep -F 'releases/download/' install-stable.sh
       - run: grep -F 'sha256sum -c' install-stable.sh
       - run: grep -F 'git -C "$APP" fetch --depth 1 origin "$REF"' install-stable.sh
