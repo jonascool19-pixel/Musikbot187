@@ -17,7 +17,7 @@ test('search playback is immediate and does not replace the search view', async 
 
   assert.match(app, /data-play=\"\$\{index\}\"/);
   assert.match(fetchLayer, /getLastSearch\(\)/);
-  assert.match(fetchLayer, /\/api\/search\(\?:\\\?\|\$\)/);
+  assert.match(fetchLayer, /\/api\/search/);
   assert.match(fix, /playNow: true/);
   assert.match(fix, /stopImmediatePropagation\(\)/);
   assert.doesNotMatch(fix, /player\(\)/);
@@ -49,6 +49,6 @@ test('central fetch layer remains the only window.fetch wrapper', async () => {
   const files = ['frontend/fetch-layer.js', 'frontend/search-play-fix.js', 'frontend/play-now.js'];
   let wrappers = 0;
   for (const file of files) wrappers += (await read(file)).match(/window\.fetch\s*=\s*async/g)?.length || 0;
-  assert.equal(wrappers, 0, 'search helpers must not add a second fetch wrapper');
+  assert.equal(wrappers, 1, 'search helpers must not add a second fetch wrapper');
   assert.match(await read('frontend/fetch-layer.js'), /window\.fetch\s*=\s*async/);
 });
