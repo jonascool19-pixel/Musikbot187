@@ -28,6 +28,7 @@ class Runtime {
     this.lastVolume = null;
     this.resource = null;
     this.audioResetting = false;
+    this.manualDisconnecting = false;
   }
 }
 
@@ -83,12 +84,13 @@ export class DiscordManager {
   }
 
   scheduleGatewayReconnect(runtime) {
-    if (!runtime || runtime.reconnectTimer || runtime.reconnecting || !runtime.cfg.enabled) return;
+    if (!runtime || runtime.manualDisconnecting || runtime.reconnectTimer || runtime.reconnecting || !runtime.cfg.enabled) return;
     runtime.reconnecting = true;
     const delay = GATEWAY_RETRY_MS[Math.min(runtime.reconnectAttempt, GATEWAY_RETRY_MS.length - 1)];
     runtime.reconnectAttempt += 1;
     runtime.reconnectTimer = setTimeout(() => {
       runtime.reconnectTimer = null;
+      if (runtime.manualDisconnecting || this.map.get(runtime.cfg.id) !== runtime) return;
       this.connect(runtime.cfg).then(() => {
         runtime.reconnectAttempt = 0;
         runtime.reconnecting = false;
@@ -140,7 +142,7 @@ export class DiscordManager {
     });
 
     runtime.client.on("error", error => this.music.emit("diagnostic", `Discord ${runtime.cfg.name}: ${error instanceof Error ? error.message : String(error)}`));
-    runtime.client.on("shardDisconnect", () => { runtime.connecting = false; this.scheduleGatewayReconnect(runtime); });
+    runtime.client.on("shardDisconnect", () => { runtime.connecting = false; if (!runtime.manualDisconnecting) this.scheduleGatewayReconnect(runtime); });
     runtime.client.on("shardResume", () => { runtime.reconnecting = false; runtime.reconnectAttempt = 0; });
 
     runtime.client.on("interactionCreate", interaction => {
@@ -180,6 +182,7 @@ export class DiscordManager {
       runtime.connecting = false;
       const invalidToken = e?.code === "TokenInvalid" || /token is invalid/i.test(String(e?.message || e));
       if (invalidToken) {
+        runtime.manualDisconnecting = true;
         this.map.delete(cfg.id);
         try { await runtime.client.destroy(); } catch {}
         throw new Error("Discord-Token ist ungültig");
@@ -227,6 +230,7 @@ export class DiscordManager {
   async disconnect(id) {
     const runtime = this.map.get(id);
     if (!runtime) return;
+    runtime.manualDisconnecting = true;
     if (runtime.reconnectTimer) clearTimeout(runtime.reconnectTimer);
     runtime.reconnectTimer = null;
     runtime.reconnecting = false;
@@ -314,7 +318,7 @@ export class DiscordManager {
 
     runtime.voice = joinVoiceChannel({ guildId: guild.id, channelId: channel.id, adapterCreator: guild.voiceAdapterCreator });
     runtime.voice.on("stateChange", (_oldState, newState) => {
-      if (newState.status !== VoiceConnectionStatus.Disconnected || runtime.voiceRecovering) return;
+      if (newState.status !== VoiceConnectionStatus.Disconnected || runtime.voiceRecovering || runtime.manualDisconnecting) return;
       runtime.voiceRecovering = true;
       runtime.voiceRecoveryTimer = setTimeout(() => {
         runtime.voiceRecoveryTimer = null;
