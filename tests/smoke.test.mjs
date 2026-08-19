@@ -26,11 +26,14 @@ test("Dashboard exposes current UI endpoints plus browser music library", async 
   const ui = await readFile(new URL("../frontend/app.js", import.meta.url), "utf8");
   const index = await readFile(new URL("../frontend/index.html", import.meta.url), "utf8");
   const musicUi = await readFile(new URL("../frontend/music-ui.js", import.meta.url), "utf8");
+  const musicUiAuth = await readFile(new URL("../frontend/music-ui-auth.js", import.meta.url), "utf8");
   const server = await readFile(new URL("../backend/src/server.js", import.meta.url), "utf8");
   for (const text of ["/api/search", "/api/playlists", "/api/discord", "/api/ts3", "/api/system", "/api/network", "/api/storage", "/api/files", "/api/settings", "/api/control"]) assert.ok(ui.includes(text), `Dashboard missing ${text}`);
   for (const text of ["id=\"clock\"", "cpuPercent", "memory.percent", "id=\"topCpu\"", "setInterval(pollMonitor, 1000)"]) assert.ok(ui.includes(text), `Dashboard missing ${text}`);
   for (const tab of ["player", "playlists", "connections", "system", "admin"]) assert.ok(ui.includes(`['${tab}'`), `Dashboard missing ${tab} tab`);
-  assert.ok(index.includes('/music-ui.js'), 'Dashboard missing music UI script');
+  assert.ok(index.includes('/music-ui-auth.js'), 'Dashboard missing auth-aware music UI script');
+  assert.ok(!index.includes('/music-ui.js'), 'Dashboard still loads legacy music UI script');
   for (const text of ["id: 'music'", "/api/music/upload", "＋ Playlist", "musicUpload", "music-library"]) assert.ok(musicUi.includes(text), `Music UI missing ${text}`);
+  for (const text of ["musikbot:auth-changed", "music.manage", "registerMusicTab", "removeMusicTab"]) assert.ok(musicUiAuth.includes(text), `Music auth UI missing ${text}`);
   for (const text of ["/api/music/upload", "safeMusicPath", "MUSIC_EXTENSIONS", "await request.file()", "/api/music/:name"]) assert.ok(server.includes(text), `Music API missing ${text}`);
 });
