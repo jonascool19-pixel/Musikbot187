@@ -16,13 +16,16 @@
 
   async function requestSkip() {
     const auth = readAuth();
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = {};
     if (auth?.token) headers.Authorization = `Bearer ${auth.token}`;
 
     let response = await fetch('/api/play/skip', { method: 'POST', headers });
     if (response.status === 401 && auth?.token) {
-      const retryHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` };
-      response = await fetch('/api/play/skip', { method: 'POST', headers: retryHeaders, cache: 'no-store' });
+      response = await fetch('/api/play/skip', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${auth.token}` },
+        cache: 'no-store'
+      });
     }
 
     const body = await response.json().catch(() => ({}));
