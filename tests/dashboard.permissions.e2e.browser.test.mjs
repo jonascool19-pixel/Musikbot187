@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('../backend/node_modules/playwright');
 const backendDir = join(process.cwd(), 'backend');
+const nodeBinary = process.env.npm_node_execpath || 'node';
 
 async function freePort() {
   return new Promise((resolve, reject) => {
@@ -23,7 +24,7 @@ async function freePort() {
 }
 
 function startServer(dataDir, port, setupToken) {
-  return spawn(process.execPath, ['src/server.js'], {
+  return spawn(nodeBinary, ['src/server.js'], {
     cwd: backendDir,
     env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), MUSIKBOT187_DATA_DIR: dataDir, MUSIKBOT187_SETUP_TOKEN: setupToken, MUSIKBOT187_CONTROL_SOCKET: join(dataDir, 'control.sock'), NODE_ENV: 'test' },
     stdio: ['ignore', 'pipe', 'pipe']
