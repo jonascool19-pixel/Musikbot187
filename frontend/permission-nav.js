@@ -1,6 +1,11 @@
 (() => {
+  const KEY = 'musikbot187.auth';
   const auth = () => {
-    try { return JSON.parse(sessionStorage.getItem('musikbot187.auth') || 'null'); } catch { return null; }
+    try {
+      return window.MusikBotAuthSession?.readAuth?.() || JSON.parse(sessionStorage.getItem(KEY) || 'null');
+    } catch {
+      return null;
+    }
   };
   const can = permission => {
     const user = auth()?.user;
@@ -18,10 +23,24 @@
   function apply() {
     setVisibility('nav [data-tab="connections"]', can('connections.manage'));
     setVisibility('nav [data-tab="system"]', can('diagnostics.view'));
+    setVisibility('nav [data-tab="admin"]', can('users.manage'));
     setVisibility('[data-extra-tab="design"]', can('design.manage'));
     setVisibility('#enhancedOutput', can('settings.manage'));
   }
-  new MutationObserver(apply).observe(document.documentElement, { childList: true, subtree: true });
-  window.addEventListener('musikbot:auth-changed', apply);
+
+  const observer = new MutationObserver(apply);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  window.addEventListener('musikbot:auth-changed', () => {
+    apply();
+    queueMicrotask(apply);
+    setTimeout(apply, 0);
+  });
+
   apply();
+  const syncTimer = window.setInterval(() => {
+    apply();
+    if (!auth()) return;
+    window.clearInterval(syncTimer);
+  }, 100);
+  window.__musikbotRegisterCleanup?.(() => window.clearInterval(syncTimer));
 })();
