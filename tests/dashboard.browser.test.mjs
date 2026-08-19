@@ -15,6 +15,7 @@ const playlists = [{ id: "p1", name: "Test Playlist", items: [{ id: "pitem1", ti
 const discord = [{ id: "d1", name: "Test Discord", enabled: true, guildId: "g1", channelId: "v1", clientId: "123456789012345678", messageContentIntent: false, connected: true, voiceConnected: false }];
 const ts3 = [{ id: "t1", name: "Test TS3", host: "127.0.0.1", port: 9987, channel: "Music", connected: false }];
 const files = [{ name: "test.mp3", path: "test.mp3", size: 1234 }];
+let users = [{ id: "u1", name: "admin", role: "admin", permissions: [] }];
 
 function json(res, body, status = 200) { const data = JSON.stringify(body); res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(data) }); res.end(data); }
 
@@ -42,7 +43,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/music/upload" && req.method === "POST") return json(res, { ok: true, file: files[0] });
     if (url.pathname === "/api/health") return json(res, { ok: true });
     if (url.pathname === "/api/settings" && req.method === "PUT") return json(res, { ...state.settings });
-    if (url.pathname === "/api/users") return json(res, [{ id: "u1", name: "admin", role: "admin" }]);
+    if (url.pathname === "/api/users" && req.method === "GET") return json(res, users);
+    if (url.pathname === "/api/users" && req.method === "POST") { const payload = JSON.parse(body || "{}"); const created = { id: `u${users.length + 1}`, name: payload.name, role: payload.role === "admin" ? "admin" : "user", permissions: payload.permissions || [] }; users.push(created); return json(res, { ok: true, user: created }); }
     if (url.pathname === "/api/diagnostics") return json(res, [{ time: new Date().toISOString(), level: "error", source: "browser-test", message: "Smoke test diagnostic" }]);
     if (url.pathname === "/api/control") return json(res, { ok: true });
     return json(res, {});
@@ -50,12 +52,7 @@ const server = http.createServer(async (req, res) => {
   const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
   const safe = join(frontend, file);
   if (!safe.startsWith(frontend)) return json(res, { error: "forbidden" }, 403);
-  try {
-    const data = await readFile(safe);
-    const type = file.endsWith(".html") ? "text/html" : file.endsWith(".js") ? "text/javascript" : "text/css";
-    res.writeHead(200, { "content-type": `${type}; charset=utf-8` });
-    res.end(data);
-  } catch { res.writeHead(404); res.end("not found"); }
+  try { const data = await readFile(safe); const type = file.endsWith(".html") ? "text/html" : file.endsWith(".js") ? "text/javascript" : "text/css"; res.writeHead(200, { "content-type": `${type}; charset=utf-8` }); res.end(data); } catch { res.writeHead(404); res.end("not found"); }
 });
 
 const port = await new Promise(resolve => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
@@ -88,11 +85,19 @@ try {
   await assertText(page, "Test TS3");
 
   await page.locator('[data-tab="admin"]').click();
+  await assertText(page, "Benutzer");
   await assertText(page, "Allgemeine Einstellungen");
   await assertText(page, "Diagnose");
-  await assertText(page, "Smoke test diagnostic");
   await assertText(page, "Design");
-
+  await page.locator("#diagnosticsToggle").click();
+  await assertText(page, "Smoke test diagnostic");
+  await page.locator("#adminNewUser").fill("testuser");
+  await page.locator("#adminNewPassword").fill("password");
+  await page.locator("#adminNewRole").selectOption("user");
+  await page.locator("#adminAddUser").click();
+  const userCreate = requestBodies.find(x => x.method === "POST" && x.path === "/api/users");
+  assert.ok(userCreate);
+  assert.equal(JSON.parse(userCreate.body).role, "user");
   await page.locator("#themeSelect").selectOption("ocean");
   await page.locator("#accentColor").fill("#ff00aa");
   await page.locator("#themeSave").click();
@@ -122,6 +127,4 @@ try {
   await new Promise(resolve => server.close(resolve));
 }
 
-async function assertText(page, text) {
-  await page.getByText(text, { exact: false }).first().waitFor({ state: "visible" });
-}
+async function assertText(page, text) { await page.getByText(text, { exact: false }).first().waitFor({ state: "visible" }); }
