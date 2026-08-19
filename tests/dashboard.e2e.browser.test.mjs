@@ -6,14 +6,16 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('../backend/node_modules/playwright');
 const backendDir = process.cwd();
-// Resolve Node through PATH instead of npm_node_execpath. On GitHub-hosted
-// runners npm_node_execpath can point at a tool-cache binary that is not
-// directly spawnable by a child process even though npm itself can execute it.
-const nodeBinary = 'node';
+// setup-node puts Node in a tool-cache path that is sometimes not directly
+// spawnable by child_process on hosted runners. Prefer the system Node binary
+// when available and fall back to PATH; this keeps the E2E test independent of
+// npm's internal npm_node_execpath value.
+const nodeBinary = existsSync('/usr/bin/node') ? '/usr/bin/node' : 'node';
 
 async function freePort() {
   return new Promise((resolve, reject) => {
@@ -44,9 +46,12 @@ function startServer(dataDir, port, setupToken) {
 }
 
 async function waitForHealth(baseUrl, child, getOutput) {
+  let spawnError = null;
+  child.once('error', error => { spawnError = error; });
   const deadline = Date.now() + 15_000;
   let lastError;
   while (Date.now() < deadline) {
+    if (spawnError) throw new Error(`backend spawn failed: ${spawnError.message}`);
     if (child.exitCode !== null) throw new Error(`backend exited with ${child.exitCode}: ${getOutput()}`);
     try {
       const response = await fetch(`${baseUrl}/api/health`);
