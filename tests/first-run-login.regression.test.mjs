@@ -1,4 +1,5 @@
-import test, { strict as assert } from 'node:test';
+import test from 'node:test';
+import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -40,7 +41,7 @@ function startServer(dataDir, port, setupToken) {
 }
 
 async function stopServer(child) {
-  if (child.exitCode !== null) return;
+  if (!child || child.exitCode !== null) return;
   child.kill('SIGTERM');
   await new Promise(resolve => {
     const timer = setTimeout(resolve, 2_000);
