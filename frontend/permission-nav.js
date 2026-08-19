@@ -8,16 +8,20 @@
     if (user.role === 'admin') return true;
     return Array.isArray(user.permissions) && user.permissions.includes(permission);
   };
+  function setVisibility(selector, allowed) {
+    document.querySelectorAll(selector).forEach(node => {
+      node.hidden = !allowed;
+      node.style.display = allowed ? '' : 'none';
+      node.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+    });
+  }
   function apply() {
-    const rules = {
-      connections: 'connections.manage',
-      system: 'diagnostics.view'
-    };
-    for (const [tab, permission] of Object.entries(rules)) {
-      const button = document.querySelector(`nav [data-tab="${tab}"]`);
-      if (button) button.hidden = !can(permission);
-    }
+    setVisibility('nav [data-tab="connections"]', can('connections.manage'));
+    setVisibility('nav [data-tab="system"]', can('diagnostics.view'));
+    setVisibility('[data-extra-tab="design"]', can('design.manage'));
+    setVisibility('#enhancedOutput', can('settings.manage'));
   }
   new MutationObserver(apply).observe(document.documentElement, { childList: true, subtree: true });
+  window.addEventListener('musikbot:auth-changed', apply);
   apply();
 })();
