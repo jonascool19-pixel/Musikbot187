@@ -3,11 +3,12 @@
   const esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[char]));
   const auth = () => window.MusikBotFetch?.getAuth?.() || '';
   const nativeFetch = () => window.MusikBotFetch?.nativeFetch || window.fetch.bind(window);
+  const DISCORD_INVITE_PERMISSIONS = 3148800;
 
   const inviteUrl = clientId => {
     const id = String(clientId || '').trim();
     return /^\d{17,20}$/.test(id)
-      ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(id)}&scope=bot%20applications.commands&permissions=36700160`
+      ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(id)}&scope=bot%20applications.commands&permissions=${DISCORD_INVITE_PERMISSIONS}`
       : '';
   };
 
