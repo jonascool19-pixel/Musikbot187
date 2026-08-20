@@ -24,9 +24,16 @@ command -v apt-get >/dev/null || fail "Ubuntu/Debian mit apt-get erforderlich."
 export DEBIAN_FRONTEND=noninteractive
 log "Systempakete installieren"
 apt-get update
-apt-get install -y ca-certificates curl git ffmpeg python3 python3-venv build-essential g++ make gnupg
+apt-get install -y ca-certificates curl git ffmpeg python3 python3-venv build-essential g++ make gnupg openssl
 
-if ! command -v node >/dev/null || [[ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]]; then
+NODE_MAJOR=0
+if command -v node >/dev/null 2>&1; then
+  NODE_VERSION="$(node --version)"
+  NODE_MAJOR="${NODE_VERSION#v}"
+  NODE_MAJOR="${NODE_MAJOR%%.*}"
+fi
+
+if [[ "$NODE_MAJOR" -lt 22 ]]; then
   log "Node.js 22 installieren"
   install -d -m 0755 /etc/apt/keyrings
   curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
@@ -56,7 +63,7 @@ cd "$APP/backend"
 npm install --omit=dev --no-audit --no-fund
 chown -R "$SERVICE_USER:$SERVICE_USER" "$APP"
 
-SETUP_TOKEN="$(node -e 'console.log(require("node:crypto").randomBytes(32).toString("hex"))')"
+SETUP_TOKEN="$(openssl rand -hex 32)"
 
 cat > "$ENV_FILE" <<ENV
 NODE_ENV=production
