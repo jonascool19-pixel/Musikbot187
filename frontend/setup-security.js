@@ -50,6 +50,18 @@
   }
 
   window.MusikBotSetupShow = showSetup;
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showSetup, { once: true });
-  else showSetup();
+  const observeSetupSurface = () => {
+    const app = document.querySelector('#app');
+    if (!app || !setupToken) return;
+    new MutationObserver(() => {
+      if (setupToken && !document.querySelector('#musikbot-setup')) showSetup();
+    }).observe(app, { childList: true, subtree: true });
+  };
+
+  const bootstrap = () => {
+    observeSetupSurface();
+    showSetup();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootstrap, { once: true });
+  else bootstrap();
 })();
