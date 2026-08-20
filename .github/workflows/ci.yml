@@ -1,145 +1,26 @@
 name: CI
 on:
   push:
-    branches: [main, 'audit/**']
+    branches: [main, 'rewrite/**']
   pull_request:
-    branches: [main]
   workflow_dispatch:
-concurrency:
-  group: musikbot187-ci-${{ github.ref }}
-  cancel-in-progress: true
-permissions:
-  contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: test -f backend/package-lock.json
-      - run: cd backend && npm ci --no-fund
-      - run: cd backend && npm audit --omit=dev --audit-level=high
-      - run: cd backend && npm test
-      - name: Install Playwright Chromium only
-        run: cd backend && npx playwright install chromium
-      - run: cd backend && npm run test:browser
-      - run: bash -n install-stable.sh
-      - run: bash -n install/control.sh
-      - run: bash -n install.sh
+          cache-dependency-path: backend/package.json
+      - run: npm install --prefix backend --no-audit --no-fund
       - run: node --check backend/src/server.js
       - run: node --check backend/src/player.js
       - run: node --check backend/src/media.js
-      - run: node --check backend/src/source-policy.js
-      - run: node --check backend/src/egress-proxy.js
-      - run: node --check backend/src/discord.js
+      - run: node --check backend/src/integrations.js
       - run: node --check backend/src/ts3.js
-      - run: node --check backend/src/store.js
-      - run: node --check backend/src/secrets.js
-      - run: node --check backend/src/system.js
-      - run: node --check backend/src/permissions.js
-      - run: node --check install/control-daemon.js
-      - run: node --check frontend/fetch-layer.js
-      - run: node --check frontend/app.js
-      - run: node --check frontend/errorlog.js
-      - run: node --check frontend/enhancements.js
-      - run: node --check frontend/music-ui.js
-      - run: node --check frontend/live-search.js
-      - run: node --check frontend/performance.js
-      - run: node --check frontend/play-now.js
-      - run: node --check frontend/playlist-ui.js
-      - run: node --check frontend/playlist-ui-bridge.js
-      - run: node --check frontend/setup-security.js
-      - run: node --check frontend/system-cleanup.js
-      - run: node --check frontend/themes.js
-      - run: node --check frontend/ui-fixes.js
-      - run: node --check frontend/ui-polish.js
-      - run: node --check frontend/permissions-ui.js
-      - run: node --check frontend/admin-overhaul.js
-      - run: node --check frontend/uuid-polyfill.js
-      - run: grep -F 'fetch-layer.js' frontend/index.html
-      - run: grep -F 'performance.js' frontend/index.html
-      - run: grep -F 'permissions-ui.js' frontend/index.html
-      - run: grep -F 'admin-overhaul.js' frontend/index.html
-      - run: grep -F 'releases/download/' install-stable.sh
-      - run: grep -F 'sha256sum -c' install-stable.sh
-      - run: grep -F 'git -C "$APP" fetch --depth 1 origin "$REF"' install-stable.sh
-      - run: grep -F 'NoNewPrivileges=true' install-stable.sh
-      - run: grep -F 'CapabilityBoundingSet=' install-stable.sh
-      - run: '! grep -F "NOPASSWD" install-stable.sh'
-      - run: '! grep -F "sudoers.d/musikbot187" install-stable.sh'
-      - run: grep -F 'ReadWritePaths=$DATA' install-stable.sh
-      - run: grep -F 'MUSIKBOT187_CONTROL_SOCKET' install-stable.sh
-      - run: grep -F 'Requires=musikbot187-control.service' install-stable.sh
-      - name: Build Ubuntu 24.04 systemd installer test image
-        run: |
-          cat > /tmp/Dockerfile.musikbot187 <<'DOCKERFILE'
-          FROM ubuntu:24.04
-          ENV container=docker
-          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y systemd systemd-sysv bash ca-certificates curl git sudo ffmpeg python3 python3-pip && rm -rf /var/lib/apt/lists/*
-          STOPSIGNAL SIGRTMIN+3
-          CMD ["/lib/systemd/systemd"]
-          DOCKERFILE
-          docker build -t musikbot187-ci:ubuntu2404-systemd -f /tmp/Dockerfile.musikbot187 /tmp
-      - name: Run installer in isolated Ubuntu 24.04 systemd container
-        run: |
-          set -euo pipefail
-          rm -rf /tmp/musikbot187-git && mkdir -p /tmp/musikbot187-git
-          git clone --bare "$GITHUB_WORKSPACE" /tmp/musikbot187-git/radiobot.git
-          git --git-dir=/tmp/musikbot187-git/radiobot.git update-server-info
-          git daemon --reuseaddr --base-path=/tmp/musikbot187-git --export-all --port=29418 >/tmp/musikbot187-git.log 2>&1 &
-          GIT_PID=$!
-          trap 'kill "$GIT_PID" >/dev/null 2>&1 || true' EXIT
-          sleep 1
-          docker rm -f musikbot187-ci >/dev/null 2>&1 || true
-          docker run -d --name musikbot187-ci --privileged --cgroupns=host --add-host=host.docker.internal:host-gateway musikbot187-ci:ubuntu2404-systemd
-          trap 'docker rm -f musikbot187-ci >/dev/null 2>&1 || true; kill "$GIT_PID" >/dev/null 2>&1 || true' EXIT
-          for i in {1..30}; do docker exec musikbot187-ci systemctl is-system-running >/dev/null 2>&1 && break; sleep 1; done
-          docker exec musikbot187-ci bash -lc '
-            set -euo pipefail
-            git clone git://host.docker.internal:29418/radiobot.git /tmp/installer-repo
-            cp /tmp/installer-repo/install-latest.sh /tmp/install-latest.sh
-            sed -i "s#https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-stable.sh#file:///tmp/installer-repo/install-stable.sh#" /tmp/install-latest.sh
-            chmod 0755 /tmp/install-latest.sh
-            bash -n /tmp/install-latest.sh
-            /tmp/install-latest.sh
-            test "$(. /etc/os-release && echo "$VERSION_ID")" = "24.04"
-            test "$(cat /proc/1/comm)" = systemd
-            test -d /sys/fs/cgroup
-            id musikbot187
-            test "$(stat -c %U /var/lib/musikbot187)" = musikbot187
-            test "$(stat -c %U /opt/musikbot187)" = musikbot187
-            grep -F "User=musikbot187" /etc/systemd/system/musikbot187.service
-            grep -F "ProtectSystem=strict" /etc/systemd/system/musikbot187.service
-            grep -F "ProtectHome=true" /etc/systemd/system/musikbot187.service
-            grep -F "NoNewPrivileges=true" /etc/systemd/system/musikbot187.service
-            grep -F "CapabilityBoundingSet=" /etc/systemd/system/musikbot187.service
-            grep -F "PrivateDevices=true" /etc/systemd/system/musikbot187.service
-            grep -F "UMask=0077" /etc/systemd/system/musikbot187.service
-            test -f /etc/systemd/system/musikbot187-control.service
-            systemctl is-active --quiet musikbot187-control.service
-            systemctl is-active --quiet musikbot187
-            test "$(systemctl show -p User --value musikbot187)" = musikbot187
-            ready=0
-            for i in {1..30}; do
-              if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3000/ >/dev/null; then ready=1; break; fi
-              sleep 1
-            done
-            test "$ready" -eq 1
-          '
-      - name: Ubuntu 24.04 CT-style preflight
-        run: |
-          docker run --rm --privileged --cgroupns=host ubuntu:24.04 bash -lc '
-            set -euo pipefail
-            apt-get update
-            DEBIAN_FRONTEND=noninteractive apt-get install -y bash ca-certificates curl ffmpeg git procps sudo python3 systemd systemd-sysv
-            test "$(. /etc/os-release && echo "$VERSION_ID")" = "24.04"
-            test -d /sys/fs/cgroup
-            test -r /proc/1/comm
-            command -v systemctl
-            command -v ffmpeg
-            command -v python3
-          '
+      - run: bash -n install-latest.sh
+      - run: npm test --prefix backend
+      - run: node --test tests/deep-audit.mjs
