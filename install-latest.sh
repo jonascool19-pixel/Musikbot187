@@ -23,6 +23,8 @@ command -v node >/dev/null || fail 'Node.js fehlt.'
 if ! command -v yt-dlp >/dev/null 2>&1; then python3 -m venv /opt/musikbot187-ytdlp; /opt/musikbot187-ytdlp/bin/pip install --upgrade pip yt-dlp; ln -sf /opt/musikbot187-ytdlp/bin/yt-dlp /usr/local/bin/yt-dlp; fi
 command -v yt-dlp >/dev/null || fail 'yt-dlp fehlt.'
 if ! id "$SERVICE_USER" >/dev/null 2>&1; then useradd --system --home /nonexistent --shell /usr/sbin/nologin "$SERVICE_USER"; fi
+systemctl disable --now musikbot187-control.service 2>/dev/null || true
+rm -f /etc/systemd/system/musikbot187-control.service
 systemctl stop musikbot187.service 2>/dev/null || true
 rm -rf "$APP" "$EXTRACT" "$ARCHIVE"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 "$APP" "$DATA" "$DATA/music"
