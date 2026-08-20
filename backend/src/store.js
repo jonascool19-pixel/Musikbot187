@@ -48,7 +48,7 @@ const LEGACY_SALT = "musikbot187";
 function hash(password) { const salt = randomBytes(SCRYPT_SALT_BYTES); const derived = scryptSync(password, salt, SCRYPT_KEYLEN); return `scrypt$${salt.toString("hex")}$${derived.toString("hex")}`; }
 function check(password, encoded) { try { const value = String(encoded || ""); if (value.startsWith("scrypt$")) { const [, saltHex, hashHex] = value.split("$"); if (!/^[0-9a-f]{32}$/.test(saltHex) || !/^[0-9a-f]{64}$/.test(hashHex)) return false; const derived = scryptSync(password, Buffer.from(saltHex, "hex"), SCRYPT_KEYLEN); return timingSafeEqual(derived, Buffer.from(hashHex, "hex")); } const legacy = scryptSync(password, LEGACY_SALT, SCRYPT_KEYLEN); const stored = Buffer.from(value, "hex"); return stored.length === legacy.length && timingSafeEqual(legacy, stored); } catch { return false; } }
 function isLegacyHash(encoded) { return /^[0-9a-f]{64}$/i.test(String(encoded || "")); }
-function publicUser(u) { return { id: u.id, name: u.name, role: u.role }; }
+function publicUser(u) { return { id: u.id, name: u.name, role: u.role, permissions: normalizePermissions(u.permissions, u.role) }; }
 function normalizeName(name) { return String(name || "").trim().toLowerCase(); }
 export function loginRateKey(name, clientKey='unknown') { return `${String(clientKey || "unknown").trim() || "unknown"}:${normalizeName(name)}`; }
 export function validateCredentialInput(name, password) { const normalized = String(name || "").trim(); const secret = String(password || ""); if (!normalized || normalized.length > 64) throw new Error("Benutzername muss 1–64 Zeichen lang sein"); if (secret.length < 5 || secret.length > 256) throw new Error("Passwort muss 5–256 Zeichen lang sein"); return { name: normalized, password: secret }; }
