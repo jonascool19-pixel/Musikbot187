@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { encryptSecret } from "./secrets.js";
+import { normalizePermissions } from "./permissions.js";
 
 export const DATA_DIR = path.resolve(process.env.MUSIKBOT187_DATA_DIR || path.resolve(process.cwd(), "../data"));
 const FILE = path.join(DATA_DIR, "data.json");
