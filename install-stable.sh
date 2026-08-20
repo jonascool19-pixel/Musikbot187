@@ -111,7 +111,7 @@ UNIT
 $SUDO install -o root -g root -m 0644 /tmp/musikbot187.service /etc/systemd/system/musikbot187.service; rm -f /tmp/musikbot187.service; $SUDO systemctl daemon-reload; $SUDO systemctl enable --now musikbot187-control.service; $SUDO systemctl enable --now musikbot187.service
 if $SUDO systemctl is-active --quiet musikbot187; then log_ok "MusikBot187-Dienst läuft"; else log_error "MusikBot187 konnte nicht gestartet werden."; $SUDO systemctl --no-pager --full status musikbot187 || true; exit 1; fi
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"; PUBLIC_URL="${MUSIKBOT187_PUBLIC_URL:-}"; if [[ -z "$PUBLIC_URL" && -n "$IP" ]]; then PUBLIC_URL="http://${IP}:3000"; fi; BASE_URL="${PUBLIC_URL:-http://SERVER-IP:3000}"
-SETUP_URL="${BASE_URL%/}/?setup=${SETUP_TOKEN}"
+SETUP_URL="${BASE_URL%/}/#setup=${SETUP_TOKEN}"
 printf '\n%sMusikBot187 erfolgreich installiert%s\n' "$C_GREEN$C_BOLD" "$C_RESET"
 printf 'Dashboard:        %s\n' "$BASE_URL"
 printf 'Einrichtungslink: %s\n' "$SETUP_URL"
