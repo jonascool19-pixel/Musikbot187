@@ -12,12 +12,12 @@ test('first-run setup, compact live search, Discord editor, diagnostics and them
   await expect(page.locator('#cpuChip')).toContainText('CPU');
   await expect(page.locator('header')).toHaveCSS('display','grid');
 
-  await page.route('**/api/search?*',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(Array.from({length:12},(_,index)=>({id:`search-${index+1}`,title:`Test Suchergebnis ${index+1}`,url:`https://example.com/audio/${index+1}`,source:'youtube'})))}));
+  await page.route('**/api/search?*',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(Array.from({length:25},(_,index)=>({id:`search-${index+1}`,title:`Test Suchergebnis ${index+1}`,url:`https://example.com/audio/${index+1}`,source:'youtube'})))}));
   const searchInput=page.getByLabel('Suchbegriff'),searchSource=page.getByLabel('Suchquelle'),searchResults=page.locator('#searchResults');
   await searchSource.selectOption('youtube');
   await searchInput.fill('test musik');
   await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
-  await expect(page.locator('.search-result')).toHaveCount(10);
+  await expect(page.locator('.search-result')).toHaveCount(25);
   const scrollState=await searchResults.evaluate(element=>({overflowY:getComputedStyle(element).overflowY,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight}));
   expect(scrollState.overflowY).toBe('auto');
   expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
