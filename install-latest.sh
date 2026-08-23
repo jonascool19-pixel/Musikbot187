@@ -8,7 +8,7 @@ DATA=/var/lib/musikbot187
 REPO=jonascool19-pixel/radiobot
 VERSION=main
 apt-get update
-apt-get install -y ca-certificates curl ffmpeg openssl xz-utils
+apt-get install -y ca-certificates curl ffmpeg openssl xz-utils build-essential python3 pkg-config libopus-dev
 if ! command -v node >/dev/null || [[ $(node --version | tr -d v | cut -d. -f1) -lt 22 ]]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs

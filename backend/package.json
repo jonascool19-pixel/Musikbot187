@@ -3,7 +3,9 @@
   "version": "5.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test ../tests/*.test.mjs",
@@ -11,6 +13,7 @@
     "test:browser": "playwright test"
   },
   "dependencies": {
+    "@discordjs/opus": "0.10.0",
     "@discordjs/voice": "0.19.2",
     "@fastify/cors": "11.1.0",
     "@fastify/multipart": "9.2.1",
@@ -19,5 +22,7 @@
     "fastify": "5.6.2",
     "ts3-nodejs-library": "3.5.3"
   },
-  "devDependencies": { "@playwright/test": "1.55.0" }
+  "devDependencies": {
+    "@playwright/test": "1.55.0"
+  }
 }
