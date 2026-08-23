@@ -11,6 +11,7 @@ export const config = Object.freeze({
   setupToken: process.env.MUSIKBOT187_SETUP_TOKEN || '',
   frontendDir: path.resolve(process.env.MUSIKBOT187_FRONTEND_DIR || new URL('../../frontend', import.meta.url).pathname),
   controlSocket: process.env.MUSIKBOT187_CONTROL_SOCKET || '/run/musikbot187/control.sock',
+  spotifyRelayUri: process.env.MUSIKBOT187_SPOTIFY_RELAY_URI || 'https://jonascool19-pixel.github.io/radiobot/spotify-callback/',
   sessionTtlMs: 12 * 60 * 60 * 1000,
   maxSessions: 5,
   maxQueue: 100,
