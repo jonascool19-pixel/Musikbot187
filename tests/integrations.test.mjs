@@ -4,6 +4,8 @@ import {discordOpusBitrate,IntegrationManager} from '../backend/src/integrations
 
 test('Discord uses the maximum supported Opus bitrate',()=>{assert.equal(discordOpusBitrate,128_000);});
 
+test('Discord playback resources are replaced on every track and follow pause/stop state',()=>{const calls=[];const runtime={type:'discord',playbackId:null,prepare(id){calls.push(['prepare',id]);this.playbackId=id},reset(){calls.push(['reset']);this.playbackId=null},audio:{pause:force=>calls.push(['pause',force]),unpause:()=>calls.push(['unpause'])}};const manager=Object.create(IntegrationManager.prototype);manager.runtimes=new Map([['discord-1',runtime]]);manager.syncPlayback({current:{title:'Eins'},playbackId:11,paused:false});manager.syncPlayback({current:{title:'Eins'},playbackId:11,paused:true});manager.syncPlayback({current:{title:'Zwei'},playbackId:12,paused:false});manager.syncPlayback({current:null,playbackId:null,paused:false});assert.deepEqual(calls,[['prepare',11],['unpause'],['pause',true],['prepare',12],['unpause'],['reset']]);});
+
 test('Discord option discovery returns ordinary arrays for visible guilds and voice channels',()=>{
   const voice={id:'200000000000000001',name:'Musik',isVoiceBased:()=>true};
   const text={id:'200000000000000002',name:'chat',isVoiceBased:()=>false};

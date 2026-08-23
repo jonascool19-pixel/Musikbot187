@@ -31,6 +31,22 @@ test('first-run setup, compact live search, Discord editor, diagnostics and them
   await expect(searchSource).toHaveValue('youtube');
   await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
 
+  const playerCalls=[];let mockPlayer=true;const mockState={player:{current:{id:'long-track',title:'DIES IST EIN SEHR LANGER TITEL FÜR DAS LAUFENDE RADIO-DISPLAY – SOMMER CEM UND SHIRIN DAVID',source:'youtube',quality:'Beste verfügbare Audioqualität'},queue:Array.from({length:8},(_,index)=>({id:`queue-${index}`,title:`Wartelistentitel ${index+1}`,source:'youtube'})),volume:40,mode:'queue',paused:false,playing:true,playbackId:7},settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null},connections:[],runtimes:[]};
+  await page.route('**/api/state',route=>mockPlayer?route.fulfill({contentType:'application/json',body:JSON.stringify(mockState)}):route.fallback());
+  await page.route('**/api/player/**',async route=>{playerCalls.push({url:route.request().url(),method:route.request().method(),body:route.request().postData()});await route.fulfill({contentType:'application/json',body:JSON.stringify(mockState.player)})});
+  await expect(page.locator('#playerCurrent .now-playing-marquee.is-overflowing')).toBeVisible({timeout:5000});
+  await expect(page.getByRole('heading',{name:'Warteschlange (8)'})).toBeVisible();
+  const queueScroll=await page.locator('#playerQueueItems').evaluate(element=>({overflowY:getComputedStyle(element).overflowY,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight}));
+  expect(queueScroll.overflowY).toBe('auto');expect(queueScroll.scrollHeight).toBeGreaterThan(queueScroll.clientHeight);
+  for(const name of ['Pause','Weiter','Skip','Stop'])await page.getByRole('button',{name,exact:true}).click();
+  await page.locator('#playerVolume').fill('31');
+  await expect.poll(()=>playerCalls.map(call=>call.url).join('\n')).toContain('/api/player/pause');
+  await expect.poll(()=>playerCalls.map(call=>call.url).join('\n')).toContain('/api/player/resume');
+  await expect.poll(()=>playerCalls.map(call=>call.url).join('\n')).toContain('/api/player/skip');
+  await expect.poll(()=>playerCalls.map(call=>call.url).join('\n')).toContain('/api/player/stop');
+  await expect.poll(()=>playerCalls.find(call=>call.url.includes('/api/player/volume'))?.body||'').toContain('31');
+  mockPlayer=false;await page.waitForTimeout(3200);
+
   await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
   await expect(page.getByText('Keine Fehlermeldungen vorhanden.')).toBeVisible();
   await page.getByRole('button',{name:'Einstellungen'}).first().click();
@@ -55,6 +71,11 @@ test('first-run setup, compact live search, Discord editor, diagnostics and them
   await page.getByRole('button',{name:'Logs kopieren'}).click();
   await expect(page.locator('#toast')).toContainText('Fehlerprotokoll kopiert.');
   await expect.poll(()=>page.evaluate(()=>navigator.clipboard.readText())).toContain('Instanz zuerst speichern und verbinden.');
+  await page.locator('#nav').getByRole('button',{name:'Benutzer & Rechte'}).click();
+  await expect(page.getByText('Geschütztes Hauptkonto')).toBeVisible();
+  const createUser=page.locator('.user-create');await createUser.getByLabel('Benutzername').fill('browseruser');await createUser.getByLabel('Startpasswort').fill('browser-user-password');await createUser.getByRole('button',{name:'Benutzer anlegen'}).click();
+  let userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard).toBeVisible();await userCard.getByLabel('Playlists verwalten').check();await userCard.getByRole('button',{name:'Änderungen speichern'}).click();
+  userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard.getByLabel('Playlists verwalten')).toBeChecked();await userCard.getByRole('button',{name:'Benutzer löschen'}).click();await expect(userCard.getByRole('button',{name:'Löschen bestätigen'})).toBeVisible();await userCard.getByRole('button',{name:'Löschen bestätigen'}).click();await expect(page.locator('.user-card').filter({hasText:'browseruser'})).toHaveCount(0);
   await page.getByRole('button',{name:'Design'}).click();
   await page.locator('#content label').filter({hasText:'Theme'}).locator('select').selectOption('ocean');
   await page.getByRole('button',{name:'Speichern'}).click();
