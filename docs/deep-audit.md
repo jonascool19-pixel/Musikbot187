@@ -15,7 +15,7 @@ Der Stand wurde ausschließlich aus der 43-Punkte-Spezifikation neu implementier
 
 ## Funktionsprüfung
 
-Automatisiert geprüft werden Importierbarkeit, Setup/Login/Session, Rechte und 403-Verträge, Queue/Player-Zustand, Playlists, Settings/Theme, Secret-Redaction, Uploadheader, SSRF-Policy, Monitoring, Installer-Syntax und Systemd-Härtung. Browserprüfungen decken Setup, Auth, Navigation, Themes und Kern-API ab.
+Automatisiert geprüft werden Importierbarkeit, Setup/Login/Session, Rechte und 403-Verträge, Queue/Player-Zustand, Playlists, Settings/Theme, Secret-Redaction, Uploadheader, SSRF-Policy, Monitoring, Installer-Syntax und Systemd-Härtung. Dazu kommen Verträge für Node/EJS bei YouTube, die aktuelle bigFM-URL und das explizite Betreten eines Discord-Voice-Channels. Browserprüfungen decken Setup, Auth, Navigation, Themes, automatische Suche mit 25 simulierten Treffern ohne horizontales Scrollen, den Voice-Button und das Kopieren realer Diagnoseeinträge ab.
 
 ## Grenzen der lokalen Prüfung
 

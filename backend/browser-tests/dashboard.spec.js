@@ -1,6 +1,7 @@
 import {test,expect} from '@playwright/test';
 
-test('first-run setup, compact live search, Discord editor, diagnostics and theme persistence',async({page})=>{
+test('first-run setup, compact live search, Discord editor, diagnostics and theme persistence',async({page,context})=>{
+  await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:'http://127.0.0.1:33187'});
   await page.addInitScript(()=>{try{Object.defineProperty(globalThis.crypto,'randomUUID',{value:undefined,configurable:true})}catch{}});
   await page.goto('/#setup=browser-setup-token');
   await expect(page.getByText('Ersteinrichtung')).toBeVisible();
@@ -18,9 +19,13 @@ test('first-run setup, compact live search, Discord editor, diagnostics and them
   await searchInput.fill('test musik');
   await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
   await expect(page.locator('.search-result')).toHaveCount(25);
-  const scrollState=await searchResults.evaluate(element=>({overflowY:getComputedStyle(element).overflowY,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight}));
+  const scrollState=await searchResults.evaluate(element=>({overflowY:getComputedStyle(element).overflowY,overflowX:getComputedStyle(element).overflowX,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight,scrollWidth:element.scrollWidth,clientWidth:element.clientWidth}));
   expect(scrollState.overflowY).toBe('auto');
+  expect(scrollState.overflowX).toBe('hidden');
   expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+  expect(scrollState.scrollWidth).toBeLessThanOrEqual(scrollState.clientWidth);
+  await expect(page.locator('.player-grid')).toHaveCSS('grid-template-columns',/\d+.* \d+/);
+  await expect(page.locator('.search-result').first().getByRole('button',{name:'Play'})).toBeVisible();
   await page.waitForTimeout(3500);
   await expect(searchInput).toHaveValue('test musik');
   await expect(searchSource).toHaveValue('youtube');
@@ -44,8 +49,12 @@ test('first-run setup, compact live search, Discord editor, diagnostics and them
   await refreshChannels.click();
   await expect(card.getByLabel('Discord-Server / Guild-ID')).toHaveValue('423456789012345678');
   await expect(card.locator('select[name="voiceChannelId"]')).toContainText('Testserver · Musik');
+  await expect(card.getByRole('button',{name:'Voice-Channel betreten'})).toBeVisible();
   await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
   await expect(page.getByText('Instanz zuerst speichern und verbinden.')).toBeVisible();
+  await page.getByRole('button',{name:'Logs kopieren'}).click();
+  await expect(page.locator('#toast')).toContainText('Fehlerprotokoll kopiert.');
+  await expect.poll(()=>page.evaluate(()=>navigator.clipboard.readText())).toContain('Instanz zuerst speichern und verbinden.');
   await page.getByRole('button',{name:'Design'}).click();
   await page.locator('#content label').filter({hasText:'Theme'}).locator('select').selectOption('ocean');
   await page.getByRole('button',{name:'Speichern'}).click();

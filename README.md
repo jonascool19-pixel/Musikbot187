@@ -2,6 +2,8 @@
 
 Vollständiger Neuaufbau eines selbst gehosteten Musik- und Radiobots für Ubuntu 24.04/Debian mit Web-Dashboard, YouTube, Radio-Browser, Spotify, lokalen Audiodateien, Queue, Playlists, Discord, TeamSpeak 3, Benutzerrechten, Monitoring und getrenntem privilegiertem Control-Dienst.
 
+Die Dashboard-Suche startet automatisch, zeigt bis zu 50 Treffer je Quelle in einem eigenen Scrollbereich und hält Titel sowie Wiedergabeaktionen ohne horizontales Verschieben sichtbar. Discord-Instanzen können nach der Kanalauswahl gezielt einem Voice-Channel beitreten; Diagnosemeldungen lassen sich mit einem Klick kopieren.
+
 ## Einmal-Installation
 
 ```bash
@@ -24,6 +26,6 @@ npm run test:browser
 
 ## Architektur
 
-`frontend` → Fastify-API → Store/Auth/Permissions → Player → yt-dlp/FFmpeg → Discord/TS3. Direkte Medienziele werden gegen private und reservierte Netze geprüft. Secrets werden mit AES-256-GCM verschlüsselt. Systemaktionen laufen ausschließlich über `/run/musikbot187/control.sock`.
+`frontend` → Fastify-API → Store/Auth/Permissions → Player → yt-dlp/FFmpeg → Discord/TS3. Für die aktuelle YouTube-Challenge-Auflösung nutzt yt-dlp Node.js 22 und die offizielle EJS-Komponente. Direkte Medienziele werden gegen private und reservierte Netze geprüft. Secrets werden mit AES-256-GCM verschlüsselt. Systemaktionen laufen ausschließlich über `/run/musikbot187/control.sock`.
 
 Weitere Details und offene Umgebungsprüfungen stehen in [docs/deep-audit.md](docs/deep-audit.md).
