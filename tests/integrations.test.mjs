@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {IntegrationManager} from '../backend/src/integrations.js';
+import {discordOpusBitrate,IntegrationManager} from '../backend/src/integrations.js';
+
+test('Discord uses the maximum supported Opus bitrate',()=>{assert.equal(discordOpusBitrate,128_000);});
 
 test('Discord option discovery returns ordinary arrays for visible guilds and voice channels',()=>{
   const voice={id:'200000000000000001',name:'Musik',isVoiceBased:()=>true};
