@@ -1,7 +1,9 @@
 import {test,expect} from '@playwright/test';
 
-test('first-run setup, compact live search, Discord editor, diagnostics and theme persistence',async({page,context})=>{
+test('first-run setup, live dashboard controls, playlists, Discord editor and diagnostics',async({page,context})=>{
   await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:'http://127.0.0.1:33187'});
+  const browserDialogs=[];page.on('dialog',async dialog=>{browserDialogs.push(dialog.type());await dialog.dismiss()});
+  let metricSample=0;await page.route('**/api/monitoring',route=>{metricSample++;return route.fulfill({contentType:'application/json',body:JSON.stringify({cpu:{busyPercent:metricSample%2?17:29},memory:{used:512,total:1024},load:[.1,.2,.3],uptime:3600,network:{rxPerSecond:2048,txPerSecond:1024},disk:null})})});
   await page.addInitScript(()=>{try{Object.defineProperty(globalThis.crypto,'randomUUID',{value:undefined,configurable:true})}catch{}});
   await page.goto('/#setup=browser-setup-token');
   await expect(page.getByText('Ersteinrichtung')).toBeVisible();
@@ -10,7 +12,9 @@ test('first-run setup, compact live search, Discord editor, diagnostics and them
   await page.getByRole('button',{name:'Einrichten'}).click();
   await expect(page.getByText('MusikBot187')).toBeVisible();
   await expect(page.getByLabel('Audioausgabe')).toBeVisible();
-  await expect(page.locator('#cpuChip')).toContainText('CPU');
+  await expect(page.locator('#cpuChip')).toContainText(/CPU (17|29)%/);
+  await expect(page.locator('#ramChip')).toHaveText('RAM 50%');
+  await expect.poll(()=>metricSample,{timeout:5000}).toBeGreaterThan(1);
   await expect(page.locator('header')).toHaveCSS('display','grid');
 
   await page.route('**/api/search?*',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(Array.from({length:25},(_,index)=>({id:`search-${index+1}`,title:`Test Suchergebnis ${index+1}`,url:`https://example.com/audio/${index+1}`,source:'youtube'})))}));
@@ -31,10 +35,14 @@ test('first-run setup, compact live search, Discord editor, diagnostics and them
   await expect(searchSource).toHaveValue('youtube');
   await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
 
-  const playerCalls=[];let mockPlayer=true;const mockState={player:{current:{id:'long-track',title:'DIES IST EIN SEHR LANGER TITEL FÜR DAS LAUFENDE RADIO-DISPLAY – SOMMER CEM UND SHIRIN DAVID',source:'youtube',quality:'Beste verfügbare Audioqualität'},queue:Array.from({length:8},(_,index)=>({id:`queue-${index}`,title:`Wartelistentitel ${index+1}`,source:'youtube'})),volume:40,mode:'queue',paused:false,playing:true,playbackId:7},settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null},connections:[],runtimes:[]};
+  const playerCalls=[];let mockPlayer=true;const mockState={player:{current:{id:'long-track',title:'DIES IST EIN SEHR LANGER TITEL FÜR DAS LAUFENDE RADIO-DISPLAY – SOMMER CEM UND SHIRIN DAVID',source:'youtube',quality:'Beste verfügbare Audioqualität'},queue:Array.from({length:8},(_,index)=>({id:`queue-${index}`,title:`Wartelistentitel ${index+1}`,source:'youtube'})),volume:40,mode:'queue',paused:false,playing:true,playbackId:7},settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d'},connections:[],runtimes:[]};
   await page.route('**/api/state',route=>mockPlayer?route.fulfill({contentType:'application/json',body:JSON.stringify(mockState)}):route.fallback());
   await page.route('**/api/player/**',async route=>{playerCalls.push({url:route.request().url(),method:route.request().method(),body:route.request().postData()});await route.fulfill({contentType:'application/json',body:JSON.stringify(mockState.player)})});
   await expect(page.locator('#playerCurrent .now-playing-marquee.is-overflowing')).toBeVisible({timeout:5000});
+  await page.getByText('Laufschrift einstellen').click();
+  await expect(page.getByLabel('Schriftfarbe')).toBeVisible();
+  await page.getByLabel('Geschwindigkeit').fill('80');
+  await expect(page.getByText('80 px/s')).toBeVisible();
   await expect(page.getByRole('heading',{name:'Warteschlange (8)'})).toBeVisible();
   const queueScroll=await page.locator('#playerQueueItems').evaluate(element=>({overflowY:getComputedStyle(element).overflowY,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight}));
   expect(queueScroll.overflowY).toBe('auto');expect(queueScroll.scrollHeight).toBeGreaterThan(queueScroll.clientHeight);
@@ -47,6 +55,16 @@ test('first-run setup, compact live search, Discord editor, diagnostics and them
   await expect.poll(()=>playerCalls.find(call=>call.url.includes('/api/player/volume'))?.body||'').toContain('31');
   mockPlayer=false;await page.waitForTimeout(3200);
 
+  let importedPlaylist=null;
+  await page.route('**/api/playlists',route=>route.request().method()==='GET'&&importedPlaylist?route.fulfill({contentType:'application/json',body:JSON.stringify([importedPlaylist])}):route.fallback());
+  await page.route('**/api/playlists/import-spotify',route=>{importedPlaylist={id:'spotify-browser',name:'Sommer Hits',source:'spotify',sourceUrl:'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',items:[{id:'spotify-track',title:'Summer Cem – Testtitel',source:'spotify'}]};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
+  await page.locator('#nav').getByRole('button',{name:'Playlists'}).click();
+  await page.getByLabel('Spotify-Playlist-URL').fill('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M');
+  await page.getByRole('button',{name:'Spotify-Playlist hinzufügen'}).click();
+  await expect(page.getByText('Sommer Hits',{exact:true})).toBeVisible();
+  await page.getByText('Sommer Hits',{exact:true}).click();
+  await expect(page.getByText('Summer Cem – Testtitel')).toBeVisible();
+
   await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
   await expect(page.getByText('Keine Fehlermeldungen vorhanden.')).toBeVisible();
   await page.getByRole('button',{name:'Einstellungen'}).first().click();
@@ -58,6 +76,9 @@ test('first-run setup, compact live search, Discord editor, diagnostics and them
   await expect(page.locator('#toast')).toContainText('Instanz zuerst speichern und verbinden.');
   await card.getByLabel('Name').fill('Test Discord');
   await card.getByLabel('Client-ID / Bot-ID').fill('123456789012345678');
+  await card.getByRole('button',{name:'Bot zu Discord hinzufügen'}).click();
+  await expect(card.getByText('Discord-Einladung ist bereit')).toBeVisible();
+  await expect(card.getByRole('link',{name:'Discord öffnen'})).toHaveAttribute('href',/client_id=123456789012345678/);
   await card.getByLabel('Discord-Server / Guild-ID').fill('223456789012345678');
   await card.getByRole('button',{name:'Speichern',exact:true}).click();
   await expect(card.getByLabel('Name')).toHaveValue('Test Discord');
@@ -76,8 +97,14 @@ test('first-run setup, compact live search, Discord editor, diagnostics and them
   const createUser=page.locator('.user-create');await createUser.getByLabel('Benutzername').fill('browseruser');await createUser.getByLabel('Startpasswort').fill('browser-user-password');await createUser.getByRole('button',{name:'Benutzer anlegen'}).click();
   let userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard).toBeVisible();await userCard.getByLabel('Playlists verwalten').check();await userCard.getByRole('button',{name:'Änderungen speichern'}).click();
   userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard.getByLabel('Playlists verwalten')).toBeChecked();await userCard.getByRole('button',{name:'Benutzer löschen'}).click();await expect(userCard.getByRole('button',{name:'Löschen bestätigen'})).toBeVisible();await userCard.getByRole('button',{name:'Löschen bestätigen'}).click();await expect(page.locator('.user-card').filter({hasText:'browseruser'})).toHaveCount(0);
+  await page.locator('#nav').getByRole('button',{name:'System',exact:true}).click();
+  const systemRow=page.locator('.system-action-row').filter({hasText:'Startet nur den MusikBot-Dienst neu.'});
+  await systemRow.getByRole('button',{name:'MusikBot neu starten'}).click();
+  await expect(systemRow.getByText('MusikBot neu starten wirklich ausführen?')).toBeVisible();
+  await systemRow.getByRole('button',{name:'Abbrechen'}).click();
   await page.getByRole('button',{name:'Design'}).click();
   await page.locator('#content label').filter({hasText:'Theme'}).locator('select').selectOption('ocean');
   await page.getByRole('button',{name:'Speichern'}).click();
   await expect(page.locator('body')).toHaveAttribute('data-theme','ocean');
+  expect(browserDialogs).toEqual([]);
 });

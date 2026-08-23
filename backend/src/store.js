@@ -2,10 +2,10 @@ import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import {permissions, randomToken} from './security.js';
 
-const blank=()=>({version:1,users:[],sessions:[],playlists:[],connections:[],settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,spotifyClientId:'',spotifySecret:''},diagnostics:[]});
+const blank=()=>({version:1,users:[],sessions:[],playlists:[],connections:[],settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,spotifyClientId:'',spotifySecret:'',marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d'},diagnostics:[]});
 export class Store {
   constructor(file){this.file=file;this.data=blank();this.pending=Promise.resolve();}
-  async load(){await fs.mkdir(new URL('.',`file:///${this.file.replaceAll('\\','/')}`),{recursive:true}).catch(()=>{});try{this.data={...blank(),...JSON.parse(await fs.readFile(this.file,'utf8'))};}catch(e){if(e.code!=='ENOENT')throw e;}this.cleanup();return this;}
+  async load(){await fs.mkdir(new URL('.',`file:///${this.file.replaceAll('\\','/')}`),{recursive:true}).catch(()=>{});try{const defaults=blank(),saved=JSON.parse(await fs.readFile(this.file,'utf8'));this.data={...defaults,...saved,settings:{...defaults.settings,...(saved.settings||{})}};}catch(e){if(e.code!=='ENOENT')throw e;}this.cleanup();return this;}
   save(){this.pending=this.pending.then(async()=>{const tmp=`${this.file}.${process.pid}.tmp`;await fs.mkdir((await import('node:path')).dirname(this.file),{recursive:true});await fs.writeFile(tmp,JSON.stringify(this.data,null,2),{mode:0o600});await fs.rename(tmp,this.file);});return this.pending;}
   cleanup(){const now=Date.now();this.data.sessions=this.data.sessions.filter(s=>s.expires>now);this.data.diagnostics=this.data.diagnostics.slice(-100);}
   diagnostic(level,source,message){this.data.diagnostics.push({time:new Date().toISOString(),level,source,message:String(message).slice(0,1000)});this.data.diagnostics=this.data.diagnostics.slice(-100);return this.save();}
