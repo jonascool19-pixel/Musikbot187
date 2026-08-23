@@ -7,9 +7,10 @@ export const permissions = Object.freeze(['player.control','playlists.manage','m
 export const timingEqual = (a, b) => { const x=Buffer.from(String(a)); const y=Buffer.from(String(b)); return x.length===y.length && crypto.timingSafeEqual(x,y); };
 export const randomToken = () => crypto.randomBytes(32).toString('base64url');
 export const validUsername = value => /^[A-Za-z0-9_.-]{3,32}$/.test(String(value));
+export const validPassword = value => typeof value === 'string' && value.length >= 10 && value.length <= 256;
 export const validAccent = value => /^#[0-9a-fA-F]{6}$/.test(String(value));
 export function hashPassword(password) {
-  if (String(password).length < 10 || String(password).length > 256) throw new Error('Passwort muss 10–256 Zeichen lang sein.');
+  if (!validPassword(password)) throw new Error('Passwort muss 10–256 Zeichen lang sein.');
   const salt=crypto.randomBytes(16); const derived=crypto.scryptSync(password,salt,64,{N:16384,r:8,p:1});
   return `scrypt$16384$${salt.toString('hex')}$${derived.toString('hex')}`;
 }
