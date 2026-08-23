@@ -2,7 +2,9 @@
 
 Vollständiger Neuaufbau eines selbst gehosteten Musik- und Radiobots für Ubuntu 24.04/Debian mit Web-Dashboard, YouTube, Radio-Browser, Spotify, lokalen Audiodateien, Queue, Playlists, Discord, TeamSpeak 3, Benutzerrechten, Monitoring und getrenntem privilegiertem Control-Dienst.
 
-Die Dashboard-Suche startet automatisch, zeigt bis zu 50 Treffer je Quelle in einem eigenen Scrollbereich und hält Titel sowie Wiedergabeaktionen ohne horizontales Verschieben sichtbar. YouTube und die Spotify-Auflösung verwenden immer den besten verfügbaren Audiostream. Die Radiosuche bevorzugt je Sender die erreichbare Variante mit der höchsten gemeldeten Bitrate und zeigt Codec sowie Bitrate am Treffer. Discord wird mit 128-kbit/s-Opus ausgegeben. Discord-Instanzen können nach der Kanalauswahl gezielt einem Voice-Channel beitreten; Diagnosemeldungen lassen sich mit einem Klick kopieren.
+Die Dashboard-Suche startet automatisch, zeigt bis zu 50 Treffer je Quelle in einem eigenen Scrollbereich und hält Titel sowie Wiedergabeaktionen ohne horizontales Verschieben sichtbar. YouTube und die Spotify-Auflösung verwenden immer den besten verfügbaren Audiostream. Die Radiosuche bevorzugt je Sender die erreichbare Variante mit der höchsten gemeldeten Bitrate und zeigt Codec sowie Bitrate am Treffer. Discord wird mit 128-kbit/s-Opus ausgegeben. Discord-Instanzen können nach der Kanalauswahl gezielt einem Voice-Channel beitreten; Diagnosemeldungen zeigen drei Einträge kompakt, bleiben scrollbar und lassen sich mit einem Klick kopieren.
+
+Die Wiedergabe zeigt Laufzeit und – soweit von der Quelle bekannt – Gesamtdauer. Lautstärkeänderungen werden als kurze PCM-Pegelrampe angewendet, damit keine harten Signalsprünge entstehen. Für den 24/7-Betrieb startet systemd den Dienst auch nach einem unerwarteten sauberen Prozessende neu. Zusätzlich kann im Dashboard ein täglicher Wartungsneustart in der Zeitzone Europe/Berlin aktiviert werden; Titel, Position, Lautstärke, Modus und Warteschlange werden vorher gespeichert und anschließend automatisch wiederhergestellt.
 
 ## Einmal-Installation
 

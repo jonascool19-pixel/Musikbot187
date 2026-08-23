@@ -35,10 +35,11 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(searchSource).toHaveValue('youtube');
   await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
 
-  const playerCalls=[];let mockPlayer=true;const mockState={player:{current:{id:'long-track',title:'DIES IST EIN SEHR LANGER TITEL FÜR DAS LAUFENDE RADIO-DISPLAY – SOMMER CEM UND SHIRIN DAVID',source:'youtube',quality:'Beste verfügbare Audioqualität'},queue:Array.from({length:8},(_,index)=>({id:`queue-${index}`,title:`Wartelistentitel ${index+1}`,source:'youtube'})),volume:40,mode:'queue',paused:false,playing:true,playbackId:7},settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d'},connections:[],runtimes:[]};
+  const playerCalls=[];let mockPlayer=true;const mockState={player:{current:{id:'long-track',title:'DIES IST EIN SEHR LANGER TITEL FÜR DAS LAUFENDE RADIO-DISPLAY – SOMMER CEM UND SHIRIN DAVID',source:'youtube',quality:'Beste verfügbare Audioqualität',duration:245},queue:Array.from({length:8},(_,index)=>({id:`queue-${index}`,title:`Wartelistentitel ${index+1}`,source:'youtube'})),volume:40,mode:'queue',paused:false,playing:true,positionSeconds:61,playbackId:7},settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d'},connections:[],runtimes:[]};
   await page.route('**/api/state',route=>mockPlayer?route.fulfill({contentType:'application/json',body:JSON.stringify(mockState)}):route.fallback());
   await page.route('**/api/player/**',async route=>{playerCalls.push({url:route.request().url(),method:route.request().method(),body:route.request().postData()});await route.fulfill({contentType:'application/json',body:JSON.stringify(mockState.player)})});
   await expect(page.locator('#playerCurrent .now-playing-marquee.is-overflowing')).toBeVisible({timeout:5000});
+  await expect(page.locator('#playerRuntime')).toContainText(/Laufzeit 01:\d{2} \/ 04:05/);
   await page.getByText('Laufschrift einstellen').click();
   await expect(page.getByLabel('Schriftfarbe')).toBeVisible();
   await page.getByLabel('Geschwindigkeit').fill('80');
@@ -87,8 +88,12 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(card.getByLabel('Discord-Server / Guild-ID')).toHaveValue('423456789012345678');
   await expect(card.locator('select[name="voiceChannelId"]')).toContainText('Testserver · Musik');
   await expect(card.getByRole('button',{name:'Voice-Channel betreten'})).toBeVisible();
+  await page.evaluate(async()=>{const token=sessionStorage.getItem('musikbot187.auth');for(let index=1;index<=6;index++)await fetch('/api/diagnostics/client',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({message:`Zusätzliche Testmeldung ${index}`,context:'Browserliste'})})});
   await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
   await expect(page.getByText('Instanz zuerst speichern und verbinden.')).toBeVisible();
+  await expect(page.locator('.diagnostic-entry')).toHaveCount(7);
+  const diagnosticScroll=await page.locator('.diagnostic-list').evaluate(element=>({overflowY:getComputedStyle(element).overflowY,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight}));
+  expect(diagnosticScroll.overflowY).toBe('auto');expect(diagnosticScroll.scrollHeight).toBeGreaterThan(diagnosticScroll.clientHeight);
   await page.getByRole('button',{name:'Logs kopieren'}).click();
   await expect(page.locator('#toast')).toContainText('Fehlerprotokoll kopiert.');
   await expect.poll(()=>page.evaluate(()=>navigator.clipboard.readText())).toContain('Instanz zuerst speichern und verbinden.');
@@ -98,7 +103,8 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   let userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard).toBeVisible();await userCard.getByLabel('Playlists verwalten').check();await userCard.getByRole('button',{name:'Änderungen speichern'}).click();
   userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard.getByLabel('Playlists verwalten')).toBeChecked();await userCard.getByRole('button',{name:'Benutzer löschen'}).click();await expect(userCard.getByRole('button',{name:'Löschen bestätigen'})).toBeVisible();await userCard.getByRole('button',{name:'Löschen bestätigen'}).click();await expect(page.locator('.user-card').filter({hasText:'browseruser'})).toHaveCount(0);
   await page.locator('#nav').getByRole('button',{name:'System',exact:true}).click();
-  const systemRow=page.locator('.system-action-row').filter({hasText:'Startet nur den MusikBot-Dienst neu.'});
+  const maintenance=page.locator('.maintenance-card');await maintenance.getByLabel('Automatischen Neustart aktivieren').check();await maintenance.getByLabel('Uhrzeit des Wartungsneustarts').fill('05:45');await maintenance.getByRole('button',{name:'Zeitplan speichern'}).click();await expect(maintenance.getByText('Täglicher Wartungsneustart um 05:45 Uhr ist aktiv.')).toBeVisible();
+  const systemRow=page.locator('.system-action-row').filter({hasText:'Speichert Wiedergabe und Warteschlange'});
   await systemRow.getByRole('button',{name:'MusikBot neu starten'}).click();
   await expect(systemRow.getByText('MusikBot neu starten wirklich ausführen?')).toBeVisible();
   await systemRow.getByRole('button',{name:'Abbrechen'}).click();

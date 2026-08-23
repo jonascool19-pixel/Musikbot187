@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import {permissions, randomToken} from './security.js';
 
-const blank=()=>({version:1,users:[],sessions:[],playlists:[],connections:[],settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,spotifyClientId:'',spotifySecret:'',marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d'},diagnostics:[]});
+const blank=()=>({version:1,users:[],sessions:[],playlists:[],connections:[],settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,spotifyClientId:'',spotifySecret:'',marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d',maintenanceEnabled:false,maintenanceTime:'04:30',maintenanceTimezone:'Europe/Berlin',maintenanceLastRun:''},playbackResume:null,diagnostics:[]});
 export class Store {
   constructor(file){this.file=file;this.data=blank();this.pending=Promise.resolve();}
   async load(){await fs.mkdir(new URL('.',`file:///${this.file.replaceAll('\\','/')}`),{recursive:true}).catch(()=>{});try{const defaults=blank(),saved=JSON.parse(await fs.readFile(this.file,'utf8'));this.data={...defaults,...saved,settings:{...defaults.settings,...(saved.settings||{})}};}catch(e){if(e.code!=='ENOENT')throw e;}this.cleanup();return this;}
