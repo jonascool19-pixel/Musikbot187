@@ -3,7 +3,7 @@ import {test,expect} from '@playwright/test';
 test('first-run setup, live dashboard controls, playlists, Discord editor and diagnostics',async({page,context})=>{
   await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:'http://127.0.0.1:33187'});
   const browserDialogs=[];page.on('dialog',async dialog=>{browserDialogs.push(dialog.type());await dialog.dismiss()});
-  let metricSample=0;await page.route('**/api/monitoring',route=>{metricSample++;return route.fulfill({contentType:'application/json',body:JSON.stringify({cpu:{busyPercent:metricSample%2?17:29},memory:{used:512,total:1024},load:[.1,.2,.3],uptime:3600,network:{rxPerSecond:2048,txPerSecond:1024},disk:null})})});
+  let metricSample=0;await page.route('**/api/monitoring',route=>{metricSample++;return route.fulfill({contentType:'application/json',body:JSON.stringify({cpu:{busyPercent:metricSample%2?17:29},memory:{used:512,total:1024},load:[.1,.2,.3],uptime:3600,network:{rxPerSecond:2048,txPerSecond:1024,rxTotal:134217728,txTotal:67108864},disk:null})})});
   await page.addInitScript(()=>{try{Object.defineProperty(globalThis.crypto,'randomUUID',{value:undefined,configurable:true})}catch{}});
   await page.goto('/#setup=browser-setup-token');
   await expect(page.getByText('Ersteinrichtung')).toBeVisible();
@@ -70,6 +70,8 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.getByText('Keine Fehlermeldungen vorhanden.')).toBeVisible();
   await page.getByRole('button',{name:'Einstellungen'}).first().click();
   await expect(page.getByRole('heading',{name:'Discord-Instanzen'})).toBeVisible();
+  await expect(page.getByText('Benutzer nicht verbunden')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Spotify-Benutzer verbinden'})).toBeVisible();
   await page.locator('.instance-section').filter({hasText:'Discord-Instanzen'}).getByRole('button',{name:'+ Instanz'}).click();
   const card=page.locator('.instance-card').filter({hasText:'Discord'}).last(),refreshChannels=card.getByRole('button',{name:'Voice-Channels aktualisieren'});
   await expect(refreshChannels).toBeVisible();
@@ -103,6 +105,11 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   let userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard).toBeVisible();await userCard.getByLabel('Playlists verwalten').check();await userCard.getByRole('button',{name:'Änderungen speichern'}).click();
   userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard.getByLabel('Playlists verwalten')).toBeChecked();await userCard.getByRole('button',{name:'Benutzer löschen'}).click();await expect(userCard.getByRole('button',{name:'Löschen bestätigen'})).toBeVisible();await userCard.getByRole('button',{name:'Löschen bestätigen'}).click();await expect(page.locator('.user-card').filter({hasText:'browseruser'})).toHaveCount(0);
   await page.locator('#nav').getByRole('button',{name:'System',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Netzwerk'})).toBeVisible();
+  await expect(page.locator('#networkTotal')).toHaveText('192.00 MiB');
+  await expect(page.locator('#networkRxTotal')).toHaveText('128.00 MiB');
+  await expect(page.locator('#networkTxTotal')).toHaveText('64.00 MiB');
+  await expect(page.locator('#networkRxRate')).toHaveText('2.0 KiB/s');
   const maintenance=page.locator('.maintenance-card');await maintenance.getByLabel('Automatischen Neustart aktivieren').check();await maintenance.getByLabel('Uhrzeit des Wartungsneustarts').fill('05:45');await maintenance.getByRole('button',{name:'Zeitplan speichern'}).click();await expect(maintenance.getByText('Täglicher Wartungsneustart um 05:45 Uhr ist aktiv.')).toBeVisible();
   const systemRow=page.locator('.system-action-row').filter({hasText:'Speichert Wiedergabe und Warteschlange'});
   await systemRow.getByRole('button',{name:'MusikBot neu starten'}).click();

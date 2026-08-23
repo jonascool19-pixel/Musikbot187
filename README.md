@@ -6,6 +6,10 @@ Die Dashboard-Suche startet automatisch, zeigt bis zu 50 Treffer je Quelle in ei
 
 Die Wiedergabe zeigt Laufzeit und – soweit von der Quelle bekannt – Gesamtdauer. Lautstärkeänderungen werden als kurze PCM-Pegelrampe angewendet, damit keine harten Signalsprünge entstehen. Für den 24/7-Betrieb startet systemd den Dienst auch nach einem unerwarteten sauberen Prozessende neu. Zusätzlich kann im Dashboard ein täglicher Wartungsneustart in der Zeitzone Europe/Berlin aktiviert werden; Titel, Position, Lautstärke, Modus und Warteschlange werden vorher gespeichert und anschließend automatisch wiederhergestellt.
 
+Spotify verwendet zwei getrennte Freigaben: Client-ID und Client-Secret für die Suche sowie eine einmalige Spotify-Benutzeranmeldung für Playlist-Inhalte. Im Spotify Developer Dashboard muss dafür exakt die im MusikBot eingetragene Callback-Adresse mit dem Pfad `/api/spotify/callback` freigegeben werden. Spotify verlangt HTTPS; nur explizite Loopback-Adressen wie `http://127.0.0.1` dürfen HTTP verwenden. Zugriffs- und Aktualisierungstoken werden ausschließlich verschlüsselt gespeichert und automatisch erneuert. Nach aktuellen Spotify-Vorgaben können Playlists importiert werden, die dem verbundenen Benutzer gehören oder an denen er mitwirkt.
+
+Unter **System → Netzwerk** zeigt das Dashboard Download und Upload live sowie die empfangenen und gesendeten Gesamtmengen seit dem letzten Start des Containers beziehungsweise der Netzwerkschnittstelle.
+
 ## Einmal-Installation
 
 ```bash

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import {permissions, randomToken} from './security.js';
 
-const blank=()=>({version:1,users:[],sessions:[],playlists:[],connections:[],settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,spotifyClientId:'',spotifySecret:'',marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d',maintenanceEnabled:false,maintenanceTime:'04:30',maintenanceTimezone:'Europe/Berlin',maintenanceLastRun:''},playbackResume:null,diagnostics:[]});
+const blank=()=>({version:1,users:[],sessions:[],playlists:[],connections:[],settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,spotifyClientId:'',spotifySecret:'',spotifyRedirectUri:'',spotifyAccessToken:'',spotifyRefreshToken:'',spotifyAccessTokenExpiresAt:0,spotifyScopes:[],marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d',maintenanceEnabled:false,maintenanceTime:'04:30',maintenanceTimezone:'Europe/Berlin',maintenanceLastRun:''},playbackResume:null,diagnostics:[]});
 export class Store {
   constructor(file){this.file=file;this.data=blank();this.pending=Promise.resolve();}
   async load(){await fs.mkdir(new URL('.',`file:///${this.file.replaceAll('\\','/')}`),{recursive:true}).catch(()=>{});try{const defaults=blank(),saved=JSON.parse(await fs.readFile(this.file,'utf8'));this.data={...defaults,...saved,settings:{...defaults.settings,...(saved.settings||{})}};}catch(e){if(e.code!=='ENOENT')throw e;}this.cleanup();return this;}
@@ -13,5 +13,5 @@ export class Store {
   createSession(user,ttl,max){this.cleanup();const sessions=this.data.sessions.filter(s=>s.userId===user.id).sort((a,b)=>b.created-a);for(const old of sessions.slice(max-1))this.data.sessions=this.data.sessions.filter(s=>s.tokenHash!==old.tokenHash);const token=randomToken();this.data.sessions.push({tokenHash:crypto.createHash('sha256').update(token).digest('hex'),userId:user.id,created:Date.now(),expires:Date.now()+ttl});return token;}
   auth(token){if(!token)return null;this.cleanup();const hash=crypto.createHash('sha256').update(token).digest('hex');const session=this.data.sessions.find(s=>s.tokenHash===hash);return session?this.data.users.find(u=>u.id===session.userId)||null:null;}
   revoke(token){const hash=crypto.createHash('sha256').update(token||'').digest('hex');this.data.sessions=this.data.sessions.filter(s=>s.tokenHash!==hash);}
-  redact(){return {...this.data,users:this.data.users.map(u=>this.publicUser(u)),sessions:undefined,connections:this.data.connections.map(({secret,...c})=>({...c,hasSecret:Boolean(secret)})),settings:{...this.data.settings,spotifySecret:undefined,hasSpotifySecret:Boolean(this.data.settings.spotifySecret)}};}
+  redact(){const settings={...this.data.settings,spotifySecret:undefined,spotifyAccessToken:undefined,spotifyRefreshToken:undefined,hasSpotifySecret:Boolean(this.data.settings.spotifySecret),spotifyUserConnected:Boolean(this.data.settings.spotifyRefreshToken)};return {...this.data,users:this.data.users.map(u=>this.publicUser(u)),sessions:undefined,connections:this.data.connections.map(({secret,...c})=>({...c,hasSecret:Boolean(secret)})),settings};}
 }
