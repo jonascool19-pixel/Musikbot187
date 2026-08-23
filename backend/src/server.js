@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
@@ -44,4 +45,4 @@ export async function buildServer(options={}){
   app.setNotFoundHandler((req,reply)=>req.url.startsWith('/api/')?reply.code(404).send({error:'API-Endpunkt nicht gefunden'}):reply.sendFile('index.html'));
   app.addHook('onClose',async()=>{player.stop();await integrations.close();});setInterval(()=>{store.cleanup();loginLimit.cleanup();searchLimit.cleanup();playLimit.cleanup();},60_000).unref();return app;
 }
-if(process.argv[1]&&import.meta.url===new URL(`file:///${process.argv[1].replaceAll('\\','/')}`).href){const app=await buildServer();await app.listen({host:config.host,port:config.port});}
+if(process.argv[1]&&fileURLToPath(import.meta.url)===path.resolve(process.argv[1])){const app=await buildServer();await app.listen({host:config.host,port:config.port});}
