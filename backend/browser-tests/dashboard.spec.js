@@ -1,2 +1,53 @@
 import {test,expect} from '@playwright/test';
-test('first-run setup, persistent search, Discord editor, diagnostics and theme persistence',async({page})=>{await page.addInitScript(()=>{try{Object.defineProperty(globalThis.crypto,'randomUUID',{value:undefined,configurable:true})}catch{}});await page.goto('/#setup=browser-setup-token');await expect(page.getByText('Ersteinrichtung')).toBeVisible();await page.getByLabel('Benutzername').fill('browseradmin');await page.getByLabel('Passwort').fill('browser-password-187');await page.getByRole('button',{name:'Einrichten'}).click();await expect(page.getByText('MusikBot187')).toBeVisible();await expect(page.getByLabel('Audioausgabe')).toBeVisible();await expect(page.locator('#cpuChip')).toContainText('CPU');await expect(page.locator('header')).toHaveCSS('display','grid');await page.route('**/api/search?*',route=>route.fulfill({contentType:'application/json',body:JSON.stringify([{id:'search-result',title:'Test Suchergebnis',url:'https://example.com/audio',source:'youtube'}])}));const searchInput=page.getByLabel('Suchbegriff'),searchSource=page.getByLabel('Suchquelle');await searchInput.fill('test musik');await searchSource.selectOption('youtube');await page.getByRole('button',{name:'Suchen'}).click();await expect(page.getByText('Test Suchergebnis')).toBeVisible();await page.waitForTimeout(3500);await expect(searchInput).toHaveValue('test musik');await expect(searchSource).toHaveValue('youtube');await expect(page.getByText('Test Suchergebnis')).toBeVisible();await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();await expect(page.getByText('Keine Fehlermeldungen vorhanden.')).toBeVisible();await page.getByRole('button',{name:'Einstellungen'}).first().click();await expect(page.getByRole('heading',{name:'Discord-Instanzen'})).toBeVisible();await page.locator('.instance-section').filter({hasText:'Discord-Instanzen'}).getByRole('button',{name:'+ Instanz'}).click();const card=page.locator('.instance-card').filter({hasText:'Discord'}).last();const refreshChannels=card.getByRole('button',{name:'Voice-Channels aktualisieren'});await expect(refreshChannels).toBeVisible();await refreshChannels.click();await expect(page.locator('#toast')).toContainText('Instanz zuerst speichern und verbinden.');await card.getByLabel('Name').fill('Test Discord');await card.getByLabel('Client-ID / Bot-ID').fill('123456789012345678');await card.getByLabel('Discord-Server / Guild-ID').fill('223456789012345678');await card.getByRole('button',{name:'Speichern',exact:true}).click();await expect(card.getByLabel('Name')).toHaveValue('Test Discord');await page.route('**/api/connections/*/discord-options',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({status:'online',detail:'TestBot',guilds:[{id:'423456789012345678',name:'Testserver'}],voiceChannels:[{id:'523456789012345678',name:'Musik',guildId:'423456789012345678',guildName:'Testserver'}]})}));await refreshChannels.click();await expect(card.getByLabel('Discord-Server / Guild-ID')).toHaveValue('423456789012345678');await expect(card.locator('select[name="voiceChannelId"]')).toContainText('Testserver · Musik');await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();await expect(page.getByText('Instanz zuerst speichern und verbinden.')).toBeVisible();await page.getByRole('button',{name:'Design'}).click();await page.locator('#content label').filter({hasText:'Theme'}).locator('select').selectOption('ocean');await page.getByRole('button',{name:'Speichern'}).click();await expect(page.locator('body')).toHaveAttribute('data-theme','ocean');});
+
+test('first-run setup, compact live search, Discord editor, diagnostics and theme persistence',async({page})=>{
+  await page.addInitScript(()=>{try{Object.defineProperty(globalThis.crypto,'randomUUID',{value:undefined,configurable:true})}catch{}});
+  await page.goto('/#setup=browser-setup-token');
+  await expect(page.getByText('Ersteinrichtung')).toBeVisible();
+  await page.getByLabel('Benutzername').fill('browseradmin');
+  await page.getByLabel('Passwort').fill('browser-password-187');
+  await page.getByRole('button',{name:'Einrichten'}).click();
+  await expect(page.getByText('MusikBot187')).toBeVisible();
+  await expect(page.getByLabel('Audioausgabe')).toBeVisible();
+  await expect(page.locator('#cpuChip')).toContainText('CPU');
+  await expect(page.locator('header')).toHaveCSS('display','grid');
+
+  await page.route('**/api/search?*',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(Array.from({length:12},(_,index)=>({id:`search-${index+1}`,title:`Test Suchergebnis ${index+1}`,url:`https://example.com/audio/${index+1}`,source:'youtube'})))}));
+  const searchInput=page.getByLabel('Suchbegriff'),searchSource=page.getByLabel('Suchquelle'),searchResults=page.locator('#searchResults');
+  await searchSource.selectOption('youtube');
+  await searchInput.fill('test musik');
+  await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
+  await expect(page.locator('.search-result')).toHaveCount(10);
+  const scrollState=await searchResults.evaluate(element=>({overflowY:getComputedStyle(element).overflowY,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight}));
+  expect(scrollState.overflowY).toBe('auto');
+  expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+  await page.waitForTimeout(3500);
+  await expect(searchInput).toHaveValue('test musik');
+  await expect(searchSource).toHaveValue('youtube');
+  await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
+
+  await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
+  await expect(page.getByText('Keine Fehlermeldungen vorhanden.')).toBeVisible();
+  await page.getByRole('button',{name:'Einstellungen'}).first().click();
+  await expect(page.getByRole('heading',{name:'Discord-Instanzen'})).toBeVisible();
+  await page.locator('.instance-section').filter({hasText:'Discord-Instanzen'}).getByRole('button',{name:'+ Instanz'}).click();
+  const card=page.locator('.instance-card').filter({hasText:'Discord'}).last(),refreshChannels=card.getByRole('button',{name:'Voice-Channels aktualisieren'});
+  await expect(refreshChannels).toBeVisible();
+  await refreshChannels.click();
+  await expect(page.locator('#toast')).toContainText('Instanz zuerst speichern und verbinden.');
+  await card.getByLabel('Name').fill('Test Discord');
+  await card.getByLabel('Client-ID / Bot-ID').fill('123456789012345678');
+  await card.getByLabel('Discord-Server / Guild-ID').fill('223456789012345678');
+  await card.getByRole('button',{name:'Speichern',exact:true}).click();
+  await expect(card.getByLabel('Name')).toHaveValue('Test Discord');
+  await page.route('**/api/connections/*/discord-options',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({status:'online',detail:'TestBot',guilds:[{id:'423456789012345678',name:'Testserver'}],voiceChannels:[{id:'523456789012345678',name:'Musik',guildId:'423456789012345678',guildName:'Testserver'}]})}));
+  await refreshChannels.click();
+  await expect(card.getByLabel('Discord-Server / Guild-ID')).toHaveValue('423456789012345678');
+  await expect(card.locator('select[name="voiceChannelId"]')).toContainText('Testserver · Musik');
+  await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
+  await expect(page.getByText('Instanz zuerst speichern und verbinden.')).toBeVisible();
+  await page.getByRole('button',{name:'Design'}).click();
+  await page.locator('#content label').filter({hasText:'Theme'}).locator('select').selectOption('ocean');
+  await page.getByRole('button',{name:'Speichern'}).click();
+  await expect(page.locator('body')).toHaveAttribute('data-theme','ocean');
+});
