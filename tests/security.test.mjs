@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';import os from 'node:os';import path from 'node:path';import fs from 'node:fs/promises';
+import {hashPassword,verifyPassword,SecretBox,timingEqual,safeMusicPath,assertSafeExternalUrl,RateLimiter} from '../backend/src/security.js';
+test('scrypt passwords and constant token comparison',()=>{const h=hashPassword('a-very-safe-password');assert.equal(verifyPassword('a-very-safe-password',h),true);assert.equal(verifyPassword('wrong-password',h),false);assert.equal(timingEqual('same','same'),true);assert.equal(timingEqual('same','other'),false);});
+test('AES-GCM secrets round-trip without plaintext',()=>{const box=SecretBox.fromHex('ab'.repeat(32));const sealed=box.seal('top-secret');assert.equal(sealed.includes('top-secret'),false);assert.equal(box.open(sealed),'top-secret');});
+test('paths and SSRF targets are constrained',async()=>{assert.throws(()=>safeMusicPath('/music','../passwd'));await assert.rejects(assertSafeExternalUrl('http://127.0.0.1/private'));await assert.rejects(assertSafeExternalUrl('file:///etc/passwd'));});
+test('rate limiter enforces windows',()=>{const r=new RateLimiter(2,1000);assert.equal(r.take('x'),true);assert.equal(r.take('x'),true);assert.equal(r.take('x'),false);});

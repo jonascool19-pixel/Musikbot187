@@ -1,95 +1,56 @@
 #!/usr/bin/env bash
-set -euo pipefail
-REPO="https://github.com/jonascool19-pixel/radiobot"
-VERSION="4.0.0"
-APP="/opt/musikbot187"
-DATA="/var/lib/musikbot187"
-SERVICE_USER="musikbot187"
-ENV_FILE="/etc/musikbot187.env"
-ARCHIVE="/tmp/musikbot187-${VERSION}.tar.gz"
-EXTRACT="/tmp/musikbot187-${VERSION}"
-log(){ printf '\n[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
-fail(){ echo "FEHLER: $*" >&2; exit 1; }
-[[ $EUID -eq 0 ]] || exec sudo -E bash "$0" "$@"
-command -v apt-get >/dev/null || fail 'Ubuntu/Debian mit apt-get erforderlich.'
-[[ "$(ps -p 1 -o comm= 2>/dev/null || true)" == 'systemd' ]] || fail 'systemd muss PID 1 sein.'
+set -Eeuo pipefail
+trap 'echo "FEHLER: Installation in Zeile $LINENO abgebrochen." >&2' ERR
+[[ ${EUID:-$(id -u)} -eq 0 ]] || { echo 'Bitte mit sudo bash ausführen.' >&2; exit 1; }
 export DEBIAN_FRONTEND=noninteractive
+APP=/opt/musikbot187
+DATA=/var/lib/musikbot187
+REPO=jonascool19-pixel/radiobot
+VERSION=main
 apt-get update
-apt-get install -y ca-certificates curl ffmpeg python3 python3-venv build-essential g++ make gnupg openssl tar
-NODE_MAJOR=0
-if command -v node >/dev/null 2>&1; then V="$(node --version)"; NODE_MAJOR="${V#v}"; NODE_MAJOR="${NODE_MAJOR%%.*}"; fi
-if [[ "$NODE_MAJOR" -lt 22 ]]; then install -d -m 0755 /etc/apt/keyrings; curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; echo 'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main' >/etc/apt/sources.list.d/nodesource.list; apt-get update; apt-get install -y nodejs; fi
-command -v node >/dev/null || fail 'Node.js fehlt.'
-if ! command -v yt-dlp >/dev/null 2>&1; then python3 -m venv /opt/musikbot187-ytdlp; /opt/musikbot187-ytdlp/bin/pip install --upgrade pip yt-dlp; ln -sf /opt/musikbot187-ytdlp/bin/yt-dlp /usr/local/bin/yt-dlp; fi
-command -v yt-dlp >/dev/null || fail 'yt-dlp fehlt.'
-if ! id "$SERVICE_USER" >/dev/null 2>&1; then useradd --system --home /nonexistent --shell /usr/sbin/nologin "$SERVICE_USER"; fi
-systemctl disable --now musikbot187-control.service 2>/dev/null || true
-rm -f /etc/systemd/system/musikbot187-control.service
-systemctl stop musikbot187.service 2>/dev/null || true
-rm -rf "$APP" "$EXTRACT" "$ARCHIVE"
-install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 "$APP" "$DATA" "$DATA/music"
-log 'Quellarchiv laden'
-curl -fsSL "${REPO}/archive/refs/heads/main.tar.gz" -o "$ARCHIVE"
-tar -xzf "$ARCHIVE" -C /tmp
-mv "/tmp/radiobot-main" "$EXTRACT"
-cp -a "$EXTRACT/." "$APP/"
-rm -rf "$EXTRACT" "$ARCHIVE"
-cd "$APP/backend"
-npm install --omit=dev --no-audit --no-fund
-chown -R "$SERVICE_USER:$SERVICE_USER" "$APP" "$DATA"
-SETUP_TOKEN="$(openssl rand -hex 32)"
-SESSION_SECRET="$(openssl rand -hex 32)"
-cat > "$ENV_FILE" <<ENV
-NODE_ENV=production
-HOST=0.0.0.0
-PORT=3000
+apt-get install -y ca-certificates curl ffmpeg openssl xz-utils
+if ! command -v node >/dev/null || [[ $(node --version | tr -d v | cut -d. -f1) -lt 22 ]]; then
+  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+  apt-get install -y nodejs
+fi
+YT_VERSION="$(curl -fsSL https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p' | head -1)"
+[[ -n "$YT_VERSION" ]]
+curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/$YT_VERSION/yt-dlp" -o /usr/local/bin/yt-dlp.new
+curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/$YT_VERSION/SHA2-256SUMS" -o /tmp/yt-dlp.sha256
+EXPECTED="$(awk '$2=="yt-dlp"{print $1}' /tmp/yt-dlp.sha256)"
+ACTUAL="$(sha256sum /usr/local/bin/yt-dlp.new | awk '{print $1}')"
+[[ -n "$EXPECTED" && "$EXPECTED" == "$ACTUAL" ]] || { echo 'yt-dlp SHA-256-Prüfung fehlgeschlagen.' >&2; exit 1; }
+install -m 0755 /usr/local/bin/yt-dlp.new /usr/local/bin/yt-dlp
+rm -f /usr/local/bin/yt-dlp.new /tmp/yt-dlp.sha256
+getent group musikbot187 >/dev/null || groupadd --system musikbot187
+id musikbot187 >/dev/null 2>&1 || useradd --system --gid musikbot187 --home-dir "$DATA" --shell /usr/sbin/nologin musikbot187
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+curl -fsSL "https://github.com/$REPO/archive/refs/heads/$VERSION.tar.gz" -o "$TMP/app.tar.gz"
+tar -xzf "$TMP/app.tar.gz" -C "$TMP"
+systemctl stop musikbot187.service musikbot187-control.service 2>/dev/null || true
+OLD="${APP}.previous"; rm -rf "$OLD"; [[ ! -d "$APP" ]] || mv "$APP" "$OLD"
+install -d -m 0755 "$APP"; cp -a "$TMP/radiobot-$VERSION/." "$APP/"
+cd "$APP/backend"; npm ci --omit=dev --no-audit --no-fund
+install -d -o musikbot187 -g musikbot187 -m 0750 "$DATA" "$DATA/music"
+SECRET="$(openssl rand -hex 32)"; SETUP="$(openssl rand -hex 32)"
+if [[ -f /etc/musikbot187.env ]]; then SETUP="$(sed -n 's/^MUSIKBOT187_SETUP_TOKEN=//p' /etc/musikbot187.env | head -1)"; fi
+cat > /etc/musikbot187.env <<EOF
 MUSIKBOT187_DATA_DIR=$DATA
-MUSIKBOT187_SETUP_TOKEN=$SETUP_TOKEN
-MUSIKBOT187_SESSION_SECRET=$SESSION_SECRET
-ENV
-chown root:"$SERVICE_USER" "$ENV_FILE"; chmod 0640 "$ENV_FILE"
-cat > /etc/systemd/system/musikbot187.service <<UNIT
-[Unit]
-Description=MusikBot187 4.0.0
-After=network-online.target
-Wants=network-online.target
-[Service]
-Type=simple
-WorkingDirectory=$APP/backend
-EnvironmentFile=$ENV_FILE
-ExecStart=/usr/bin/node $APP/backend/src/server.js
-User=$SERVICE_USER
-Group=$SERVICE_USER
-Restart=on-failure
-RestartSec=3
-UMask=0077
-NoNewPrivileges=true
-PrivateTmp=true
-PrivateDevices=true
-ProtectSystem=strict
-ProtectHome=true
-ProtectKernelModules=true
-ProtectKernelTunables=true
-ProtectControlGroups=true
-RestrictSUIDSGID=true
-LockPersonality=true
-RestrictRealtime=true
-SystemCallArchitectures=native
-CapabilityBoundingSet=
-AmbientCapabilities=
-ReadWritePaths=$DATA
-[Install]
-WantedBy=multi-user.target
-UNIT
+MUSIKBOT187_FRONTEND_DIR=$APP/frontend
+MUSIKBOT187_SETUP_TOKEN=$SETUP
+MUSIKBOT187_HOST=0.0.0.0
+MUSIKBOT187_PORT=3000
+EOF
+chmod 0600 /etc/musikbot187.env
+chown -R root:root "$APP"; chown -R musikbot187:musikbot187 "$DATA"
+install -m 0644 "$APP/systemd/musikbot187.service" /etc/systemd/system/musikbot187.service
+install -m 0644 "$APP/systemd/musikbot187-control.service" /etc/systemd/system/musikbot187-control.service
+usermod -a -G musikbot187 root
 systemctl daemon-reload
-systemctl enable --now musikbot187.service
-sleep 2
-if ! systemctl is-active --quiet musikbot187.service; then systemctl --no-pager -l status musikbot187.service || true; journalctl -u musikbot187.service -n 100 --no-pager || true; fail 'MusikBot187 konnte nicht gestartet werden.'; fi
-IP="$(hostname -I 2>/dev/null | awk '{print $1}')"; [[ -n "$IP" ]] || IP='SERVER-IP'
-echo
-echo '============================================================'
-echo 'MusikBot187 4.0.0 installiert'
-echo "Dashboard:        http://${IP}:3000/"
-echo "Einrichtungslink: http://${IP}:3000/#setup=${SETUP_TOKEN}"
-echo '============================================================'
-echo 'Logs: journalctl -u musikbot187 -f'
+systemctl enable --now musikbot187-control.service musikbot187.service
+sleep 3
+curl -fsS http://127.0.0.1:3000/api/health >/dev/null || { journalctl -u musikbot187 -n 100 --no-pager; exit 1; }
+rm -rf "$OLD"
+IP="$(hostname -I 2>/dev/null | awk '{print $1}')"; [[ -n "$IP" ]] || IP=SERVER-IP
+echo "Dashboard: http://$IP:3000/"
+echo "Einrichtungslink: http://$IP:3000/#setup=$SETUP"

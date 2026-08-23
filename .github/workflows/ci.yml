@@ -1,19 +1,22 @@
 name: CI
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+on: [push, pull_request]
+permissions: { contents: read }
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg python3 python3-venv
+        with: { node-version: 22, cache: npm, cache-dependency-path: backend/package-lock.json }
+      - run: npm ci
+        working-directory: backend
+      - run: npm test
+        working-directory: backend
+      - run: npm run test:first-run
+        working-directory: backend
       - run: bash -n install-latest.sh
-      - run: cd backend && npm install --no-audit --no-fund
-      - run: cd backend && npm run check
-      - run: node --test tests/core.test.mjs tests/import-contract.test.mjs tests/installer.test.mjs
+      - run: npx playwright install --with-deps chromium
+        working-directory: backend
+      - run: npm run test:browser
+        working-directory: backend

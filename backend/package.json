@@ -1,22 +1,23 @@
 {
-  "name": "musikbot187-clean",
-  "version": "4.0.0",
+  "name": "musikbot187",
+  "version": "5.0.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
     "start": "node src/server.js",
-    "check": "node --check src/server.js && node --check src/config.js && node --check src/security.js && node --check src/store.js && node --check src/media.js && node --check src/player.js && node --check src/discord.js && node --check src/ts3.js",
-    "test": "node --test ../tests/*.test.mjs"
+    "test": "node --test ../tests/*.test.mjs",
+    "test:first-run": "node --test ../tests/first-run.test.mjs",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@discordjs/voice": "0.19.2",
-    "@fastify/cors": "11.3.0",
-    "@fastify/multipart": "10.1.1",
-    "@fastify/static": "10.1.3",
-    "@honeybbq/teamspeak-client": "0.2.3",
+    "@fastify/cors": "11.1.0",
+    "@fastify/multipart": "9.2.1",
+    "@fastify/static": "8.3.0",
     "discord.js": "14.25.1",
     "fastify": "5.6.2",
-    "opusscript": "0.1.1"
-  }
+    "ts3-nodejs-library": "3.5.3"
+  },
+  "devDependencies": { "@playwright/test": "1.55.0" }
 }

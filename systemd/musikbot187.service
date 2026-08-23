@@ -1,0 +1,31 @@
+[Unit]
+Description=MusikBot187 music and radio bot
+After=network-online.target musikbot187-control.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=musikbot187
+Group=musikbot187
+WorkingDirectory=/opt/musikbot187/backend
+EnvironmentFile=/etc/musikbot187.env
+ExecStart=/usr/bin/node /opt/musikbot187/backend/src/server.js
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/musikbot187 /run/musikbot187
+
+[Install]
+WantedBy=multi-user.target

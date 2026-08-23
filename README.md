@@ -1,24 +1,29 @@
-# MusikBot187 4.0.0
+# MusikBot187 5.0.0
 
-Kompletter Neuaufbau für Ubuntu 24.04 LXC/CT. Der Code besteht nur aus dem neuen Kern; alte Fix-, Kompatibilitäts- und Frontend-Hilfsdateien sind nicht Bestandteil dieses Stands.
+Vollständiger Neuaufbau eines selbst gehosteten Musik- und Radiobots für Ubuntu 24.04/Debian mit Web-Dashboard, YouTube, Radio-Browser, Spotify, lokalen Audiodateien, Queue, Playlists, Discord, TeamSpeak 3, Benutzerrechten, Monitoring und getrenntem privilegiertem Control-Dienst.
 
-## Einmal installieren
+## Einmal-Installation
 
 ```bash
-sudo apt update && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-latest.sh | sudo bash
+sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/install-latest.sh | sudo bash
 ```
 
-Der Installer nutzt kein Git im laufenden Installationsverzeichnis. Er lädt den `main`-Stand als Archiv, installiert Node.js 22, FFmpeg und yt-dlp, legt den Service-Benutzer an und startet genau `musikbot187.service`.
+Der Installer gibt den Dashboard- und einmaligen Setup-Link aus. Zielpfade sind `/opt/musikbot187` und `/var/lib/musikbot187`; der Hauptdienst läuft als Benutzer `musikbot187`.
 
-Nach dem Start wird ein einmaliger Setup-Link ausgegeben. Darüber wird der erste Admin angelegt. Danach stehen Dashboard, YouTube-Suche, Radio-Browser, Spotify-Suche, Queue, Playlists, lokale Musik, Discord Voice und TS3-Ausgabe zur Verfügung.
+## Entwicklung
 
-## Laufzeit
+Node.js 22 oder neuer wird benötigt.
 
-- Anwendung: `/opt/musikbot187`
-- Daten/Musik: `/var/lib/musikbot187`
-- Secrets: `/etc/musikbot187.env`
-- Service: `musikbot187.service`
+```bash
+cd backend
+npm ci
+npm test
+npm run test:first-run
+npm run test:browser
+```
 
-## Tests
+## Architektur
 
-CI läuft auf Ubuntu 24.04 und prüft Bash-Syntax, Node-Syntax, lokale Import/Export-Verträge sowie Sicherheits-/Pfadtests nach echter Dependency-Installation.
+`frontend` → Fastify-API → Store/Auth/Permissions → Player → yt-dlp/FFmpeg → Discord/TS3. Direkte Medienziele werden gegen private und reservierte Netze geprüft. Secrets werden mit AES-256-GCM verschlüsselt. Systemaktionen laufen ausschließlich über `/run/musikbot187/control.sock`.
+
+Weitere Details und offene Umgebungsprüfungen stehen in [docs/deep-audit.md](docs/deep-audit.md).

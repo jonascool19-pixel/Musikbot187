@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {Player} from '../backend/src/player.js';
+test('queue limits, modes and volume contracts',()=>{const p=new Player({musicDir:'.',diagnostic(){}});p.current={title:'busy'};p.add(Array.from({length:100},(_,i)=>({title:`T${i}`})));assert.equal(p.queue.length,100);assert.throws(()=>p.add({title:'overflow'}));p.remove(0);assert.equal(p.queue.length,99);p.setVolume(0);p.setVolume(100);assert.throws(()=>p.setVolume(101));p.setMode('shuffle');assert.equal(p.mode,'shuffle');p.stop();});

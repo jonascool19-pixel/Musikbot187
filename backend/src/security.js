@@ -3,13 +3,33 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import path from 'node:path';
 
-export function timingEqual(a,b){const aa=Buffer.from(String(a));const bb=Buffer.from(String(b));return aa.length===bb.length&&crypto.timingSafeEqual(aa,bb)}
-export function randomToken(bytes=32){return crypto.randomBytes(bytes).toString('base64url')}
-export function hashPassword(password){const salt=crypto.randomBytes(16);const N=32768,r=8,p=1;return new Promise((resolve,reject)=>crypto.scrypt(String(password),salt,64,{N,r,p,maxmem:128*1024*1024},(e,d)=>e?reject(e):resolve(`scrypt$${N}$${r}$${p}$${salt.toString('base64')}$${Buffer.from(d).toString('base64')}`)))}
-export function verifyPassword(password,encoded){const parts=String(encoded).split('$');if(parts.length!==6||parts[0]!=='scrypt')return Promise.resolve(false);const[,N,r,p,saltB64,hashB64]=parts,salt=Buffer.from(saltB64,'base64'),expected=Buffer.from(hashB64,'base64');return new Promise((resolve,reject)=>crypto.scrypt(String(password),salt,expected.length,{N:Number(N),r:Number(r),p:Number(p),maxmem:128*1024*1024},(e,d)=>{if(e)return reject(e);resolve(crypto.timingSafeEqual(expected,d))}))}
-export const validateUsername=v=>/^[a-zA-Z0-9_.-]{3,40}$/.test(String(v||''));
-export function safeResolve(root,candidate){const rr=path.resolve(root);const cc=path.resolve(root,String(candidate||''));if(cc!==rr&&!cc.startsWith(rr+path.sep))throw new Error('Pfad außerhalb des Musikverzeichnisses');return cc}
-function privateIp(ip){if(net.isIPv4(ip)){const[a,b]=ip.split('.').map(Number);return a===10||a===127||a===0||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)}const s=ip.toLowerCase();return s==='::1'||s.startsWith('fc')||s.startsWith('fd')||s.startsWith('fe80:')}
-export async function assertSafeExternalUrl(raw){const u=new URL(raw);if(!['http:','https:'].includes(u.protocol))throw new Error('Nur HTTP(S)-URLs erlaubt');const host=u.hostname.toLowerCase();if(['localhost','localhost.localdomain'].includes(host))throw new Error('Lokales Ziel blockiert');if(net.isIP(host)){if(privateIp(host))throw new Error('Privates Ziel blockiert');return u}const answers=await dns.lookup(host,{all:true});if(!answers.length||answers.some(x=>privateIp(x.address)))throw new Error('Privates oder nicht auflösbares Ziel blockiert');return u}
-export function sessionSign(payload,secret){const b=Buffer.from(JSON.stringify(payload)).toString('base64url');const mac=crypto.createHmac('sha256',secret).update(b).digest('base64url');return `${b}.${mac}`}
-export function sessionRead(token,secret){const [b,mac]=String(token||'').split('.');if(!b||!mac)return null;const expected=crypto.createHmac('sha256',secret).update(b).digest('base64url');if(!timingEqual(mac,expected))return null;try{const payload=JSON.parse(Buffer.from(b,'base64url').toString('utf8'));if(payload.exp&&Date.now()>payload.exp)return null;return payload}catch{return null}}
+export const permissions = Object.freeze(['player.control','playlists.manage','music.manage','connections.manage','settings.manage','design.manage','users.manage','diagnostics.view','system.manage']);
+export const timingEqual = (a, b) => { const x=Buffer.from(String(a)); const y=Buffer.from(String(b)); return x.length===y.length && crypto.timingSafeEqual(x,y); };
+export const randomToken = () => crypto.randomBytes(32).toString('base64url');
+export const validUsername = value => /^[A-Za-z0-9_.-]{3,32}$/.test(String(value));
+export const validAccent = value => /^#[0-9a-fA-F]{6}$/.test(String(value));
+export function hashPassword(password) {
+  if (String(password).length < 10 || String(password).length > 256) throw new Error('Passwort muss 10–256 Zeichen lang sein.');
+  const salt=crypto.randomBytes(16); const derived=crypto.scryptSync(password,salt,64,{N:16384,r:8,p:1});
+  return `scrypt$16384$${salt.toString('hex')}$${derived.toString('hex')}`;
+}
+export function verifyPassword(password, encoded) {
+  const [kind,n,salt,hash]=String(encoded).split('$'); if(kind!=='scrypt'||!salt||!hash) return false;
+  const actual=crypto.scryptSync(password,Buffer.from(salt,'hex'),Buffer.from(hash,'hex').length,{N:Number(n),r:8,p:1});
+  return crypto.timingSafeEqual(actual,Buffer.from(hash,'hex'));
+}
+export class SecretBox {
+  constructor(key){ this.key=key; }
+  static fromHex(value){ if(!/^[0-9a-f]{64}$/i.test(value)) throw new Error('Ungültiger Secret-Key'); return new SecretBox(Buffer.from(value,'hex')); }
+  seal(value){ if(!value) return ''; const iv=crypto.randomBytes(12); const cipher=crypto.createCipheriv('aes-256-gcm',this.key,iv); const body=Buffer.concat([cipher.update(String(value),'utf8'),cipher.final()]); return ['v1',iv.toString('base64url'),cipher.getAuthTag().toString('base64url'),body.toString('base64url')].join('.'); }
+  open(value){ if(!value) return ''; const [v,i,t,b]=String(value).split('.'); if(v!=='v1') throw new Error('Unbekanntes Secret-Format'); const decipher=crypto.createDecipheriv('aes-256-gcm',this.key,Buffer.from(i,'base64url')); decipher.setAuthTag(Buffer.from(t,'base64url')); return Buffer.concat([decipher.update(Buffer.from(b,'base64url')),decipher.final()]).toString(); }
+}
+const blockedV4 = ip => { const p=ip.split('.').map(Number); return p[0]===0||p[0]===10||p[0]===127||p[0]>=224||(p[0]===169&&p[1]===254)||(p[0]===172&&p[1]>=16&&p[1]<=31)||(p[0]===192&&p[1]===168)||(p[0]===100&&p[1]>=64&&p[1]<=127); };
+export async function assertSafeExternalUrl(raw) {
+  const url=new URL(raw); if(!['http:','https:'].includes(url.protocol)||url.username||url.password) throw new Error('Unzulässige Medien-URL');
+  const addresses=net.isIP(url.hostname)?[{address:url.hostname}]:await dns.lookup(url.hostname,{all:true,verbatim:true});
+  if(!addresses.length||addresses.some(({address})=>net.isIP(address)===4?blockedV4(address):address==='::1'||address.startsWith('fc')||address.startsWith('fd')||address.startsWith('fe80'))) throw new Error('Privates oder reserviertes Medienziel blockiert');
+  return url;
+}
+export function safeMusicPath(root, name){ if(!/^[\p{L}\p{N} _().\-[\]]{1,180}$/u.test(name)||name.includes('..')) throw new Error('Ungültiger Dateiname'); const target=path.resolve(root,name); if(path.dirname(target)!==path.resolve(root)) throw new Error('Pfad außerhalb des Musikverzeichnisses'); return target; }
+export class RateLimiter { constructor(limit,windowMs){this.limit=limit;this.windowMs=windowMs;this.map=new Map();} take(key){const now=Date.now();const live=(this.map.get(key)||[]).filter(x=>x>now-this.windowMs);if(live.length>=this.limit)return false;live.push(now);this.map.set(key,live);return true;} cleanup(){const cutoff=Date.now()-this.windowMs;for(const [k,v] of this.map)if(!v.some(x=>x>cutoff))this.map.delete(k);} }

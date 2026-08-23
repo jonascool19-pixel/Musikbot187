@@ -1,0 +1,26 @@
+[Unit]
+Description=MusikBot187 privileged control service
+After=local-fs.target
+
+[Service]
+Type=simple
+User=root
+Group=musikbot187
+WorkingDirectory=/opt/musikbot187
+Environment=MUSIKBOT187_CONTROL_SOCKET=/run/musikbot187/control.sock
+ExecStart=/usr/bin/node /opt/musikbot187/control/control.mjs
+Restart=on-failure
+RestartSec=3
+UMask=0007
+RuntimeDirectory=musikbot187
+RuntimeDirectoryMode=0770
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
