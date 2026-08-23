@@ -13,11 +13,10 @@ if ! command -v node >/dev/null || [[ $(node --version | tr -d v | cut -d. -f1) 
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 fi
-YT_VERSION="$(curl -fsSL https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p' | head -1)"
-[[ -n "$YT_VERSION" ]]
-curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/$YT_VERSION/yt-dlp" -o /usr/local/bin/yt-dlp.new
-curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/$YT_VERSION/SHA2-256SUMS" -o /tmp/yt-dlp.sha256
-EXPECTED="$(awk '$2=="yt-dlp"{print $1}' /tmp/yt-dlp.sha256)"
+YT_BASE=https://github.com/yt-dlp/yt-dlp/releases/latest/download
+curl --retry 3 --retry-all-errors -fsSL "$YT_BASE/yt-dlp" -o /usr/local/bin/yt-dlp.new
+curl --retry 3 --retry-all-errors -fsSL "$YT_BASE/SHA2-256SUMS" -o /tmp/yt-dlp.sha256
+EXPECTED="$(awk '$2=="yt-dlp" || $2=="*yt-dlp" {print $1; exit}' /tmp/yt-dlp.sha256)"
 ACTUAL="$(sha256sum /usr/local/bin/yt-dlp.new | awk '{print $1}')"
 [[ -n "$EXPECTED" && "$EXPECTED" == "$ACTUAL" ]] || { echo 'yt-dlp SHA-256-Prüfung fehlgeschlagen.' >&2; exit 1; }
 install -m 0755 /usr/local/bin/yt-dlp.new /usr/local/bin/yt-dlp
