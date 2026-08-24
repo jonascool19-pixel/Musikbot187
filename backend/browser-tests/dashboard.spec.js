@@ -63,6 +63,8 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.getByRole('heading',{name:'Warteschlange (8)'})).toBeVisible();
   const queueScroll=await page.locator('#playerQueueItems').evaluate(element=>({overflowY:getComputedStyle(element).overflowY,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight}));
   expect(queueScroll.overflowY).toBe('auto');expect(queueScroll.scrollHeight).toBeGreaterThan(queueScroll.clientHeight);
+  await page.getByRole('button',{name:'Wartelistentitel 2 nach oben'}).click();
+  await expect.poll(()=>playerCalls.filter(call=>call.method==='PUT'&&call.url.includes('/api/player/queue/1')).map(call=>call.body).join('\n')).toContain('"targetIndex":0');
   for(const name of ['Pause','Weiter','Skip','Stop'])await page.getByRole('button',{name,exact:true}).click();
   await page.getByRole('button',{name:'10 Sekunden zurück'}).click();
   await page.getByRole('button',{name:'10 Sekunden vor'}).click();

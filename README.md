@@ -11,7 +11,7 @@ MusikBot187 ist für den dauerhaften Betrieb im eigenen Netzwerk gebaut. Die kom
 | Bereich | Funktionen |
 | --- | --- |
 | Musikquellen | YouTube, Radio-Browser, Spotify-Suche, Spotify-Playlists, direkte Streams und lokale Audiodateien |
-| Wiedergabe | Play, Pause, Weiter, Skip, Stop, Lautstärke, Spulen, Warteschlange und Wiederhol-/Zufallsmodus |
+| Wiedergabe | Play, Pause, Weiter, Skip, Stop, Lautstärke, Spulen, verschiebbare Warteschlange und Wiederhol-/Zufallsmodus |
 | Ausgaben | Bis zu zwei Discord- und zwei TeamSpeak-Instanzen, getrennte Player oder synchroner Spiegelmodus |
 | Automatik | Endlosschleife aus eigenen Playlists oder persönlicher Mix aus der lokalen Hörhistorie |
 | Verwaltung | Hauptadmin, Benutzerrollen, einzelne Rechte, Diagnosen, Monitoring, Netzwerkverlauf und Updates |
@@ -26,6 +26,7 @@ MusikBot187 ist für den dauerhaften Betrieb im eigenen Netzwerk gebaut. Die kom
 - Der aktuell laufende Titel kann ebenfalls direkt einer Playlist hinzugefügt werden.
 - Die Wiedergabe verwendet die beste verfügbare Audioqualität; Radio bevorzugt die höchste erreichbare Bitrate.
 - Der nächste Wartelisteneintrag wird im Hintergrund vorbereitet, damit Titel schneller wechseln.
+- Titel lassen sich mit Pfeilen in der Warteschlange nach oben oder unten verschieben, ohne die laufende Wiedergabe zu unterbrechen.
 - Ungeeignete oder dauerhaft nicht verfügbare Quellen werden übersprungen, statt den Player minutenlang zu blockieren.
 
 ## Spotify ohne eigene Domain
@@ -50,7 +51,7 @@ Einrichtung in der richtigen Reihenfolge:
 2. **Bot zu Discord hinzufügen** öffnen und den gewünschten Server bestätigen.
 3. Neben Voice-Channel auf **↻** klicken, damit die erreichbaren Server und Kanäle geladen werden.
 4. Discord-Server und Voice-Channel auswählen.
-5. **Voice-Channel betreten** wählen. Ein noch laufender Verbindungsaufbau wird automatisch abgewartet, statt fälschlich „nicht verbunden“ zu melden.
+5. **Voice-Channel betreten** wählen. Ein noch laufender Verbindungsaufbau wird automatisch abgewartet, statt fälschlich „nicht verbunden“ zu melden. Der vorherige Hinweis zur Serverauswahl ist nur ein Einrichtungsstatus und wird nach erfolgreichem Beitritt aus alten Warnungen entfernt.
 
 Unterstützte Slash-Befehle:
 
@@ -59,7 +60,7 @@ Unterstützte Slash-Befehle:
 /clear /volume /queue   /nowplaying /help
 ```
 
-Langsame `/play`-Suchen werden sofort von Discord bestätigt und anschließend beantwortet. Antwort-, Such- oder Logfehler bleiben innerhalb des Discord-Moduls und können den Musikdienst nicht mehr beenden. Radio, YouTube und über Spotify gefundene Titel laufen durch denselben geglätteten FFmpeg-Echtzeitpfad mit größerem Netzwerkeingangspuffer und automatischer Wiederverbindung. Vor Discord werden 300 Millisekunden Ton vorbereitet; der begrenzte Rückstaupuffer glättet kurze Schwankungen, ohne im Dauerbetrieb unbegrenzt Verzögerung aufzubauen.
+Bei `/play` erscheinen beim Tippen bis zu zehn echte YouTube-Treffer. Nach der Auswahl wird exakt die gewählte Video-ID eingereiht; Freitext bleibt als Rückfall möglich. Langsame Befehle werden sofort von Discord bestätigt und anschließend beantwortet. Antwort-, Such- oder Logfehler bleiben innerhalb des Discord-Moduls und können den Musikdienst nicht mehr beenden. Alle Netzwerkquellen besitzen Zeitgrenzen und automatische Wiederverbindung. YouTube, Spotify und lokale Dateien werden in Echtzeit getaktet; ein bereits live eintreffender Radiostream wird nicht ein zweites Mal künstlich gebremst. Vor Discord werden für Musik auf Abruf 300 Millisekunden und für Live-Radio eine Sekunde Ton vorbereitet. Der begrenzte Rückstaupuffer glättet kurze Schwankungen, ohne im Dauerbetrieb unbegrenzt Verzögerung aufzubauen.
 
 ## Automatische Wiedergabe
 

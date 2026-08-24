@@ -17,11 +17,16 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - geführte Discord-Einrichtung und serialisierter Voice-Beitritt ohne falsche Zwischenfehlermeldung
 - lokaler 24-Stunden-Leistungsberater mit CPU-, RAM-, Kern-, Netzwerk- und CT-Empfehlung
 - dauerhafte Messhistorien, die auch beim täglichen Wartungsneustart nicht bereinigt werden
-- geglätteter FFmpeg-Netzwerkpfad und 300-ms-Discord-Vorpuffer gegen Radio-/YouTube-/Spotify-Stottern
+- geglätteter FFmpeg-Netzwerkpfad und begrenzter Discord-Rückstaupuffer gegen kurze Transportaussetzer
+- stotterfreierer Live-Radiopfad ohne doppelte Echtzeittaktung, mit eigenem 1-s-Discord-Vorpuffer und sauber ausgerichteten PCM-Samples
+- `/play` mit echten auswählbaren Discord-Suchvorschlägen und exakter Wiedergabe der gewählten Video-ID
+- erwarteter Discord-Einrichtungsstatus nicht mehr als Fehlermeldung; alte Auswahlwarnung wird nach erfolgreichem Voice-Beitritt entfernt
+- Warteschlangentitel per Pfeil nach oben und unten verschiebbar, ohne den laufenden Titel zu unterbrechen
+- sauberer Dienstabschluss, der laufende Spotify-Abgleiche und andere Hintergrundspeicherungen vollständig abwartet
 
 ## Prüfung
 
-- 82 lokale automatisierte Prüfungen bestanden
+- 87 lokale automatisierte Prüfungen bestanden
 - Syntaxprüfung für Backend, Control-Dienst, Frontend und Installer
 - kompletter Browserablauf sowie Desktop- und Mobilansicht geprüft
 - Zwei-Player-Performanceprüfung bestanden
