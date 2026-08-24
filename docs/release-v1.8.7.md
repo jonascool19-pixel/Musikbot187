@@ -23,10 +23,12 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - erwarteter Discord-Einrichtungsstatus nicht mehr als Fehlermeldung; alte Auswahlwarnung wird nach erfolgreichem Voice-Beitritt entfernt
 - Warteschlangentitel per Pfeil nach oben und unten verschiebbar, ohne den laufenden Titel zu unterbrechen
 - sauberer Dienstabschluss, der laufende Spotify-Abgleiche und andere Hintergrundspeicherungen vollständig abwartet
+- Spotify-Wiedergabe mit eigenem 750-ms-Discord-Vorpuffer sowie positionsgenauer Wiederaufnahme, falls eine aufgelöste Ersatzquelle vorzeitig endet
+- Audit-Prüfungen sind unabhängig vom jeweils verwendeten Arbeitsordner ausführbar
 
 ## Prüfung
 
-- 87 lokale automatisierte Prüfungen bestanden
+- 88 lokale automatisierte Prüfungen bestanden
 - Syntaxprüfung für Backend, Control-Dienst, Frontend und Installer
 - kompletter Browserablauf sowie Desktop- und Mobilansicht geprüft
 - Zwei-Player-Performanceprüfung bestanden
