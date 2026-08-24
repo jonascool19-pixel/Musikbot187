@@ -6,7 +6,7 @@ const seconds=Math.max(10,Math.min(3600,option('seconds',300))),players=Math.max
 for(let offset=0;offset<frame.length;offset+=2)frame.writeInt16LE(Math.round(Math.sin(offset/24)*24000),offset);
 
 let OpusEncoder=null,opusError='';
-try{({OpusEncoder}=await import('@discordjs/opus'))}catch(error){opusError=String(error.message||error).split('\n')[0]}
+try{const opusModule=await import('@discordjs/opus');OpusEncoder=opusModule.OpusEncoder||opusModule.default?.OpusEncoder||null;if(!OpusEncoder)opusError='Das Opus-Modul enthält keinen OpusEncoder-Export.'}catch(error){opusError=String(error.message||error).split('\n')[0]}
 
 const scalers=Array.from({length:players},(_,index)=>new PcmVolumeScaler(72-index*7)),encoders=OpusEncoder?Array.from({length:players},()=>new OpusEncoder(48_000,2)):[],pcmFrames=Array.from({length:players},()=>Array.from({length:50},()=>Buffer.from(frame)));
 for(const encoder of encoders)encoder.applyEncoderCTL?.(4002,128_000);
