@@ -1,5 +1,7 @@
 export const autoplayModes=Object.freeze(['playlists','similar']);
-export const autoplayQueueBounds=Object.freeze({min:3,max:20,default:5});
+export const autoplayQueueBounds=Object.freeze({min:3,max:20,default:10});
+export const listeningProfileLimit=200;
+const listeningProfileFavorites=40;
 const listeningThresholdMs=30_000;
 const styleMatchers=Object.freeze([
   ['Uptempo',/\buptempo\b/i],['Hardcore',/\b(?:hardcore|gabber)\b/i],['Hardstyle',/\b(?:hardstyle|rawstyle)\b/i],
@@ -20,8 +22,13 @@ export function recommendationQuery(track){
     .replace(/\s+/g,' ')
     .trim()
     .slice(0,150);
-  return title?`${title} ähnliche Songs Mix`:'';
+  const styles=inferTrackStyles(track);
+  return title?(styles.length?`${styles.slice(0,2).join(' ')} ähnliche Songs verschiedene Künstler Mix`:`${title} ähnliche Songs verschiedene Künstler Mix -cover -lyrics -remix`):'';
 }
+
+const variantWords=new Set(['official','music','video','audio','lyrics','lyric','live','remix','remastered','remaster','edit','version','sped','slowed','reverb','nightcore','cover','karaoke','instrumental','visualizer','visualiser','hq','hd','mv']);
+export function recommendationFamily(track){const clean=String(track?.title||'').normalize('NFKC').toLocaleLowerCase('de-DE').replace(/[\[(][^\])]*(?:official|video|audio|lyrics?|live|remix|remaster|edit|version|sped|slowed|reverb|nightcore|cover|karaoke|instrumental|visuali[sz]er)[^\])]*[\])]/gi,' ').replace(/[^\p{L}\p{N}]+/gu,' '),tokens=clean.split(/\s+/).filter(token=>(token.length>1||/^\d+$/.test(token))&&!variantWords.has(token));return [...new Set(tokens)].sort().join('|');}
+export function sameRecommendationFamily(left,right){const a=recommendationFamily(left),b=recommendationFamily(right);if(!a||!b)return false;if(a===b)return true;const aa=new Set(a.split('|')),bb=new Set(b.split('|')),intersection=[...aa].filter(token=>bb.has(token)).length,union=new Set([...aa,...bb]).size;return intersection>=4&&intersection/union>=.8;}
 
 export function inferTrackStyles(track){
   const text=String(track?.title||'');
@@ -56,6 +63,7 @@ export class AutoplayController{
     this.cursor=0;
     this.recommendationBuffer=[];
     this.recentKeys=[];
+    this.recentFamilies=[];
     this.lastSeedKey='';
     this.lastSeedTitle='';
     this.addedTotal=0;
@@ -100,7 +108,8 @@ export class AutoplayController{
     for(const track of tracks)for(const style of track.styles||[])styleCounts.set(style,(styleCounts.get(style)||0)+Math.max(1,Number(track.listens)||1));
     const top=tracks.sort((a,b)=>Number(b.listens||0)-Number(a.listens||0)||Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).slice(0,8).map(track=>({title:track.title,source:track.source,listens:track.listens,lastPlayed:track.lastPlayed}));
     const styles=[...styleCounts].sort((a,b)=>b[1]-a[1]).slice(0,6).map(([name,weight])=>({name,weight}));
-    return {learnedTracks:tracks.length,totalListens:tracks.reduce((sum,track)=>sum+Math.max(1,Number(track.listens)||1),0),styles,top};
+    const recent=[...this.profile.tracks].sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).map(track=>({key:track.key,title:track.title,source:track.source,listens:track.listens,lastPlayed:track.lastPlayed,styles:[...(track.styles||[])]}));
+    return {learnedTracks:tracks.length,maxTracks:listeningProfileLimit,totalListens:tracks.reduce((sum,track)=>sum+Math.max(1,Number(track.listens)||1),0),styles,top,tracks:recent};
   }
 
   observe(playerState=this.player.state()){
@@ -138,15 +147,18 @@ export class AutoplayController{
       entry={key,title:String(track.title||'Ohne Titel').slice(0,200),source:String(track.source||''),id:String(track.id||''),url:String(track.url||''),path:String(track.path||''),duration:Number(track.duration)||0,styles:inferTrackStyles(track),listens:1,lastPlayed:now};
       this.profile.tracks.push(entry);
     }
-    if(this.profile.tracks.length>120)this.profile.tracks.sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).splice(120);
+    if(this.profile.tracks.length>listeningProfileLimit){const favorites=[...this.profile.tracks].sort((a,b)=>Number(b.listens||0)-Number(a.listens||0)||Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).slice(0,listeningProfileFavorites),favoriteKeys=new Set(favorites.map(value=>value.key)),recent=[...this.profile.tracks].filter(value=>!favoriteKeys.has(value.key)).sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).slice(0,listeningProfileLimit-favorites.length);this.profile.tracks=[...favorites,...recent].sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0));}
     await this.save();
     return this.profileSummary();
   }
+
+  async removeProfileTrack(key){const value=String(key||''),index=this.profile.tracks.findIndex(track=>track.key===value);if(index<0)throw new Error('Der gelernte Titel wurde nicht gefunden.');this.profile.tracks.splice(index,1);this.recentKeys=this.recentKeys.filter(item=>item!==value);this.recommendationBuffer=this.recommendationBuffer.filter(item=>autoplayTrackKey(item)!==value);if(this.lastSeedKey===value){this.lastSeedKey='';this.lastSeedTitle='';}await this.save();return this.profileSummary();}
 
   async resetProfile(){
     this.profile.tracks=[];
     this.recommendationBuffer=[];
     this.recentKeys=[];
+    this.recentFamilies=[];
     this.mixCounter=0;
     await this.save();
     return this.profileSummary();
@@ -157,6 +169,7 @@ export class AutoplayController{
     this.cursor=0;
     this.recommendationBuffer=[];
     this.recentKeys=[];
+    this.recentFamilies=[];
     this.lastSeedKey='';
     this.lastSeedTitle='';
     this.addedTotal=0;
@@ -277,19 +290,15 @@ export class AutoplayController{
 
   async similarItems(config,needed){
     const current=this.player.current;
-    if(!current){
-      this.statusCode='waiting';
-      this.detail='Starte zuerst einen Titel. Danach sucht Autoplay automatisch passende Musik.';
-      return [];
-    }
-    if(current.source==='radio'){
+    if(current?.source==='radio'){
       this.statusCode='waiting';
       this.detail='Ein Radiosender läuft dauerhaft. Ähnliche Titel werden bei einzelnen Musikstücken ergänzt.';
       return [];
     }
-    const profileSeeds=[...this.profile.tracks].sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).filter(track=>autoplayTrackKey(track)!==autoplayTrackKey(current));
-    const useProfile=profileSeeds.length>0&&this.mixCounter%3===2;
-    const seed=useProfile?profileSeeds[this.mixCounter%profileSeeds.length]:current;
+    const currentKey=autoplayTrackKey(current),profileSeeds=[...this.profile.tracks].sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).filter(track=>autoplayTrackKey(track)!==currentKey),librarySeeds=this.getPlaylists().flatMap(playlist=>playlist.items||[]).filter(track=>track&&track.source!=='radio');
+    let useProfile=false,seed=current;
+    if(!seed){if(profileSeeds.length){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}else if(librarySeeds.length)seed=librarySeeds[this.mixCounter%librarySeeds.length];else seed={id:'musikbot187-discovery',title:'Musik Mix Deutschland',source:'youtube'};}
+    else if(profileSeeds.length>0&&this.mixCounter%3===2){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}
     this.mixCounter++;
     const seedKey=autoplayTrackKey(seed);
     if(seedKey!==this.lastSeedKey){
@@ -297,7 +306,7 @@ export class AutoplayController{
       this.lastSeedTitle=String(seed.title||'Aktueller Titel');
       this.recommendationBuffer=[];
     }
-    const used=new Set([autoplayTrackKey(current),seedKey,...this.player.queue.map(autoplayTrackKey),...this.recentKeys]);
+    const used=new Set([currentKey,seedKey,...this.player.queue.map(autoplayTrackKey),...this.recentKeys].filter(Boolean)),familyReferences=[current,seed,...this.player.queue,...this.recentFamilies].filter(Boolean);
     if(this.recommendationBuffer.length<needed){
       const query=recommendationQuery(seed);
       if(!query){
@@ -309,7 +318,7 @@ export class AutoplayController{
       const fresh=[];
       for(const track of Array.isArray(found)?found:[]){
         const key=autoplayTrackKey(track);
-        if(!key||used.has(key)||fresh.some(item=>autoplayTrackKey(item)===key))continue;
+        if(!key||used.has(key)||fresh.some(item=>autoplayTrackKey(item)===key)||familyReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>sameRecommendationFamily(item,track)))continue;
         fresh.push(track);
       }
       this.recommendationBuffer.push(...fresh);
@@ -321,6 +330,8 @@ export class AutoplayController{
       used.add(key);
       this.recentKeys.push(key);
       if(this.recentKeys.length>250)this.recentKeys.splice(0,this.recentKeys.length-250);
+      this.recentFamilies.push({title:track.title});
+      if(this.recentFamilies.length>250)this.recentFamilies.splice(0,this.recentFamilies.length-250);
       items.push({...track,autoplay:true,autoplayMode:'similar',autoplaySeed:this.lastSeedTitle,autoplayFromProfile:useProfile});
     }
     if(!items.length){

@@ -11,6 +11,8 @@ jobs:
         with: { node-version: 22, cache: npm, cache-dependency-path: backend/package-lock.json }
       - run: npm ci
         working-directory: backend
+      - run: npm audit --audit-level=moderate
+        working-directory: backend
       - run: npm test
         working-directory: backend
       - run: npm run test:first-run

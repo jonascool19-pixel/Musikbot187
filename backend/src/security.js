@@ -9,6 +9,7 @@ export const randomToken = () => crypto.randomBytes(32).toString('base64url');
 export const validUsername = value => /^[A-Za-z0-9_.-]{3,32}$/.test(String(value));
 export const validPassword = value => typeof value === 'string' && value.length >= 10 && value.length <= 256;
 export const validAccent = value => /^#[0-9a-fA-F]{6}$/.test(String(value));
+export function normalizeBotName(value){const name=String(value??'').normalize('NFKC').replace(/\s+/g,' ').trim();return name.length>=2&&name.length<=40&&!/[\p{Cc}\p{Cf}]/u.test(name)?name:'';}
 export function hashPassword(password) {
   if (!validPassword(password)) throw new Error('Passwort muss 10–256 Zeichen lang sein.');
   const salt=crypto.randomBytes(16); const derived=crypto.scryptSync(password,salt,64,{N:16384,r:8,p:1});

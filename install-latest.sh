@@ -1,12 +1,31 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-trap 'echo "FEHLER: Installation in Zeile $LINENO abgebrochen." >&2' ERR
 [[ ${EUID:-$(id -u)} -eq 0 ]] || { echo 'Bitte mit sudo bash ausführen.' >&2; exit 1; }
 export DEBIAN_FRONTEND=noninteractive
 APP=/opt/musikbot187
 DATA=/var/lib/musikbot187
 REPO=jonascool19-pixel/radiobot
 VERSION=main
+OLD="${APP}.previous"
+ROLLOUT_STARTED=0
+rollback_on_error(){
+  local line="$1"
+  trap - ERR
+  echo "FEHLER: Installation in Zeile $line abgebrochen." >&2
+  if [[ "$ROLLOUT_STARTED" -eq 1 && -d "$OLD" ]]; then
+    echo 'Vorherige funktionierende MusikBot-Version wird automatisch wiederhergestellt.' >&2
+    systemctl stop musikbot187.service musikbot187-control.service 2>/dev/null || true
+    rm -rf "$APP"
+    mv "$OLD" "$APP"
+    install -m 0644 "$APP/systemd/musikbot187.service" /etc/systemd/system/musikbot187.service
+    install -m 0644 "$APP/systemd/musikbot187-control.service" /etc/systemd/system/musikbot187-control.service
+    systemctl daemon-reload
+    systemctl enable --now musikbot187-control.service musikbot187.service
+    echo 'Rollback abgeschlossen: Die vorherige Version läuft wieder.' >&2
+  fi
+  exit 1
+}
+trap 'rollback_on_error "$LINENO"' ERR
 apt-get update
 apt-get install -y ca-certificates curl ffmpeg openssl xz-utils build-essential python3 pkg-config libopus-dev
 if ! command -v node >/dev/null || [[ $(node --version | tr -d v | cut -d. -f1) -lt 22 ]]; then
@@ -27,7 +46,8 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 curl -fsSL "https://github.com/$REPO/archive/refs/heads/$VERSION.tar.gz" -o "$TMP/app.tar.gz"
 tar -xzf "$TMP/app.tar.gz" -C "$TMP"
 systemctl stop musikbot187.service musikbot187-control.service 2>/dev/null || true
-OLD="${APP}.previous"; rm -rf "$OLD"; [[ ! -d "$APP" ]] || mv "$APP" "$OLD"
+rm -rf "$OLD"
+if [[ -d "$APP" ]]; then mv "$APP" "$OLD"; ROLLOUT_STARTED=1; fi
 install -d -m 0755 "$APP"; cp -a "$TMP/radiobot-$VERSION/." "$APP/"
 cd "$APP/backend"; npm ci --omit=dev --no-audit --no-fund
 install -d -o musikbot187 -g musikbot187 -m 0750 "$DATA" "$DATA/music"

@@ -4,15 +4,18 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:'http://127.0.0.1:33187'});
   const browserDialogs=[];page.on('dialog',async dialog=>{browserDialogs.push(dialog.type());await dialog.dismiss()});
   let metricSample=0;await page.route('**/api/monitoring',route=>{metricSample++;return route.fulfill({contentType:'application/json',body:JSON.stringify({cpu:{busyPercent:metricSample%2?17:29},memory:{used:512,total:1024},load:[.1,.2,.3],uptime:3600,network:{rxPerSecond:2048,txPerSecond:1024,rxTotal:134217728,txTotal:67108864},disk:null})})});
+  await page.route('**/api/system/network-history',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({daily:[{key:'2026-08-24',rx:134217728,tx:67108864}],monthly:[{key:'2026-08',rx:134217728,tx:67108864}],yearly:[{key:'2026',rx:134217728,tx:67108864}],sampledAt:'2026-08-24T15:00:00.000Z'})}));
+  await page.route('**/api/system/update',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({current:'5.2.0',latest:'5.2.0',available:false,source:'GitHub main'})}));
   await page.addInitScript(()=>{try{Object.defineProperty(globalThis.crypto,'randomUUID',{value:undefined,configurable:true})}catch{}});
   await page.goto('/#setup=browser-setup-token');
   await expect(page.getByText('Ersteinrichtung')).toBeVisible();
+  await page.getByLabel('Name deines Bots').fill('Browser Jukebox');
   await page.getByLabel('Benutzername').fill('browseradmin');
   await page.getByLabel('Passwort').fill('browser-password-187');
   await page.getByRole('button',{name:'Einrichten'}).click();
-  await expect(page.getByText('MusikBot187')).toBeVisible();
-  await expect(page.getByLabel('Audioausgabe',{exact:true})).toBeVisible();
-  await expect(page.locator('#outputStatus')).toHaveClass(/red/);
+  await expect(page.locator('#brandName')).toHaveText('Browser Jukebox');
+  await expect(page.getByLabel('Aktive Player-Instanz',{exact:true})).toBeVisible();
+  await expect(page.locator('#outputStatus')).toHaveClass(/orange/);
   await page.locator('#systemQuick').click();
   for(const label of ['MusikBot neu starten','MusikBot ausschalten','System neu starten','System herunterfahren'])await expect(page.locator('#systemMenu').getByText(label,{exact:true})).toBeVisible();
   await page.keyboard.press('Escape');await expect(page.locator('#systemMenu')).toBeHidden();
@@ -21,7 +24,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect.poll(()=>metricSample,{timeout:5000}).toBeGreaterThan(1);
   await expect(page.locator('header')).toHaveCSS('display','grid');
 
-  await page.route('**/api/search?*',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(Array.from({length:25},(_,index)=>({id:`search-${index+1}`,title:`Test Suchergebnis ${index+1}`,url:`https://example.com/audio/${index+1}`,source:'youtube'})))}));
+  await page.route('**/api/search?*',route=>{const extra=new URL(route.request().url()).searchParams.get('q')?.includes('mehr'),prefix=extra?'extra':'search',title=extra?'Zusätzlicher Treffer':'Test Suchergebnis';return route.fulfill({contentType:'application/json',body:JSON.stringify(Array.from({length:25},(_,index)=>({id:`${prefix}-${index+1}`,title:`${title} ${index+1}`,url:`https://example.com/audio/${prefix}/${index+1}`,source:'youtube'})))})});
   const searchInput=page.getByLabel('Suchbegriff'),searchSource=page.getByLabel('Suchquelle'),searchResults=page.locator('#searchResults');
   await searchSource.selectOption('youtube');
   await searchInput.fill('test musik');
@@ -34,8 +37,12 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   expect(scrollState.scrollWidth).toBeLessThanOrEqual(scrollState.clientWidth);
   await expect(page.locator('.player-grid')).toHaveCSS('grid-template-columns',/\d+.* \d+/);
   await expect(page.locator('.search-result').first().getByRole('button',{name:'Play',exact:true})).toBeVisible();
+  await searchInput.fill('test musik mehr');
+  await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
+  await expect(page.getByText('Zusätzlicher Treffer 1',{exact:true})).toBeVisible();
+  await expect(page.locator('.search-result')).toHaveCount(50);
   await page.waitForTimeout(3500);
-  await expect(searchInput).toHaveValue('test musik');
+  await expect(searchInput).toHaveValue('test musik mehr');
   await expect(searchSource).toHaveValue('youtube');
   await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
 
@@ -53,11 +60,15 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   const queueScroll=await page.locator('#playerQueueItems').evaluate(element=>({overflowY:getComputedStyle(element).overflowY,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight}));
   expect(queueScroll.overflowY).toBe('auto');expect(queueScroll.scrollHeight).toBeGreaterThan(queueScroll.clientHeight);
   for(const name of ['Pause','Weiter','Skip','Stop'])await page.getByRole('button',{name,exact:true}).click();
+  await page.getByRole('button',{name:'10 Sekunden zurück'}).click();
+  await page.getByRole('button',{name:'10 Sekunden vor'}).click();
   await page.locator('#playerVolume').fill('31');
   await expect.poll(()=>playerCalls.map(call=>call.url).join('\n')).toContain('/api/player/pause');
   await expect.poll(()=>playerCalls.map(call=>call.url).join('\n')).toContain('/api/player/resume');
   await expect.poll(()=>playerCalls.map(call=>call.url).join('\n')).toContain('/api/player/skip');
   await expect.poll(()=>playerCalls.map(call=>call.url).join('\n')).toContain('/api/player/stop');
+  await expect.poll(()=>playerCalls.filter(call=>call.url.includes('/api/player/seek')).map(call=>call.body).join('\n')).toContain('"delta":-10');
+  await expect.poll(()=>playerCalls.filter(call=>call.url.includes('/api/player/seek')).map(call=>call.body).join('\n')).toContain('"delta":10');
   await expect.poll(()=>playerCalls.find(call=>call.url.includes('/api/player/volume'))?.body||'').toContain('31');
   await expect(page.getByText('Automatische Wiedergabe · AUS',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Einschalten',exact:true}).click();await expect(page.getByText('Automatische Wiedergabe · EIN',{exact:true})).toBeVisible();
@@ -75,8 +86,9 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.getByText('Sommer Hits',{exact:true}).click();
   await expect(page.getByText('Summer Cem – Testtitel')).toBeVisible();
   await page.locator('#nav').getByRole('button',{name:'Dashboard'}).click();
+  await expect(searchSource).toHaveValue('youtube');
   await searchSource.selectOption('spotify');await searchInput.fill('spotify test');await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
-  const firstSpotifyResult=page.locator('.search-result').first();await firstSpotifyResult.getByRole('button',{name:'+ Playlist'}).click();await firstSpotifyResult.getByLabel('Ziel-Playlist').selectOption('spotify-browser');await firstSpotifyResult.getByRole('button',{name:'Hinzufügen'}).click();await expect(page.locator('#toast')).toContainText('Sommer Hits');
+  const firstSpotifyResult=page.locator('.search-result').first();await firstSpotifyResult.getByRole('button',{name:'+ Playlist'}).click();const playlistDialog=page.getByRole('dialog',{name:'Titel zur Playlist hinzufügen'});await expect(playlistDialog).toBeVisible();await playlistDialog.getByLabel('Ziel-Playlist').selectOption('spotify-browser');await playlistDialog.getByRole('button',{name:'Speichern'}).click();await expect(page.locator('#toast')).toContainText('Sommer Hits');
 
   await page.route('**/api/autoplay/config',async route=>{const body=route.request().postDataJSON();Object.assign(browserAutoplay,{...body,status:'off',detail:'Autoplay-Konfiguration gespeichert.'});await route.fulfill({contentType:'application/json',body:JSON.stringify(browserAutoplay)})});
   await page.locator('#nav').getByRole('button',{name:'Automatische Wiedergabe'}).click();
@@ -111,6 +123,8 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(card.locator('select[name="voiceChannelId"]')).toContainText('Testserver · Musik');
   await expect(card.getByRole('button',{name:'Voice-Channel betreten'})).toBeVisible();
   await card.getByRole('button',{name:'Instanz einklappen'}).click();await expect(card.getByLabel('Name')).toBeHidden();await card.getByRole('button',{name:'Instanz ausklappen'}).click();await expect(card.getByLabel('Name')).toBeVisible();
+  await page.getByRole('button',{name:/Test Discord offline/}).click();await expect(page.locator('#pageTitle')).toHaveText('Dashboard');await expect(page.getByLabel('Aktive Player-Instanz')).toHaveValue(/^discord:/);await expect(page.locator('#outputStatus')).toHaveClass(/red/);
+  await page.getByRole('button',{name:/Lokaler Player/}).click();await expect(page.getByLabel('Aktive Player-Instanz')).toHaveValue('none:');
   await page.locator('#nav').getByRole('button',{name:'Spotify'}).click();
   await expect(page.getByText('Nur App-Zugang')).toBeVisible();
   await page.getByText('Spotify-Playlistimport freischalten').click();
@@ -135,7 +149,9 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.route('**/api/music',route=>route.request().method()==='GET'?route.fulfill({contentType:'application/json',body:'[]'}):route.fallback());
   await page.locator('#nav').getByRole('button',{name:'Dateien'}).click();await expect(page.getByRole('button',{name:'Von YouTube herunterladen'})).toBeVisible();await page.getByText('Downloads',{exact:true}).click();await expect(page.locator('.downloads-list')).toHaveClass(/scrolling/);await expect(page.locator('.downloads-list .music-item')).toHaveCount(10);
   await page.locator('#nav').getByRole('button',{name:'System',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Netzwerk'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Netzwerk',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Netzwerkverlauf'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Update'})).toBeVisible();
   await expect(page.locator('#networkTotal')).toHaveText('192.00 MiB');
   await expect(page.locator('#networkRxTotal')).toHaveText('128.00 MiB');
   await expect(page.locator('#networkTxTotal')).toHaveText('64.00 MiB');
