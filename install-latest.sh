@@ -4,7 +4,7 @@ set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 APP=/opt/musikbot187
 DATA=/var/lib/musikbot187
-REPO=jonascool19-pixel/radiobot
+REPO=jonascool19-pixel/Musikbot187
 VERSION=main
 OLD="${APP}.previous"
 ROLLOUT_STARTED=0

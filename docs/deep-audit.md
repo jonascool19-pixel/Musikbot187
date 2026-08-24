@@ -1,8 +1,18 @@
-# Deep-Audit – MusikBot187 5.4.0
+# Deep-Audit – MusikBot187 1.8.7
 
 ## Prüfgegenstand
 
 Der Stand wurde ausschließlich aus der 43-Punkte-Spezifikation neu implementiert. Alte Quellmodule wurden vor Beginn entfernt. Das frühere fragmentierte Frontend mit mehreren `fetch`-Wrappern wurde durch eine einzige API-Schicht ersetzt.
+
+## Abschlussstatus 1.8.7
+
+- 75 automatisierte Backend-, Sicherheits-, Player-, Spotify-, Discord-, Autoplay-, Speicher- und Installationsprüfungen bestehen lokal vollständig.
+- Der vollständige Browserablauf besteht einschließlich Ersteinrichtung, Suche, Wiedergabe, Playlists, Spotify, Autoplay, Discord-/TS3-Editor, Diagnosen, Benutzer, Monitoring, Systemsteuerung und mobilen Breakpoints.
+- Die visuelle Prüfung bei 1280 × 720 sowie 390 × 844 zeigt keinen horizontalen Seitenüberlauf; die mobile Navigation bleibt lesbar und horizontal scrollbar.
+- Zwei parallele Player verarbeiten fünf simulierte Minuten PCM je Player mit rund 0,26 Prozent eines CPU-Kerns bei Echtzeitgeschwindigkeit; der Speicherverbrauch bleibt stabil.
+- Die kanonische GitHub-Pages-Adresse `https://jonascool19-pixel.github.io/Musikbot187/spotify-callback/` wurde am 24. August 2026 mit HTTP 200 geprüft. Die frühere Adresse unter `/radiobot/` war nach der Repository-Umbenennung nicht mehr erreichbar und wurde vollständig ersetzt.
+- Der Tiefenaudit behob zusätzlich eine Pegelrampe über PCM-Blockgrenzen, zu lange Wiederholungen dauerhaft ungeeigneter YouTube-Quellen, saubere Radio-Neuverbindung nach Streamende, Wiederaufnahme der Speicherung nach einem Schreibfehler, sichere Bereinigung teilweise gestarteter Integrationen und ungefangene Hintergrundfehler.
+- Langsame Discord-Slash-Suchen werden vor der Medienauflösung bestätigt. Discord-Antwort-, Login-, Audio- und Diagnosefehler können dadurch keinen ungefangenen Prozessfehler mehr auslösen. Eine begrenzte PCM-Überbrückungswarteschlange glättet kurze Transportverzögerungen.
 
 ## Sicherheitsgrenzen
 
@@ -28,7 +38,7 @@ Der vollständige npm-Registry-Audit für Produktions- und Testabhängigkeiten m
 
 ## Performance-Prüfung
 
-Der reproduzierbare Player-Benchmark simuliert standardmäßig fünf Minuten PCM pro Player in 20-ms-Frames. Auf dem lokalen Entwicklungsrechner benötigten zwei gleichzeitige Pegelpfade zusammen rund 0,30 Prozent eines CPU-Kerns bei Echtzeitgeschwindigkeit; JavaScript-Heap und Prozess-RSS blieben nach dem Lauf praktisch unverändert. Der Player skaliert dafür den von FFmpeg allein besessenen PCM-Puffer direkt und erzeugt nicht mehr für jeden Audioblock eine zweite Kopie. Der native Opus-Encoder ist plattformabhängig und wird deshalb zusätzlich in der Ubuntu-CI mit zwei gleichzeitigen 128-kbit/s-Encodern geladen und gemessen. Discord-Streams begrenzen ihren PCM-Rückstau auf rund zwei Sekunden und verwerfen bei einem blockierten Transport weitere Echtzeitframes, statt im 24/7-Betrieb unbegrenzt RAM aufzubauen. Gespiegelte Player teilen weiterhin die Quellauflösung und den PCM-Pegelpfad; nur die je Discord-Verbindung notwendige Opus-/Verschlüsselungsschicht bleibt getrennt.
+Der reproduzierbare Player-Benchmark simuliert standardmäßig fünf Minuten PCM pro Player in 20-ms-Frames. Auf dem lokalen Entwicklungsrechner benötigten zwei gleichzeitige Pegelpfade zusammen rund 0,30 Prozent eines CPU-Kerns bei Echtzeitgeschwindigkeit; JavaScript-Heap und Prozess-RSS blieben nach dem Lauf praktisch unverändert. Der Player skaliert dafür den von FFmpeg allein besessenen PCM-Puffer direkt und erzeugt nicht mehr für jeden Audioblock eine zweite Kopie. Der native Opus-Encoder ist plattformabhängig und wird deshalb zusätzlich in der Ubuntu-CI mit zwei gleichzeitigen 128-kbit/s-Encodern geladen und gemessen. Discord-Streams begrenzen ihren eigenen PCM-Rückstau und glätten kurze Transportverzögerungen zusätzlich mit einer begrenzten Überbrückungswarteschlange. Erst bei einer anhaltend blockierten Verbindung werden die ältesten Echtzeitframes verworfen, statt im 24/7-Betrieb unbegrenzt RAM und Latenz aufzubauen. Gespiegelte Player teilen weiterhin die Quellauflösung und den PCM-Pegelpfad; nur die je Discord-Verbindung notwendige Opus-/Verschlüsselungsschicht bleibt getrennt.
 
 ## Grenzen der lokalen Prüfung
 

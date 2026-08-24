@@ -1,5 +1,5 @@
-export const appVersion='5.4.0';
-export const latestPackageUrl='https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/backend/package.json';
+export const appVersion='1.8.7';
+export const latestPackageUrl='https://raw.githubusercontent.com/jonascool19-pixel/Musikbot187/main/backend/package.json';
 
 export function compareVersions(left,right){
   const a=String(left||'').split('.').map(value=>Number(value)||0),b=String(right||'').split('.').map(value=>Number(value)||0);

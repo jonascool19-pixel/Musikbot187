@@ -3,9 +3,9 @@ import {test,expect} from '@playwright/test';
 test('first-run setup, live dashboard controls, playlists, Discord editor and diagnostics',async({page,context})=>{
   await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:'http://127.0.0.1:33187'});
   const browserDialogs=[];page.on('dialog',async dialog=>{browserDialogs.push(dialog.type());await dialog.dismiss()});
-  let metricSample=0;await page.route('**/api/monitoring',route=>{metricSample++;return route.fulfill({contentType:'application/json',body:JSON.stringify({cpu:{busyPercent:metricSample%2?17:29},memory:{used:512,total:1024},load:[.1,.2,.3],uptime:3600,network:{rxPerSecond:2048,txPerSecond:1024,rxTotal:134217728,txTotal:67108864},disk:null})})});
+  let metricSample=0;await page.route('**/api/monitoring',route=>{metricSample++;return route.fulfill({contentType:'application/json',body:JSON.stringify({time:new Date().toISOString(),cpu:{busyPercent:metricSample%2?17:29},memory:{used:512,total:1024,free:512},load:[.1,.2,.3],uptime:3600,network:{rxPerSecond:2048,txPerSecond:1024,rxTotal:134217728,txTotal:67108864},disk:{used:512,total:1024,free:512}})})});
   await page.route('**/api/system/network-history',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({daily:[{key:'2026-08-24',rx:134217728,tx:67108864}],monthly:[{key:'2026-08',rx:134217728,tx:67108864}],yearly:[{key:'2026',rx:134217728,tx:67108864}],sampledAt:'2026-08-24T15:00:00.000Z'})}));
-  await page.route('**/api/system/update',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({current:'5.4.0',latest:'5.4.0',available:false,source:'GitHub main'})}));
+  await page.route('**/api/system/update',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({current:'1.8.7',latest:'1.8.7',available:false,source:'GitHub main'})}));
   await page.addInitScript(()=>{try{Object.defineProperty(globalThis.crypto,'randomUUID',{value:undefined,configurable:true})}catch{}});
   await page.goto('/#setup=browser-setup-token');
   await expect(page.getByText('Ersteinrichtung')).toBeVisible();
@@ -21,9 +21,11 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.keyboard.press('Escape');await expect(page.locator('#systemMenu')).toBeHidden();
   await expect(page.locator('#cpuChip')).toContainText(/CPU (17|29)%/);
   await expect(page.locator('#ramChip')).toHaveText('RAM 50%');
+  await expect(page.locator('#diskChip')).toHaveText('Speicher 50%');
   await expect.poll(()=>metricSample,{timeout:5000}).toBeGreaterThan(1);
   await expect(page.locator('header')).toHaveCSS('display','grid');
   const sidebarBaseline=await page.evaluate(()=>{const aside=document.querySelector('aside').getBoundingClientRect(),buttons=[...document.querySelectorAll('#nav button')].map(button=>button.getBoundingClientRect().height);return {width:aside.width,height:aside.height,buttons}});
+  await page.locator('#nav').getByRole('button',{name:'Monitoring'}).click();await expect(page.getByText('System läuft stabil')).toBeVisible();await expect(page.locator('#monitoring-disk-percent')).toHaveText('50% belegt');await expect(page.locator('#monitoringLoad1')).toHaveText('0.10');await expect(page.locator('#monitoring-disk-detail')).toHaveText('512 B belegt · 512 B frei · 1.00 KiB gesamt');await page.locator('#nav').getByRole('button',{name:'Dashboard'}).click();
 
   await page.route('**/api/search?*',route=>{const extra=new URL(route.request().url()).searchParams.get('q')?.includes('mehr'),prefix=extra?'extra':'search',title=extra?'Zusätzlicher Treffer':'Test Suchergebnis';return route.fulfill({contentType:'application/json',body:JSON.stringify(Array.from({length:25},(_,index)=>({id:`${prefix}-${index+1}`,title:`${title} ${index+1}`,url:`https://example.com/audio/${prefix}/${index+1}`,source:'youtube'})))})});
   const searchInput=page.getByLabel('Suchbegriff'),searchSource=page.getByLabel('Suchquelle'),searchResults=page.locator('#searchResults');
@@ -87,6 +89,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.getByText('Sommer Hits',{exact:true})).toBeVisible();
   await page.getByText('Sommer Hits',{exact:true}).click();
   await expect(page.getByText('Summer Cem – Testtitel')).toBeVisible();
+  await page.locator('.playlist-card').filter({hasText:'Sommer Hits'}).getByRole('button',{name:'Play',exact:true}).click();await expect.poll(()=>playerCalls.filter(call=>call.url.includes('/api/player/queue')).map(call=>call.body).join('\n')).toContain('spotify-track');
   await page.getByLabel('Spotify-Abgleich für Sommer Hits').selectOption('5');
   await expect(page.getByLabel('Spotify-Abgleich für Sommer Hits')).toHaveValue('5');
   await page.getByRole('button',{name:'Jetzt mit Spotify abgleichen'}).click();
@@ -140,7 +143,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.getByText('Nur App-Zugang')).toBeVisible();
   await page.getByText('Spotify-Playlistimport freischalten').click();
   await expect(page.getByRole('button',{name:'Spotify-Benutzer verbinden'})).toBeVisible();
-  await expect(page.getByLabel('Kostenlose Spotify Callback-Adresse')).toHaveValue('https://jonascool19-pixel.github.io/radiobot/spotify-callback/');
+  await expect(page.getByLabel('Kostenlose Spotify Callback-Adresse')).toHaveValue('https://jonascool19-pixel.github.io/Musikbot187/spotify-callback/');
   await page.evaluate(async()=>{const token=sessionStorage.getItem('musikbot187.auth');for(let index=1;index<=6;index++)await fetch('/api/diagnostics/client',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({message:`Zusätzliche Testmeldung ${index}`,context:'Browserliste'})})});
   await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
   await expect(page.getByText('Instanz zuerst speichern und verbinden.')).toBeVisible();
@@ -150,8 +153,10 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.getByRole('button',{name:'Logs kopieren'}).click();
   await expect(page.locator('#toast')).toContainText('Fehlerprotokoll kopiert.');
   await expect.poll(()=>page.evaluate(()=>navigator.clipboard.readText())).toContain('Instanz zuerst speichern und verbinden.');
+  await page.getByRole('button',{name:'Logs löschen'}).click();await expect(page.getByText('Alle Diagnosemeldungen wirklich dauerhaft löschen?')).toBeVisible();await page.getByRole('button',{name:'Jetzt bestätigen'}).click();await expect(page.locator('.diagnostic-entry')).toHaveCount(0);await expect(page.getByText('Keine Fehlermeldungen vorhanden. Das System hat bisher keine Diagnosefehler protokolliert.')).toBeVisible();
   await page.locator('#nav').getByRole('button',{name:'Benutzer & Rechte'}).click();
   await expect(page.getByText('Geschütztes Hauptkonto')).toBeVisible();
+  const ownerCard=page.locator('.collapsible-user-card').filter({hasText:'browseradmin'});await expect(ownerCard).not.toHaveAttribute('open','');await ownerCard.getByText('browseradmin',{exact:true}).click();await expect(ownerCard).toHaveAttribute('open','');await ownerCard.getByText('browseradmin',{exact:true}).click();await expect(ownerCard).not.toHaveAttribute('open','');
   const createUser=page.locator('.user-create');await createUser.getByLabel('Benutzername').fill('browseruser');await createUser.getByLabel('Startpasswort').fill('browser-user-password');await createUser.getByRole('button',{name:'Benutzer anlegen'}).click();
   let userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard).toBeVisible();await userCard.getByLabel('Playlists verwalten').check();await userCard.getByRole('button',{name:'Änderungen speichern'}).click();
   userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard.getByLabel('Playlists verwalten')).toBeChecked();await userCard.getByRole('button',{name:'Benutzer löschen'}).click();await expect(userCard.getByRole('button',{name:'Löschen bestätigen'})).toBeVisible();await userCard.getByRole('button',{name:'Löschen bestätigen'}).click();await expect(page.locator('.user-card').filter({hasText:'browseruser'})).toHaveCount(0);
@@ -167,6 +172,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.locator('#networkRxTotal')).toHaveText('128.00 MiB');
   await expect(page.locator('#networkTxTotal')).toHaveText('64.00 MiB');
   await expect(page.locator('#networkRxRate')).toHaveText('2.0 KiB/s');
+  const systemControls=page.locator('.system-controls');await expect(systemControls).toHaveAttribute('open','');await systemControls.getByText('Systemsteuerung',{exact:true}).click();await expect(systemControls).not.toHaveAttribute('open','');await systemControls.getByText('Systemsteuerung',{exact:true}).click();await expect(systemControls).toHaveAttribute('open','');
   const systemLayout=await page.evaluate(()=>{const content=document.querySelector('#content'),style=getComputedStyle(content);return {innerWidth,documentWidth:document.documentElement.scrollWidth,contentInnerWidth:content.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight),systemWidth:document.querySelector('.system-page').getBoundingClientRect().width}});
   expect(systemLayout.documentWidth).toBeLessThanOrEqual(systemLayout.innerWidth);
   expect(Math.abs(systemLayout.contentInnerWidth-systemLayout.systemWidth)).toBeLessThanOrEqual(1);
@@ -181,6 +187,6 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.locator('#content label').filter({hasText:'Theme'}).locator('select').selectOption('ocean');
   await page.getByRole('button',{name:'Speichern'}).click();
   await expect(page.locator('body')).toHaveAttribute('data-theme','ocean');
-  await page.setViewportSize({width:800,height:800});await page.locator('#nav').getByRole('button',{name:'Dashboard'}).click();const compactDashboard=await page.locator('aside').evaluate(element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height}));await page.locator('#nav').getByRole('button',{name:'System',exact:true}).click();const compactSystem=await page.locator('aside').evaluate(element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height}));expect(compactSystem).toEqual(compactDashboard);expect(compactSystem.width).toBeGreaterThan(760);
+  await page.setViewportSize({width:800,height:800});await page.locator('#nav').getByRole('button',{name:'Dashboard'}).click();const compactDashboard=await page.locator('aside').evaluate(element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height})),compactNav=await page.locator('#nav').evaluate(element=>({overflowX:getComputedStyle(element).overflowX,buttons:[...element.querySelectorAll('button')].map(button=>({width:button.getBoundingClientRect().width,content:button.scrollWidth}))}));expect(compactNav.overflowX).toBe('auto');expect(compactNav.buttons.every(button=>button.width+1>=button.content)).toBe(true);await page.locator('#nav').getByRole('button',{name:'System',exact:true}).click();const compactSystem=await page.locator('aside').evaluate(element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height}));expect(compactSystem).toEqual(compactDashboard);expect(compactSystem.width).toBeGreaterThan(760);
   expect(browserDialogs).toEqual([]);
 });
