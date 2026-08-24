@@ -5,7 +5,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   const browserDialogs=[];page.on('dialog',async dialog=>{browserDialogs.push(dialog.type());await dialog.dismiss()});
   let metricSample=0;await page.route('**/api/monitoring',route=>{metricSample++;return route.fulfill({contentType:'application/json',body:JSON.stringify({cpu:{busyPercent:metricSample%2?17:29},memory:{used:512,total:1024},load:[.1,.2,.3],uptime:3600,network:{rxPerSecond:2048,txPerSecond:1024,rxTotal:134217728,txTotal:67108864},disk:null})})});
   await page.route('**/api/system/network-history',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({daily:[{key:'2026-08-24',rx:134217728,tx:67108864}],monthly:[{key:'2026-08',rx:134217728,tx:67108864}],yearly:[{key:'2026',rx:134217728,tx:67108864}],sampledAt:'2026-08-24T15:00:00.000Z'})}));
-  await page.route('**/api/system/update',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({current:'5.3.0',latest:'5.3.0',available:false,source:'GitHub main'})}));
+  await page.route('**/api/system/update',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({current:'5.4.0',latest:'5.4.0',available:false,source:'GitHub main'})}));
   await page.addInitScript(()=>{try{Object.defineProperty(globalThis.crypto,'randomUUID',{value:undefined,configurable:true})}catch{}});
   await page.goto('/#setup=browser-setup-token');
   await expect(page.getByText('Ersteinrichtung')).toBeVisible();
@@ -23,6 +23,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.locator('#ramChip')).toHaveText('RAM 50%');
   await expect.poll(()=>metricSample,{timeout:5000}).toBeGreaterThan(1);
   await expect(page.locator('header')).toHaveCSS('display','grid');
+  const sidebarBaseline=await page.evaluate(()=>{const aside=document.querySelector('aside').getBoundingClientRect(),buttons=[...document.querySelectorAll('#nav button')].map(button=>button.getBoundingClientRect().height);return {width:aside.width,height:aside.height,buttons}});
 
   await page.route('**/api/search?*',route=>{const extra=new URL(route.request().url()).searchParams.get('q')?.includes('mehr'),prefix=extra?'extra':'search',title=extra?'Zusätzlicher Treffer':'Test Suchergebnis';return route.fulfill({contentType:'application/json',body:JSON.stringify(Array.from({length:25},(_,index)=>({id:`${prefix}-${index+1}`,title:`${title} ${index+1}`,url:`https://example.com/audio/${prefix}/${index+1}`,source:'youtube'})))})});
   const searchInput=page.getByLabel('Suchbegriff'),searchSource=page.getByLabel('Suchquelle'),searchResults=page.locator('#searchResults');
@@ -78,7 +79,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   let importedPlaylist=null;
   await page.route('**/api/playlists',route=>route.request().method()==='GET'&&importedPlaylist?route.fulfill({contentType:'application/json',body:JSON.stringify([importedPlaylist])}):route.fallback());
   await page.route('**/api/playlists/spotify-browser',async route=>{if(route.request().method()!=='PUT')return route.fallback();const body=route.request().postDataJSON();importedPlaylist={...importedPlaylist,...body};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
-  await page.route('**/api/playlists/import-spotify',route=>{importedPlaylist={id:'spotify-browser',name:'Sommer Hits',source:'spotify',spotifyId:'37i9dQZF1DXcBWIGoYBM5M',sourceUrl:'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',spotifySyncEnabled:true,spotifySyncedAt:'2026-08-24T15:00:00.000Z',items:[{id:'spotify-track',title:'Summer Cem – Testtitel',source:'spotify'}]};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
+  await page.route('**/api/playlists/import-spotify',route=>{importedPlaylist={id:'spotify-browser',name:'Sommer Hits',source:'spotify',spotifyId:'37i9dQZF1DXcBWIGoYBM5M',sourceUrl:'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',spotifySyncEnabled:true,spotifySyncIntervalHours:24,spotifySyncedAt:'2026-08-24T15:00:00.000Z',items:[{id:'spotify-track',title:'Summer Cem – Testtitel',source:'spotify'}]};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
   await page.route('**/api/playlists/spotify-browser/sync-spotify',route=>{importedPlaylist={...importedPlaylist,spotifySync:{added:1,removed:0,total:2},spotifySyncedAt:'2026-08-24T16:00:00.000Z',items:[...importedPlaylist.items,{id:'spotify-track-2',title:'Neuer Spotify-Titel',source:'spotify'}]};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
   await page.locator('#nav').getByRole('button',{name:'Playlists'}).click();
   await page.getByLabel('Spotify-Playlist-URL').fill('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M');
@@ -86,6 +87,8 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.getByText('Sommer Hits',{exact:true})).toBeVisible();
   await page.getByText('Sommer Hits',{exact:true}).click();
   await expect(page.getByText('Summer Cem – Testtitel')).toBeVisible();
+  await page.getByLabel('Spotify-Abgleich für Sommer Hits').selectOption('5');
+  await expect(page.getByLabel('Spotify-Abgleich für Sommer Hits')).toHaveValue('5');
   await page.getByRole('button',{name:'Jetzt mit Spotify abgleichen'}).click();
   await page.getByText('Sommer Hits',{exact:true}).click();
   await expect(page.getByText('Neuer Spotify-Titel')).toBeVisible();
@@ -129,6 +132,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(card.getByRole('button',{name:'Voice-Channel betreten'})).toBeVisible();
   await card.getByRole('button',{name:'Instanz einklappen'}).click();await expect(card.getByLabel('Name')).toBeHidden();await card.getByRole('button',{name:'Instanz ausklappen'}).click();await expect(card.getByLabel('Name')).toBeVisible();
   const discordSection=page.locator('.instance-section').filter({hasText:'Discord-Instanzen'});await discordSection.getByRole('button',{name:'+ Instanz'}).click();const mirrorCard=discordSection.locator('.instance-card').last();await mirrorCard.getByLabel('Name').fill('Spiegel Discord');await mirrorCard.getByLabel('Client-ID / Bot-ID').fill('323456789012345678');await mirrorCard.getByLabel('Audio-Player dieser Instanz').selectOption({label:'Spiegeln · Discord · Test Discord'});await mirrorCard.getByRole('button',{name:'Speichern',exact:true}).click();await expect(discordSection.getByRole('button',{name:'Maximum 2 erreicht'})).toBeDisabled();
+  const ts3Section=page.locator('.instance-section').filter({hasText:'TeamSpeak 3'});await ts3Section.getByRole('button',{name:'+ Instanz'}).click();let ts3Card=ts3Section.locator('.instance-card').last();await ts3Card.getByLabel('Name',{exact:true}).fill('Test TS3');await ts3Card.getByLabel('Server-Host').fill('127.0.0.1');await ts3Card.getByRole('button',{name:'Speichern',exact:true}).click();ts3Card=page.locator('.instance-section').filter({hasText:'TeamSpeak 3'}).locator('.instance-card').filter({hasText:'Test TS3'});await ts3Card.getByRole('button',{name:'Instanz einklappen'}).click();await expect(ts3Card.getByLabel('Name',{exact:true})).toBeHidden();await page.reload();await page.locator('#nav').getByRole('button',{name:'Instanzen'}).click();ts3Card=page.locator('.instance-section').filter({hasText:'TeamSpeak 3'}).locator('.instance-card').filter({hasText:'Test TS3'});await expect(ts3Card.getByRole('button',{name:'Instanz ausklappen'})).toBeVisible();await ts3Card.getByRole('button',{name:'Instanz ausklappen'}).click();await expect(ts3Card.getByLabel('Name',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:/Spiegel Discord/}).click();await expect(page.getByText('Synchroner Spiegelmodus')).toBeVisible();await expect(page.getByText(/Dieser Ausgang folgt Discord · Test Discord/)).toBeVisible();
   await page.getByRole('button',{name:/Test Discord offline/}).click();await expect(page.locator('#pageTitle')).toHaveText('Dashboard');await expect(page.getByLabel('Aktive Player-Instanz')).toHaveValue(/^discord:/);await expect(page.locator('#outputStatus')).toHaveClass(/red/);
   await page.getByRole('button',{name:/Lokaler Player/}).click();await expect(page.getByLabel('Aktive Player-Instanz')).toHaveValue('none:');
@@ -166,6 +170,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   const systemLayout=await page.evaluate(()=>{const content=document.querySelector('#content'),style=getComputedStyle(content);return {innerWidth,documentWidth:document.documentElement.scrollWidth,contentInnerWidth:content.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight),systemWidth:document.querySelector('.system-page').getBoundingClientRect().width}});
   expect(systemLayout.documentWidth).toBeLessThanOrEqual(systemLayout.innerWidth);
   expect(Math.abs(systemLayout.contentInnerWidth-systemLayout.systemWidth)).toBeLessThanOrEqual(1);
+  const sidebarOnSystem=await page.evaluate(()=>{const aside=document.querySelector('aside').getBoundingClientRect(),buttons=[...document.querySelectorAll('#nav button')].map(button=>button.getBoundingClientRect().height);return {width:aside.width,height:aside.height,buttons}});expect(sidebarOnSystem).toEqual(sidebarBaseline);
   const maintenance=page.locator('.maintenance-card');await maintenance.getByLabel('Automatischen Neustart aktivieren').check();await maintenance.getByLabel('Uhrzeit des Wartungsneustarts').fill('05:45');await maintenance.getByRole('button',{name:'Zeitplan speichern'}).click();await expect(maintenance.getByText('Täglicher Wartungsneustart um 05:45 Uhr ist aktiv.')).toBeVisible();
   await maintenance.getByRole('button',{name:'Jetzt ausführen'}).click();await expect(maintenance.getByText('Wartungsneustart jetzt testen?')).toBeVisible();await maintenance.getByRole('button',{name:'Abbrechen'}).click();
   const systemRow=page.locator('.system-action-row').filter({hasText:'Speichert Wiedergabe und Warteschlange'});
@@ -176,5 +181,6 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.locator('#content label').filter({hasText:'Theme'}).locator('select').selectOption('ocean');
   await page.getByRole('button',{name:'Speichern'}).click();
   await expect(page.locator('body')).toHaveAttribute('data-theme','ocean');
+  await page.setViewportSize({width:800,height:800});await page.locator('#nav').getByRole('button',{name:'Dashboard'}).click();const compactDashboard=await page.locator('aside').evaluate(element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height}));await page.locator('#nav').getByRole('button',{name:'System',exact:true}).click();const compactSystem=await page.locator('aside').evaluate(element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height}));expect(compactSystem).toEqual(compactDashboard);expect(compactSystem.width).toBeGreaterThan(760);
   expect(browserDialogs).toEqual([]);
 });

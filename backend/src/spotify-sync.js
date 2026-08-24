@@ -1,4 +1,10 @@
-export const spotifyPlaylistSyncIntervalMs=60*60_000;
+export const spotifyPlaylistDefaultSyncIntervalHours=24;
+export const spotifyPlaylistSyncIntervalOptions=Object.freeze([1,5,12,24,48,168]);
+export const spotifyPlaylistSyncCheckIntervalMs=5*60_000;
+
+export function normalizeSpotifyPlaylistSyncInterval(value){const hours=Number(value);return spotifyPlaylistSyncIntervalOptions.includes(hours)?hours:spotifyPlaylistDefaultSyncIntervalHours;}
+export function spotifyPlaylistIntervalMs(playlist){return normalizeSpotifyPlaylistSyncInterval(playlist?.spotifySyncIntervalHours)*60*60_000;}
+export function spotifyPlaylistDue(playlist,now=Date.now(),intervalOverrideMs=0){const last=Date.parse(playlist?.spotifySyncCheckedAt||playlist?.spotifySyncedAt||playlist?.importedAt||'');return !Number.isFinite(last)||Number(now)-last>=Math.max(1,Number(intervalOverrideMs)||spotifyPlaylistIntervalMs(playlist));}
 
 const trackKey=track=>String(track?.id||track?.url||`${track?.source||''}:${track?.title||''}`).trim().toLocaleLowerCase('de-DE');
 
@@ -14,10 +20,12 @@ export function spotifyPlaylistSyncResult(playlist,imported,now=new Date().toISO
     thumbnail:imported?.thumbnail||playlist?.thumbnail||'',
     spotifyId:imported?.spotifyId||playlist?.spotifyId||'',
     spotifySyncEnabled:true,
+    spotifySyncIntervalHours:normalizeSpotifyPlaylistSyncInterval(playlist?.spotifySyncIntervalHours),
     spotifySyncedAt:now,
+    spotifySyncCheckedAt:now,
     spotifySyncError:'',
     spotifySync:{added,removed,total:next.length}
   };
 }
 
-export function spotifySyncCandidates(playlists){return (Array.isArray(playlists)?playlists:[]).filter(playlist=>playlist?.source==='spotify'&&playlist.spotifySyncEnabled!==false&&(playlist.spotifyId||playlist.sourceUrl));}
+export function spotifySyncCandidates(playlists,{dueOnly=false,now=Date.now(),intervalOverrideMs=0}={}){return (Array.isArray(playlists)?playlists:[]).filter(playlist=>playlist?.source==='spotify'&&playlist.spotifySyncEnabled!==false&&(playlist.spotifyId||playlist.sourceUrl)&&(!dueOnly||spotifyPlaylistDue(playlist,now,intervalOverrideMs)));}

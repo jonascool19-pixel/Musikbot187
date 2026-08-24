@@ -1,4 +1,4 @@
-# MusikBot187 5.3.0
+# MusikBot187 5.4.0
 
 Vollständiger Neuaufbau eines selbst gehosteten Musik- und Radiobots für Ubuntu 24.04/Debian mit Web-Dashboard, YouTube, Radio-Browser, Spotify, lokalen Audiodateien, Queue, Playlists, Discord, TeamSpeak 3, Benutzerrechten, Monitoring und getrenntem privilegiertem Control-Dienst. Bei der Ersteinrichtung wird neben dem Hauptadmin ein frei wählbarer Bot-Name festgelegt; er erscheint links im Dashboard und bleibt später unter Design änderbar, während MusikBot187 die feste Produktbezeichnung ist.
 
@@ -12,7 +12,7 @@ Die frühere Sammelseite **Einstellungen** wurde vollständig aufgeteilt: **Inst
 
 Der Schalter **Automatische Wiedergabe · EIN/AUS** sitzt direkt über dem laufenden Titel. Beim Einschalten wird die Warteschlange nach der gespeicherten Konfiguration gefüllt und anschließend laufend ergänzt. Ist noch keine abspielbare Playlist gewählt, startet der persönliche Musikmix automatisch aus dem Leerlauf, probiert mehrere allgemeine YouTube-Startmischungen als Rückfall und hält zehn Titel als Puffer bereit. Leere oder vorübergehend fehlgeschlagene Suchen werden nach 30 Sekunden automatisch wiederholt und der konkrete Zustand steht direkt am Schalter. Beim Ausschalten wird nur die wartende Liste geleert; der aktuelle Titel darf zu Ende spielen. **Stop** beendet zusätzlich Autoplay. Radiosender werden nicht in das Hörprofil aufgenommen, da ein fortlaufender Stream keinen zuverlässig abgegrenzten Einzeltitel liefert.
 
-Importierte Spotify-Playlists bleiben mit ihrer Spotify-ID verknüpft. MusikBot187 gleicht sie stündlich ab, übernimmt neue Titel und entfernt Titel, die bei Spotify nicht mehr enthalten sind. In jeder verknüpften Playlist steht zusätzlich **Jetzt mit Spotify abgleichen** für einen sofortigen manuellen Lauf bereit.
+Importierte Spotify-Playlists bleiben mit ihrer Spotify-ID verknüpft. Pro Playlist lässt sich der automatische Abgleich auf 1, 5, 12, 24, 48 Stunden oder wöchentlich einstellen; Standard sind ressourcenschonende 24 Stunden. MusikBot187 übernimmt neue Titel und entfernt Titel, die bei Spotify nicht mehr enthalten sind. Fällige Listen werden auch nach einem Neustart erkannt. Ein fehlgeschlagener Versuch lässt die letzte funktionierende lokale Liste und den Zeitpunkt des letzten erfolgreichen Abgleichs unangetastet. In jeder verknüpften Playlist steht zusätzlich **Jetzt mit Spotify abgleichen** für einen sofortigen manuellen Lauf bereit.
 
 Spotify verwendet zwei getrennte Freigaben: Client-ID und Client-Secret reichen für Suche, Wiedergabe und Warteschlange. Nur der Playlist-Import benötigt einmalig eine Spotify-Benutzerfreigabe. Dafür stellt das Projekt kostenlos die feste HTTPS-Rückrufadresse `https://jonascool19-pixel.github.io/radiobot/spotify-callback/` über GitHub Pages bereit. Diese Adresse muss einmal exakt im Spotify Developer Dashboard als Redirect URI eingetragen werden; eine eigene Domain, ein Zertifikat oder ein kostenpflichtiger Tunnel sind nicht nötig. Der Relay sieht weder Client-Secret noch PKCE-Schlüssel noch Zugriffstokens. Er übermittelt nur den kurzlebigen Autorisierungscode an das bereits geöffnete lokale Dashboard; fällt die Fensterverbindung aus, erfolgt der Rückweg über ein URL-Fragment, das nicht an den lokalen HTTP-Server übertragen wird. Zugriffs- und Aktualisierungstoken werden ausschließlich verschlüsselt im CT gespeichert und automatisch erneuert.
 
@@ -38,6 +38,7 @@ npm ci
 npm test
 npm run test:first-run
 npm run test:browser
+npm run benchmark:player
 ```
 
 ## Architektur

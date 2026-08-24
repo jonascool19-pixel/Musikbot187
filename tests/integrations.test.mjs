@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {discordOpusBitrate,IntegrationManager} from '../backend/src/integrations.js';
+import {discordOpusBitrate,discordPcmBufferBytes,IntegrationManager,writeDiscordPcm} from '../backend/src/integrations.js';
 
 test('Discord uses the maximum supported Opus bitrate',()=>{assert.equal(discordOpusBitrate,128_000);});
+
+test('Discord PCM transport bounds buffering and resumes after drain',()=>{const writes=[],runtime={stream:{destroyed:false,write:buffer=>{writes.push(buffer);return false}},backpressured:false},buffer=Buffer.alloc(3840);assert.equal(discordPcmBufferBytes,384_000);assert.equal(writeDiscordPcm(runtime,buffer),false);assert.equal(runtime.backpressured,true);assert.equal(writeDiscordPcm(runtime,buffer),false);assert.equal(writes.length,1);runtime.backpressured=false;runtime.stream.write=next=>{writes.push(next);return true};assert.equal(writeDiscordPcm(runtime,buffer),true);assert.equal(writes.length,2);});
 
 test('Discord playback resources are replaced on every track without repeating transport signals on volume-only state changes',()=>{const calls=[];const runtime={type:'discord',playbackId:null,lastPaused:null,prepare(id){calls.push(['prepare',id]);this.playbackId=id},reset(){calls.push(['reset']);this.playbackId=null},audio:{pause:force=>calls.push(['pause',force]),unpause:()=>calls.push(['unpause'])}};const manager=Object.create(IntegrationManager.prototype);manager.runtimes=new Map([['discord-1',runtime]]);manager.syncPlayback({current:{title:'Eins'},playbackId:11,paused:false});manager.syncPlayback({current:{title:'Eins'},playbackId:11,paused:false,volume:33});manager.syncPlayback({current:{title:'Eins'},playbackId:11,paused:true});manager.syncPlayback({current:{title:'Zwei'},playbackId:12,paused:false});manager.syncPlayback({current:null,playbackId:null,paused:false});assert.deepEqual(calls,[['prepare',11],['unpause'],['pause',true],['prepare',12],['unpause'],['reset']]);});
 
