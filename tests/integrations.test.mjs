@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {discordOpusBitrate,discordPcmBufferBytes,discordPendingPcmBytes,flushDiscordPcm,IntegrationManager,writeDiscordPcm} from '../backend/src/integrations.js';
+import {discordOpusBitrate,discordPcmBufferBytes,discordPendingPcmBytes,discordPrebufferBytes,discordReadyTimeoutMs,flushDiscordPcm,IntegrationManager,writeDiscordPcm} from '../backend/src/integrations.js';
 
-test('Discord uses the maximum supported Opus bitrate',()=>{assert.equal(discordOpusBitrate,128_000);});
+test('Discord uses the maximum supported Opus bitrate',()=>{assert.equal(discordOpusBitrate,128_000);assert.equal(discordReadyTimeoutMs,15_000);});
 
 test('Discord PCM transport bridges short backpressure without dropping the next audio block',()=>{const writes=[],runtime={stream:{destroyed:false,write:buffer=>{writes.push(buffer);return false}},backpressured:false,pendingPcm:[],pendingPcmBytes:0},first=Buffer.alloc(3840,1),second=Buffer.alloc(3840,2);assert.equal(discordPcmBufferBytes,384_000);assert.equal(discordPendingPcmBytes,192_000);assert.equal(writeDiscordPcm(runtime,first),false);assert.equal(runtime.backpressured,true);assert.equal(writeDiscordPcm(runtime,second),false);assert.equal(writes.length,1);assert.equal(runtime.pendingPcmBytes,second.length);runtime.stream.write=next=>{writes.push(next);return true};assert.equal(flushDiscordPcm(runtime),true);assert.equal(runtime.pendingPcmBytes,0);assert.deepEqual(writes,[first,second]);});
 
 test('Discord jitter queue stays bounded during a prolonged slow consumer',()=>{const runtime={stream:{destroyed:false,write:()=>false},backpressured:false,pendingPcm:[],pendingPcmBytes:0},buffer=Buffer.alloc(3840);writeDiscordPcm(runtime,buffer);for(let index=0;index<100;index++)writeDiscordPcm(runtime,Buffer.from(buffer));assert.ok(runtime.pendingPcmBytes<=discordPendingPcmBytes);assert.ok(runtime.pendingPcm.length>0);});
+
+test('Discord starts a new audio resource only after a short PCM prebuffer',()=>{const played=[],writes=[],runtime={stream:{destroyed:false,write:buffer=>{writes.push(buffer);return true}},resource:{id:'resource'},audio:{play:resource=>played.push(resource),pause(){}},started:false,primedBytes:0,startPaused:false,backpressured:false},frame=Buffer.alloc(3840);for(let bytes=0;bytes<discordPrebufferBytes-frame.length;bytes+=frame.length)writeDiscordPcm(runtime,frame);assert.equal(played.length,0);writeDiscordPcm(runtime,frame);assert.equal(runtime.started,true);assert.deepEqual(played,[runtime.resource]);assert.ok(writes.length*frame.length>=discordPrebufferBytes);});
 
 test('Discord playback resources are replaced on every track without repeating transport signals on volume-only state changes',()=>{const calls=[];const runtime={type:'discord',playbackId:null,lastPaused:null,prepare(id){calls.push(['prepare',id]);this.playbackId=id},reset(){calls.push(['reset']);this.playbackId=null},audio:{pause:force=>calls.push(['pause',force]),unpause:()=>calls.push(['unpause'])}};const manager=Object.create(IntegrationManager.prototype);manager.runtimes=new Map([['discord-1',runtime]]);manager.syncPlayback({current:{title:'Eins'},playbackId:11,paused:false});manager.syncPlayback({current:{title:'Eins'},playbackId:11,paused:false,volume:33});manager.syncPlayback({current:{title:'Eins'},playbackId:11,paused:true});manager.syncPlayback({current:{title:'Zwei'},playbackId:12,paused:false});manager.syncPlayback({current:null,playbackId:null,paused:false});assert.deepEqual(calls,[['prepare',11],['unpause'],['pause',true],['prepare',12],['unpause'],['reset']]);});
 
@@ -31,7 +33,12 @@ test('Discord voice channel can be entered explicitly and replaces an old voice 
   const result=await manager.joinDiscordVoice({id:'discord-1',name:'Discord',guildId:guild.id,voiceChannelId:voice.id});
   assert.equal(destroyed,true);assert.equal(subscribed,runtime.audio);assert.deepEqual(options,{channelId:voice.id,guildId:guild.id,adapterCreator:guild.voiceAdapterCreator,selfDeaf:true});assert.deepEqual(result,{guildId:guild.id,channelId:voice.id,channelName:'Musik'});assert.match(runtime.detail,/Voice: Musik/);
   await assert.rejects(manager.joinDiscordVoice({id:'missing',guildId:guild.id,voiceChannelId:voice.id}),/nicht verbunden/);
+  manager.runtimes.clear();let reconnects=0;manager.connect=async()=>{reconnects++;manager.runtimes.set('discord-1',runtime)};
+  const recovered=await manager.joinDiscordVoice({id:'discord-1',name:'Discord',guildId:guild.id,voiceChannelId:voice.id},{connectIfNeeded:true});
+  assert.equal(reconnects,1);assert.equal(recovered.channelId,voice.id);
 });
+
+test('parallel connect requests for one Discord instance share the same login',async()=>{const manager=Object.create(IntegrationManager.prototype);manager.runtimes=new Map();manager.connectionJobs=new Map();manager.disconnect=async()=>{};manager.syncPlayback=()=>{};manager.playerStateFor=()=>({});manager.resolvePlayerId=id=>id;let logins=0,finish;manager.connectDiscord=async()=>{logins++;await new Promise(resolve=>finish=resolve);return {type:'discord'}};const connection={id:'discord-race',type:'discord'},first=manager.connect(connection),second=manager.connect(connection);assert.equal(first,second);await new Promise(resolve=>setImmediate(resolve));assert.equal(logins,1);finish();await Promise.all([first,second]);await new Promise(resolve=>setImmediate(resolve));assert.equal(manager.connectionJobs.size,0);});
 
 test('failed integration login closes and removes the partial runtime',async()=>{let closed=false;const manager=Object.create(IntegrationManager.prototype);manager.runtimes=new Map();manager.connectDiscord=async connection=>{manager.runtimes.set(connection.id,{close:async()=>{closed=true}});throw new Error('Login fehlgeschlagen')};await assert.rejects(manager.connect({id:'discord-1',type:'discord'}),/Login fehlgeschlagen/);assert.equal(closed,true);assert.equal(manager.runtimes.has('discord-1'),false);});
 

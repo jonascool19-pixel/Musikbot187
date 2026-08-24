@@ -20,7 +20,7 @@ jobs:
         working-directory: backend
       - run: npm run test:first-run
         working-directory: backend
-      - run: bash -n install-latest.sh
+      - run: bash -n install-latest.sh scripts/*.sh
       - run: npx playwright install --with-deps chromium
         working-directory: backend
       - run: npm run test:browser

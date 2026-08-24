@@ -13,10 +13,15 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - Spotify-Token-Cache sowie feste Zeitgrenzen für externe Medienanfragen
 - weniger Dashboard-Flackern und weniger doppelte Monitoring-Arbeit
 - erneut geprüfte Desktop- und Mobilansicht ohne horizontalen Seitenüberlauf
+- sicherer Ein-Befehl-Weg für einen verlorenen Ersteinrichtungslink
+- geführte Discord-Einrichtung und serialisierter Voice-Beitritt ohne falsche Zwischenfehlermeldung
+- lokaler 24-Stunden-Leistungsberater mit CPU-, RAM-, Kern-, Netzwerk- und CT-Empfehlung
+- dauerhafte Messhistorien, die auch beim täglichen Wartungsneustart nicht bereinigt werden
+- geglätteter FFmpeg-Netzwerkpfad und 300-ms-Discord-Vorpuffer gegen Radio-/YouTube-/Spotify-Stottern
 
 ## Prüfung
 
-- 78 lokale automatisierte Prüfungen bestanden
+- 82 lokale automatisierte Prüfungen bestanden
 - Syntaxprüfung für Backend, Control-Dienst, Frontend und Installer
 - kompletter Browserablauf sowie Desktop- und Mobilansicht geprüft
 - Zwei-Player-Performanceprüfung bestanden

@@ -44,6 +44,14 @@ Importierte Spotify-Playlists bleiben mit Spotify verknüpft. Neue und entfernte
 
 Discord-Instanzen können getrennte Musik spielen oder denselben Player spiegeln. Nach Auswahl eines Voice-Channels tritt der Bot über den eigenen Button bei. Der aktuell laufende Titel erscheint in Discord als „Hört …“-Aktivität.
 
+Einrichtung in der richtigen Reihenfolge:
+
+1. Name, Bot-Token und Client-ID/Bot-ID eintragen und **Speichern / verbinden** wählen.
+2. **Bot zu Discord hinzufügen** öffnen und den gewünschten Server bestätigen.
+3. Neben Voice-Channel auf **↻** klicken, damit die erreichbaren Server und Kanäle geladen werden.
+4. Discord-Server und Voice-Channel auswählen.
+5. **Voice-Channel betreten** wählen. Ein noch laufender Verbindungsaufbau wird automatisch abgewartet, statt fälschlich „nicht verbunden“ zu melden.
+
 Unterstützte Slash-Befehle:
 
 ```text
@@ -51,7 +59,7 @@ Unterstützte Slash-Befehle:
 /clear /volume /queue   /nowplaying /help
 ```
 
-Langsame `/play`-Suchen werden sofort von Discord bestätigt und anschließend beantwortet. Antwort-, Such- oder Logfehler bleiben innerhalb des Discord-Moduls und können den Musikdienst nicht mehr beenden. Ein begrenzter Audiopuffer glättet kurze Discord- oder Netzwerkschwankungen, ohne im Dauerbetrieb unbegrenzt Verzögerung aufzubauen.
+Langsame `/play`-Suchen werden sofort von Discord bestätigt und anschließend beantwortet. Antwort-, Such- oder Logfehler bleiben innerhalb des Discord-Moduls und können den Musikdienst nicht mehr beenden. Radio, YouTube und über Spotify gefundene Titel laufen durch denselben geglätteten FFmpeg-Echtzeitpfad mit größerem Netzwerkeingangspuffer und automatischer Wiederverbindung. Vor Discord werden 300 Millisekunden Ton vorbereitet; der begrenzte Rückstaupuffer glättet kurze Schwankungen, ohne im Dauerbetrieb unbegrenzt Verzögerung aufzubauen.
 
 ## Automatische Wiedergabe
 
@@ -74,9 +82,9 @@ Oben stehen live:
 - Netzwerkgeschwindigkeit
 - aktive Player-Instanz und Verbindungszustand
 
-Die Monitoring-Seite zeigt CPU, RAM und Speicher mit Belegt-/Frei-Balken, die Load-Werte für 1, 5 und 15 Minuten, Container-Laufzeit, aktuellen Netzwerkdurchsatz und Gesamtverbrauch. Hauptadmin, Discord-/TS3-Instanzen und die gesamte Systemsteuerung sind platzsparend ein- und ausklappbar.
+Die Monitoring-Seite zeigt CPU, RAM und Speicher mit Belegt-/Frei-Balken, die Load-Werte für 1, 5 und 15 Minuten, Container-Laufzeit, aktuellen Netzwerkdurchsatz und Gesamtverbrauch. Zusätzlich lernt ein lokaler Berater 24 Stunden lang aus CPU-Durchschnitt und -Spitzen, RAM in MB und Prozent, rechnerisch belegten CPU-Kernen sowie Download und Upload. Danach zeigt er ein gemessenes Minimum und einen optimalen CT-Wert einschließlich sicherer Bandbreitenempfehlung an. Grundlage ist der 95-Prozent-Wert mit Reserve, damit eine Drosselung nicht zu Audiostottern führt. Die feinen Messwerte bleiben auf sieben Tage begrenzt; der Netzwerkverlauf nach Tag, Monat und Jahr bleibt länger erhalten. Alles liegt ausschließlich im eigenen CT.
 
-Unter **System** stehen außerdem der tägliche Wartungsneustart, Netzwerkverlauf nach Tag/Monat/Jahr und das sichere Dashboard-Update bereit. Vor Neustart oder Update werden Titel, Position, Lautstärke, Modus und Warteschlange gespeichert und danach wiederhergestellt.
+Unter **System** stehen außerdem der tägliche Wartungsneustart, Netzwerkverlauf nach Tag/Monat/Jahr und das sichere Dashboard-Update bereit. Vor Neustart oder Update werden Titel, Position, Lautstärke, Modus und Warteschlange gespeichert und danach wiederhergestellt. Wartungsbereinigung entfernt ausschließlich alte Upload-Zwischendateien; Ressourcenmessungen, Netzwerkverlauf und Lernprofil bleiben dauerhaft gespeichert.
 
 ## Sicherheit
 
@@ -98,10 +106,10 @@ Unter **System** stehen außerdem der tägliche Wartungsneustart, Netzwerkverlau
 | Prozessor | 1 vCPU, x86-64 | 2 moderne vCPU |
 | Arbeitsspeicher | 1 GB RAM; zusätzlicher Swap ist optional | 2 GB RAM |
 | Speicherplatz | 8 GB CT-Speicher | mindestens 32 GB auf SSD, bei lokaler Musik entsprechend mehr |
-| Netzwerk | stabil, mindestens 10 Mbit/s Download und 2 Mbit/s Upload | mindestens 50 Mbit/s Download und 10 Mbit/s Upload mit niedriger Latenz |
+| Netzwerk | stabil, zunächst 5 Mbit/s Download und 2 Mbit/s Upload | 10 Mbit/s Download und 5 Mbit/s Upload mit niedriger Latenz; danach am lokalen 24-Stunden-Berater ausrichten |
 | Grafik | keine GPU erforderlich | keine GPU erforderlich |
 
-Jeder eigenständige Player benötigt einen eigenen FFmpeg-Audiopfad. Gespiegelte Ausgaben teilen sich die Medienauflösung und brauchen daher weniger zusätzliche CPU-Leistung. Hochgeladene Musik und YouTube-Downloads belegen zusätzlichen Speicherplatz unter `/var/lib/musikbot187/music`.
+Jeder eigenständige Player benötigt einen eigenen FFmpeg-Audiopfad. Gespiegelte Ausgaben teilen sich die Medienauflösung und brauchen daher weniger zusätzliche CPU-Leistung. Hochgeladene Musik und YouTube-Downloads belegen zusätzlichen Speicherplatz unter `/var/lib/musikbot187/music`. Eine Netzwerkbegrenzung sollte erst nach mindestens 24 Stunden typischer Nutzung und nie unter dem im Dashboard errechneten Minimum gesetzt werden.
 
 ## Einmal-Installation
 
@@ -120,6 +128,16 @@ Standardpfade:
 /var/lib/musikbot187   Daten, Musik und verschlüsselte Einstellungen
 /run/musikbot187       Control-Socket
 ```
+
+### Einrichtungslink erneut anzeigen
+
+Wurde das Konsolenfenster nach der Installation geschlossen, bevor das Hauptkonto eingerichtet wurde, kann ein neuer sicherer Einrichtungslink mit einem einzigen Befehl erzeugt werden:
+
+```bash
+sudo bash /opt/musikbot187/scripts/new-setup-link.sh
+```
+
+Der Befehl ersetzt ausschließlich den noch unbenutzten Setup-Token, startet den MusikBot neu und zeigt anschließend den neuen Link an. Sobald bereits ein Hauptadmin existiert, bricht er ohne Änderungen ab und kann deshalb kein bestehendes Konto umgehen oder zurücksetzen.
 
 ## Bestehenden CT aktualisieren
 

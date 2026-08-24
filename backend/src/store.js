@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import {permissions, randomToken} from './security.js';
 
-const blank=()=>({version:2,users:[],sessions:[],playlists:[],connections:[],settings:{botName:'MusikBot187',theme:'dark',accent:'#7c3aed',output:'none',outputId:null,spotifyClientId:'',spotifySecret:'',spotifyRedirectUri:'',spotifyAccessToken:'',spotifyRefreshToken:'',spotifyAccessTokenExpiresAt:0,spotifyScopes:[],marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d',autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:10,maintenanceEnabled:false,maintenanceTime:'04:30',maintenanceTimezone:'Europe/Berlin',maintenanceLastRun:''},listeningProfile:{version:1,tracks:[]},networkHistory:[],networkTracker:{rx:null,tx:null,sampledAt:null},playbackResume:null,diagnostics:[]});
+const blank=()=>({version:2,users:[],sessions:[],playlists:[],connections:[],settings:{botName:'MusikBot187',theme:'dark',accent:'#7c3aed',output:'none',outputId:null,spotifyClientId:'',spotifySecret:'',spotifyRedirectUri:'',spotifyAccessToken:'',spotifyRefreshToken:'',spotifyAccessTokenExpiresAt:0,spotifyScopes:[],marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d',autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:10,maintenanceEnabled:false,maintenanceTime:'04:30',maintenanceTimezone:'Europe/Berlin',maintenanceLastRun:''},listeningProfile:{version:1,tracks:[]},networkHistory:[],networkTracker:{rx:null,tx:null,sampledAt:null},resourceHistory:[],playbackResume:null,diagnostics:[]});
 export class Store {
   constructor(file){this.file=file;this.data=blank();this.pending=Promise.resolve();this.recovered=false;}
   async load(){
@@ -14,7 +14,7 @@ export class Store {
       catch(backupError){if(primaryError.code==='ENOENT'&&backupError.code==='ENOENT'){this.cleanup();return this;}throw primaryError.code==='ENOENT'?backupError:primaryError;}
     }
     const defaults=blank(),savedProfile=saved.listeningProfile&&typeof saved.listeningProfile==='object'?saved.listeningProfile:{};
-    this.data={...defaults,...saved,settings:{...defaults.settings,...(saved.settings||{})},listeningProfile:{version:1,...savedProfile,tracks:Array.isArray(savedProfile.tracks)?savedProfile.tracks.slice(-200):[]},networkHistory:Array.isArray(saved.networkHistory)?saved.networkHistory.slice(-400):[],networkTracker:{...defaults.networkTracker,...(saved.networkTracker||{})}};
+    this.data={...defaults,...saved,settings:{...defaults.settings,...(saved.settings||{})},listeningProfile:{version:1,...savedProfile,tracks:Array.isArray(savedProfile.tracks)?savedProfile.tracks.slice(-200):[]},networkHistory:Array.isArray(saved.networkHistory)?saved.networkHistory.slice(-400):[],networkTracker:{...defaults.networkTracker,...(saved.networkTracker||{})},resourceHistory:Array.isArray(saved.resourceHistory)?saved.resourceHistory.slice(-2016):[]};
     if(Number(saved.version||1)<2){this.data.version=2;if(Number(this.data.settings.autoplayQueueTarget)===5)this.data.settings.autoplayQueueTarget=10;migrated=true;}
     this.cleanup();if(migrated)await this.save();return this;
   }
