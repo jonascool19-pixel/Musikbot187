@@ -23,3 +23,7 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - Ubuntu-24.04-CI einschließlich Abhängigkeits-Audit, nativem Opus und Browserprüfung
 
 Der Installer bewahrt Benutzerdaten und Einstellungen unter `/var/lib/musikbot187`. Ein bestehender CT kann direkt unter **System → Update** aktualisiert werden.
+
+## Empfohlener Ubuntu-CT
+
+Für einen einzelnen Player reichen 1 vCPU, 1 GB RAM plus 1 GB Swap und 8 GB CT-Speicher. Für den zuverlässigen 24/7-Betrieb mit mehreren Funktionen werden 2–4 vCPU, 4 GB RAM und mindestens 32 GB SSD-Speicher empfohlen. Eine GPU ist nicht erforderlich; lokale Musik und YouTube-Downloads benötigen zusätzlichen Speicherplatz.

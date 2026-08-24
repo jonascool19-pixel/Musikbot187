@@ -89,6 +89,20 @@ Unter **System** stehen außerdem der tägliche Wartungsneustart, Netzwerkverlau
 - getrennt privilegierter Control-Dienst für genau definierte Systemaktionen
 - fest auf dieses Repository begrenzter Updatepfad mit automatischem Rollback
 
+## Systemanforderungen
+
+| Bereich | Minimum | Optimal für 24/7-Betrieb |
+| --- | --- | --- |
+| Einsatz | ein aktiver Player und gelegentliche Dashboard-Nutzung | zwei getrennte Player, Autoplay, Spotify-Abgleich und Downloads |
+| Betriebssystem | Ubuntu Server 24.04 LTS, 64-Bit, mit systemd | frischer Ubuntu-24.04-Proxmox-LXC/CT |
+| Prozessor | 1 vCPU, x86-64 | 2–4 moderne vCPU |
+| Arbeitsspeicher | 1 GB RAM plus 1 GB Swap | 4 GB RAM; 2 GB genügen meist für ein bis zwei Player |
+| Speicherplatz | 8 GB CT-Speicher | mindestens 32 GB auf SSD, bei lokaler Musik entsprechend mehr |
+| Netzwerk | stabil, mindestens 10 Mbit/s Download und 2 Mbit/s Upload | mindestens 50 Mbit/s Download und 10 Mbit/s Upload mit niedriger Latenz |
+| Grafik | keine GPU erforderlich | keine GPU erforderlich |
+
+Jeder eigenständige Player benötigt einen eigenen FFmpeg-Audiopfad. Gespiegelte Ausgaben teilen sich die Medienauflösung und brauchen daher weniger zusätzliche CPU-Leistung. Hochgeladene Musik und YouTube-Downloads belegen zusätzlichen Speicherplatz unter `/var/lib/musikbot187/music`.
+
 ## Einmal-Installation
 
 Auf einem frischen Ubuntu-24.04-CT:
