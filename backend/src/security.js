@@ -3,7 +3,7 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import path from 'node:path';
 
-export const permissions = Object.freeze(['player.control','playlists.manage','music.manage','connections.manage','settings.manage','design.manage','users.manage','diagnostics.view','system.manage']);
+export const permissions = Object.freeze(['player.control','autoplay.manage','playlists.manage','music.manage','connections.manage','settings.manage','design.manage','users.manage','diagnostics.view','system.manage']);
 export const timingEqual = (a, b) => { const x=Buffer.from(String(a)); const y=Buffer.from(String(b)); return x.length===y.length && crypto.timingSafeEqual(x,y); };
 export const randomToken = () => crypto.randomBytes(32).toString('base64url');
 export const validUsername = value => /^[A-Za-z0-9_.-]{3,32}$/.test(String(value));

@@ -39,9 +39,10 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(searchSource).toHaveValue('youtube');
   await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
 
-  const playerCalls=[];let mockPlayer=true;const mockState={player:{current:{id:'long-track',title:'DIES IST EIN SEHR LANGER TITEL FÜR DAS LAUFENDE RADIO-DISPLAY – SOMMER CEM UND SHIRIN DAVID',source:'youtube',quality:'Beste verfügbare Audioqualität',duration:245},queue:Array.from({length:8},(_,index)=>({id:`queue-${index}`,title:`Wartelistentitel ${index+1}`,source:'youtube'})),volume:40,mode:'queue',paused:false,playing:true,positionSeconds:61,playbackId:7},settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d'},connections:[],runtimes:[]};
+  const playerCalls=[];let mockPlayer=true;const browserAutoplay={enabled:false,mode:'playlists',playlistIds:[],queueTarget:5,status:'off',detail:'Automatische Wiedergabe ist ausgeschaltet.',profile:{learnedTracks:0,totalListens:0,styles:[],top:[]}},mockState={player:{current:{id:'long-track',title:'DIES IST EIN SEHR LANGER TITEL FÜR DAS LAUFENDE RADIO-DISPLAY – SOMMER CEM UND SHIRIN DAVID',source:'youtube',quality:'Beste verfügbare Audioqualität',duration:245},queue:Array.from({length:8},(_,index)=>({id:`queue-${index}`,title:`Wartelistentitel ${index+1}`,source:'youtube'})),volume:40,mode:'queue',paused:false,playing:true,positionSeconds:61,playbackId:7},autoplay:browserAutoplay,settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d'},connections:[],runtimes:[]};
   await page.route('**/api/state',route=>mockPlayer?route.fulfill({contentType:'application/json',body:JSON.stringify(mockState)}):route.fallback());
   await page.route('**/api/player/**',async route=>{playerCalls.push({url:route.request().url(),method:route.request().method(),body:route.request().postData()});await route.fulfill({contentType:'application/json',body:JSON.stringify(mockState.player)})});
+  await page.route('**/api/autoplay/enabled',async route=>{const enabled=route.request().postDataJSON().enabled;browserAutoplay.enabled=enabled;browserAutoplay.status=enabled?'active':'off';browserAutoplay.detail=enabled?'Ausgewählte Playlists laufen der Reihe nach in Endlosschleife.':'Automatische Wiedergabe ist ausgeschaltet.';if(!enabled)mockState.player.queue=[];await route.fulfill({contentType:'application/json',body:JSON.stringify({autoplay:browserAutoplay,player:mockState.player})})});
   await expect(page.locator('#playerCurrent .now-playing-marquee.is-overflowing')).toBeVisible({timeout:5000});
   await expect(page.locator('#playerRuntime')).toContainText(/Laufzeit 01:\d{2} \/ 04:05/);
   await page.getByText('Laufschrift einstellen').click();
@@ -58,6 +59,9 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect.poll(()=>playerCalls.map(call=>call.url).join('\n')).toContain('/api/player/skip');
   await expect.poll(()=>playerCalls.map(call=>call.url).join('\n')).toContain('/api/player/stop');
   await expect.poll(()=>playerCalls.find(call=>call.url.includes('/api/player/volume'))?.body||'').toContain('31');
+  await expect(page.getByText('Automatische Wiedergabe · AUS',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Einschalten',exact:true}).click();await expect(page.getByText('Automatische Wiedergabe · EIN',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Ausschalten',exact:true}).click();await expect(page.getByRole('heading',{name:'Warteschlange (0)'})).toBeVisible();
   mockPlayer=false;await page.waitForTimeout(3200);
 
   let importedPlaylist=null;
@@ -74,14 +78,20 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await searchSource.selectOption('spotify');await searchInput.fill('spotify test');await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
   const firstSpotifyResult=page.locator('.search-result').first();await firstSpotifyResult.getByRole('button',{name:'+ Playlist'}).click();await firstSpotifyResult.getByLabel('Ziel-Playlist').selectOption('spotify-browser');await firstSpotifyResult.getByRole('button',{name:'Hinzufügen'}).click();await expect(page.locator('#toast')).toContainText('Sommer Hits');
 
+  await page.route('**/api/autoplay/config',async route=>{const body=route.request().postDataJSON();Object.assign(browserAutoplay,{...body,status:'off',detail:'Autoplay-Konfiguration gespeichert.'});await route.fulfill({contentType:'application/json',body:JSON.stringify(browserAutoplay)})});
+  await page.locator('#nav').getByRole('button',{name:'Automatische Wiedergabe'}).click();
+  await expect(page.getByRole('heading',{name:'Autoplay-Modus'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Dein lokales Musikprofil'})).toBeVisible();
+  await page.getByLabel('Sommer Hits für Autoplay auswählen').check();
+  await page.getByLabel('Anzahl vorbereiteter Titel').fill('7');
+  await page.getByRole('button',{name:'Autoplay-Einstellungen speichern'}).click();
+  await expect(page.getByText('Autoplay-Einstellungen gespeichert.')).toBeVisible();
+
   await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
   await expect(page.getByText('Keine Fehlermeldungen vorhanden.')).toBeVisible();
-  await page.getByRole('button',{name:'Einstellungen'}).first().click();
+  await page.locator('#nav').getByRole('button',{name:'Instanzen'}).click();
   await expect(page.getByRole('heading',{name:'Discord-Instanzen'})).toBeVisible();
-  await expect(page.getByText('Nur App-Zugang')).toBeVisible();
-  await page.getByText('Spotify-Playlistimport freischalten').click();
-  await expect(page.getByRole('button',{name:'Spotify-Benutzer verbinden'})).toBeVisible();
-  await expect(page.getByLabel('Kostenlose Spotify Callback-Adresse')).toHaveValue('https://jonascool19-pixel.github.io/radiobot/spotify-callback/');
+  await expect(page.locator('#nav').getByRole('button',{name:'Einstellungen'})).toHaveCount(0);
   await page.locator('.instance-section').filter({hasText:'Discord-Instanzen'}).getByRole('button',{name:'+ Instanz'}).click();
   const card=page.locator('.instance-card').filter({hasText:'Discord'}).last(),refreshChannels=card.getByRole('button',{name:'Voice-Channels aktualisieren'});
   await expect(refreshChannels).toBeVisible();
@@ -101,6 +111,11 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(card.locator('select[name="voiceChannelId"]')).toContainText('Testserver · Musik');
   await expect(card.getByRole('button',{name:'Voice-Channel betreten'})).toBeVisible();
   await card.getByRole('button',{name:'Instanz einklappen'}).click();await expect(card.getByLabel('Name')).toBeHidden();await card.getByRole('button',{name:'Instanz ausklappen'}).click();await expect(card.getByLabel('Name')).toBeVisible();
+  await page.locator('#nav').getByRole('button',{name:'Spotify'}).click();
+  await expect(page.getByText('Nur App-Zugang')).toBeVisible();
+  await page.getByText('Spotify-Playlistimport freischalten').click();
+  await expect(page.getByRole('button',{name:'Spotify-Benutzer verbinden'})).toBeVisible();
+  await expect(page.getByLabel('Kostenlose Spotify Callback-Adresse')).toHaveValue('https://jonascool19-pixel.github.io/radiobot/spotify-callback/');
   await page.evaluate(async()=>{const token=sessionStorage.getItem('musikbot187.auth');for(let index=1;index<=6;index++)await fetch('/api/diagnostics/client',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({message:`Zusätzliche Testmeldung ${index}`,context:'Browserliste'})})});
   await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
   await expect(page.getByText('Instanz zuerst speichern und verbinden.')).toBeVisible();
