@@ -5,7 +5,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   const browserDialogs=[];page.on('dialog',async dialog=>{browserDialogs.push(dialog.type());await dialog.dismiss()});
   let metricSample=0;await page.route('**/api/monitoring',route=>{metricSample++;return route.fulfill({contentType:'application/json',body:JSON.stringify({cpu:{busyPercent:metricSample%2?17:29},memory:{used:512,total:1024},load:[.1,.2,.3],uptime:3600,network:{rxPerSecond:2048,txPerSecond:1024,rxTotal:134217728,txTotal:67108864},disk:null})})});
   await page.route('**/api/system/network-history',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({daily:[{key:'2026-08-24',rx:134217728,tx:67108864}],monthly:[{key:'2026-08',rx:134217728,tx:67108864}],yearly:[{key:'2026',rx:134217728,tx:67108864}],sampledAt:'2026-08-24T15:00:00.000Z'})}));
-  await page.route('**/api/system/update',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({current:'5.2.0',latest:'5.2.0',available:false,source:'GitHub main'})}));
+  await page.route('**/api/system/update',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({current:'5.2.1',latest:'5.2.1',available:false,source:'GitHub main'})}));
   await page.addInitScript(()=>{try{Object.defineProperty(globalThis.crypto,'randomUUID',{value:undefined,configurable:true})}catch{}});
   await page.goto('/#setup=browser-setup-token');
   await expect(page.getByText('Ersteinrichtung')).toBeVisible();
@@ -78,13 +78,17 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   let importedPlaylist=null;
   await page.route('**/api/playlists',route=>route.request().method()==='GET'&&importedPlaylist?route.fulfill({contentType:'application/json',body:JSON.stringify([importedPlaylist])}):route.fallback());
   await page.route('**/api/playlists/spotify-browser',async route=>{if(route.request().method()!=='PUT')return route.fallback();const body=route.request().postDataJSON();importedPlaylist={...importedPlaylist,...body};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
-  await page.route('**/api/playlists/import-spotify',route=>{importedPlaylist={id:'spotify-browser',name:'Sommer Hits',source:'spotify',sourceUrl:'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',items:[{id:'spotify-track',title:'Summer Cem – Testtitel',source:'spotify'}]};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
+  await page.route('**/api/playlists/import-spotify',route=>{importedPlaylist={id:'spotify-browser',name:'Sommer Hits',source:'spotify',spotifyId:'37i9dQZF1DXcBWIGoYBM5M',sourceUrl:'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',spotifySyncEnabled:true,spotifySyncedAt:'2026-08-24T15:00:00.000Z',items:[{id:'spotify-track',title:'Summer Cem – Testtitel',source:'spotify'}]};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
+  await page.route('**/api/playlists/spotify-browser/sync-spotify',route=>{importedPlaylist={...importedPlaylist,spotifySync:{added:1,removed:0,total:2},spotifySyncedAt:'2026-08-24T16:00:00.000Z',items:[...importedPlaylist.items,{id:'spotify-track-2',title:'Neuer Spotify-Titel',source:'spotify'}]};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
   await page.locator('#nav').getByRole('button',{name:'Playlists'}).click();
   await page.getByLabel('Spotify-Playlist-URL').fill('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M');
   await page.getByRole('button',{name:'Spotify-Playlist hinzufügen'}).click();
   await expect(page.getByText('Sommer Hits',{exact:true})).toBeVisible();
   await page.getByText('Sommer Hits',{exact:true}).click();
   await expect(page.getByText('Summer Cem – Testtitel')).toBeVisible();
+  await page.getByRole('button',{name:'Jetzt mit Spotify abgleichen'}).click();
+  await page.getByText('Sommer Hits',{exact:true}).click();
+  await expect(page.getByText('Neuer Spotify-Titel')).toBeVisible();
   await page.locator('#nav').getByRole('button',{name:'Dashboard'}).click();
   await expect(searchSource).toHaveValue('youtube');
   await searchSource.selectOption('spotify');await searchInput.fill('spotify test');await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
@@ -94,6 +98,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.locator('#nav').getByRole('button',{name:'Automatische Wiedergabe'}).click();
   await expect(page.getByRole('heading',{name:'Autoplay-Modus'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Dein lokales Musikprofil'})).toBeVisible();
+  await page.getByText('Eigene Playlists im Kreis',{exact:true}).click();
   await page.getByLabel('Sommer Hits für Autoplay auswählen').check();
   await page.getByLabel('Anzahl vorbereiteter Titel').fill('7');
   await page.getByRole('button',{name:'Autoplay-Einstellungen speichern'}).click();
@@ -156,6 +161,9 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.locator('#networkRxTotal')).toHaveText('128.00 MiB');
   await expect(page.locator('#networkTxTotal')).toHaveText('64.00 MiB');
   await expect(page.locator('#networkRxRate')).toHaveText('2.0 KiB/s');
+  const systemLayout=await page.evaluate(()=>{const content=document.querySelector('#content'),style=getComputedStyle(content);return {innerWidth,documentWidth:document.documentElement.scrollWidth,contentInnerWidth:content.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight),systemWidth:document.querySelector('.system-page').getBoundingClientRect().width}});
+  expect(systemLayout.documentWidth).toBeLessThanOrEqual(systemLayout.innerWidth);
+  expect(Math.abs(systemLayout.contentInnerWidth-systemLayout.systemWidth)).toBeLessThanOrEqual(1);
   const maintenance=page.locator('.maintenance-card');await maintenance.getByLabel('Automatischen Neustart aktivieren').check();await maintenance.getByLabel('Uhrzeit des Wartungsneustarts').fill('05:45');await maintenance.getByRole('button',{name:'Zeitplan speichern'}).click();await expect(maintenance.getByText('Täglicher Wartungsneustart um 05:45 Uhr ist aktiv.')).toBeVisible();
   await maintenance.getByRole('button',{name:'Jetzt ausführen'}).click();await expect(maintenance.getByText('Wartungsneustart jetzt testen?')).toBeVisible();await maintenance.getByRole('button',{name:'Abbrechen'}).click();
   const systemRow=page.locator('.system-action-row').filter({hasText:'Speichert Wiedergabe und Warteschlange'});
