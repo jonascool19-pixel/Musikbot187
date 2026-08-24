@@ -1,5 +1,10 @@
 export const autoplayModes=Object.freeze(['playlists','similar']);
 export const autoplayQueueBounds=Object.freeze({min:3,max:20,default:10});
+export const autoplayDiscoveryQueries=Object.freeze([
+  'aktuelle Musik Hits verschiedene Künstler',
+  'beliebte Musik Deutschland verschiedene Künstler',
+  'neue Musik entdecken Mix verschiedene Künstler'
+]);
 export const listeningProfileLimit=200;
 const listeningProfileFavorites=40;
 const listeningThresholdMs=30_000;
@@ -257,7 +262,8 @@ export class AutoplayController{
     const items=config.mode==='playlists'
       ?this.playlistItems(config,needed)
       :await this.similarItems(config,needed);
-    if(generation!==this.generation||!this.settings.autoplayEnabled||!items.length)return this.state();
+    if(generation!==this.generation||!this.settings.autoplayEnabled)return this.state();
+    if(!items.length){this.schedule(30_000);return this.state()}
     this.player.add(items);
     this.addedTotal+=items.length;
     this.statusCode='active';
@@ -296,8 +302,8 @@ export class AutoplayController{
       return [];
     }
     const currentKey=autoplayTrackKey(current),profileSeeds=[...this.profile.tracks].sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).filter(track=>autoplayTrackKey(track)!==currentKey),librarySeeds=this.getPlaylists().flatMap(playlist=>playlist.items||[]).filter(track=>track&&track.source!=='radio');
-    let useProfile=false,seed=current;
-    if(!seed){if(profileSeeds.length){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}else if(librarySeeds.length)seed=librarySeeds[this.mixCounter%librarySeeds.length];else seed={id:'musikbot187-discovery',title:'Musik Mix Deutschland',source:'youtube'};}
+    let useProfile=false,seed=current,discovery=false;
+    if(!seed){if(profileSeeds.length){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}else if(librarySeeds.length)seed=librarySeeds[this.mixCounter%librarySeeds.length];else{discovery=true;seed={id:'musikbot187-discovery',title:'Startmix',source:'youtube'};}}
     else if(profileSeeds.length>0&&this.mixCounter%3===2){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}
     this.mixCounter++;
     const seedKey=autoplayTrackKey(seed);
@@ -306,22 +312,28 @@ export class AutoplayController{
       this.lastSeedTitle=String(seed.title||'Aktueller Titel');
       this.recommendationBuffer=[];
     }
-    const used=new Set([currentKey,seedKey,...this.player.queue.map(autoplayTrackKey),...this.recentKeys].filter(Boolean)),familyReferences=[current,seed,...this.player.queue,...this.recentFamilies].filter(Boolean);
+    const used=new Set([currentKey,seedKey,...this.player.queue.map(autoplayTrackKey),...this.recentKeys,...this.recommendationBuffer.map(autoplayTrackKey)].filter(Boolean)),familyReferences=[current,...(discovery?[]:[seed]),...this.player.queue,...this.recentFamilies].filter(Boolean);
     if(this.recommendationBuffer.length<needed){
-      const query=recommendationQuery(seed);
-      if(!query){
+      const primaryQuery=recommendationQuery(seed),queries=[...(discovery?autoplayDiscoveryQueries:current?[primaryQuery]:[primaryQuery,...autoplayDiscoveryQueries])].filter(Boolean);
+      if(!queries.length){
         this.statusCode='waiting';
         this.detail='Der aktuelle Titel enthält zu wenig Angaben für ähnliche Vorschläge.';
         return [];
       }
-      const found=await this.recommend(seed,{query,limit:50});
-      const fresh=[];
-      for(const track of Array.isArray(found)?found:[]){
-        const key=autoplayTrackKey(track);
-        if(!key||used.has(key)||fresh.some(item=>autoplayTrackKey(item)===key)||familyReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>sameRecommendationFamily(item,track)))continue;
-        fresh.push(track);
+      const failures=[],candidateKeys=new Set(used);
+      for(const query of queries){
+        let found=[];
+        try{found=await this.recommend(seed,{query,limit:50})}catch(error){failures.push(String(error?.message||error));continue}
+        const fresh=[];
+        for(const track of Array.isArray(found)?found:[]){
+          const key=autoplayTrackKey(track);
+          if(!key||candidateKeys.has(key)||familyReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>sameRecommendationFamily(item,track)))continue;
+          fresh.push(track);candidateKeys.add(key);
+        }
+        this.recommendationBuffer.push(...fresh);
+        if(this.recommendationBuffer.length>=needed)break;
       }
-      this.recommendationBuffer.push(...fresh);
+      if(!this.recommendationBuffer.length&&failures.length===queries.length)throw new Error(`YouTube-Suche für den Startmix fehlgeschlagen: ${failures.at(-1)}`);
     }
     const items=[];
     while(items.length<needed&&this.recommendationBuffer.length){
@@ -336,7 +348,7 @@ export class AutoplayController{
     }
     if(!items.length){
       this.statusCode='waiting';
-      this.detail=`Zu „${this.lastSeedTitle}“ wurden gerade keine weiteren eindeutigen Vorschläge gefunden.`;
+      this.detail=`Zu „${this.lastSeedTitle}“ wurden gerade keine weiteren eindeutigen Vorschläge gefunden. In 30 Sekunden wird automatisch erneut gesucht.`;
     }
     return items;
   }

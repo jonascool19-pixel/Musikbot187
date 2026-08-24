@@ -1,4 +1,4 @@
-export const appVersion='5.2.1';
+export const appVersion='5.3.0';
 export const latestPackageUrl='https://raw.githubusercontent.com/jonascool19-pixel/radiobot/main/backend/package.json';
 
 export function compareVersions(left,right){
