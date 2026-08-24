@@ -5,6 +5,7 @@ export DEBIAN_FRONTEND=noninteractive
 APP=/opt/musikbot187
 DATA=/var/lib/musikbot187
 REPO=jonascool19-pixel/Musikbot187
+REPO_NAME=${REPO##*/}
 VERSION=main
 OLD="${APP}.previous"
 ROLLOUT_STARTED=0
@@ -12,16 +13,23 @@ rollback_on_error(){
   local line="$1"
   trap - ERR
   echo "FEHLER: Installation in Zeile $line abgebrochen." >&2
-  if [[ "$ROLLOUT_STARTED" -eq 1 && -d "$OLD" ]]; then
+  if [[ "$ROLLOUT_STARTED" -eq 1 ]]; then
     echo 'Vorherige funktionierende MusikBot-Version wird automatisch wiederhergestellt.' >&2
     systemctl stop musikbot187.service musikbot187-control.service 2>/dev/null || true
+    if [[ -d "$OLD" ]]; then rm -rf "$APP"; mv "$OLD" "$APP"; fi
+    if [[ -d "$APP" ]]; then
+      install -m 0644 "$APP/systemd/musikbot187.service" /etc/systemd/system/musikbot187.service
+      install -m 0644 "$APP/systemd/musikbot187-control.service" /etc/systemd/system/musikbot187-control.service
+      systemctl daemon-reload
+      systemctl enable --now musikbot187-control.service musikbot187.service
+      echo 'Rollback abgeschlossen: Die vorherige Version läuft wieder.' >&2
+    fi
+  elif [[ "$ROLLOUT_STARTED" -eq 2 ]]; then
+    systemctl disable --now musikbot187.service musikbot187-control.service 2>/dev/null || true
     rm -rf "$APP"
-    mv "$OLD" "$APP"
-    install -m 0644 "$APP/systemd/musikbot187.service" /etc/systemd/system/musikbot187.service
-    install -m 0644 "$APP/systemd/musikbot187-control.service" /etc/systemd/system/musikbot187-control.service
+    rm -f /etc/systemd/system/musikbot187.service /etc/systemd/system/musikbot187-control.service
     systemctl daemon-reload
-    systemctl enable --now musikbot187-control.service musikbot187.service
-    echo 'Rollback abgeschlossen: Die vorherige Version läuft wieder.' >&2
+    echo 'Unvollständige Erstinstallation wurde sauber entfernt; die Nutzerdaten blieben erhalten.' >&2
   fi
   exit 1
 }
@@ -43,15 +51,19 @@ rm -f /usr/local/bin/yt-dlp.new /tmp/yt-dlp.sha256
 getent group musikbot187 >/dev/null || groupadd --system musikbot187
 id musikbot187 >/dev/null 2>&1 || useradd --system --gid musikbot187 --home-dir "$DATA" --shell /usr/sbin/nologin musikbot187
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-curl -fsSL "https://github.com/$REPO/archive/refs/heads/$VERSION.tar.gz" -o "$TMP/app.tar.gz"
+curl --retry 3 --retry-all-errors --proto '=https' -fsSL "https://github.com/$REPO/archive/refs/heads/$VERSION.tar.gz" -o "$TMP/app.tar.gz"
 tar -xzf "$TMP/app.tar.gz" -C "$TMP"
+SOURCE="$TMP/$REPO_NAME-$VERSION"
+[[ -d "$SOURCE/backend" && -f "$SOURCE/backend/package-lock.json" ]] || { echo 'Das geladene MusikBot-Archiv ist unvollständig.' >&2; exit 1; }
+# Abhängigkeiten vor dem Umschalten vorbereiten. So läuft eine vorhandene
+# Installation während des längsten Update-Schritts ohne Unterbrechung weiter.
+cd "$SOURCE/backend"; npm ci --omit=dev --no-audit --no-fund
 systemctl stop musikbot187.service musikbot187-control.service 2>/dev/null || true
 rm -rf "$OLD"
-if [[ -d "$APP" ]]; then mv "$APP" "$OLD"; ROLLOUT_STARTED=1; fi
-install -d -m 0755 "$APP"; cp -a "$TMP/radiobot-$VERSION/." "$APP/"
-cd "$APP/backend"; npm ci --omit=dev --no-audit --no-fund
+if [[ -d "$APP" ]]; then ROLLOUT_STARTED=1; mv "$APP" "$OLD"; else ROLLOUT_STARTED=2; fi
+install -d -m 0755 "$APP"; cp -a "$SOURCE/." "$APP/"
 install -d -o musikbot187 -g musikbot187 -m 0750 "$DATA" "$DATA/music"
-SECRET="$(openssl rand -hex 32)"; SETUP="$(openssl rand -hex 32)"
+SETUP="$(openssl rand -hex 32)"
 if [[ -f /etc/musikbot187.env ]]; then SETUP="$(sed -n 's/^MUSIKBOT187_SETUP_TOKEN=//p' /etc/musikbot187.env | head -1)"; fi
 cat > /etc/musikbot187.env <<EOF
 MUSIKBOT187_DATA_DIR=$DATA
