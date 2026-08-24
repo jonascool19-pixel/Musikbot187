@@ -18,17 +18,20 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - lokaler 24-Stunden-Leistungsberater mit CPU-, RAM-, Kern-, Netzwerk- und CT-Empfehlung
 - dauerhafte Messhistorien, die auch beim täglichen Wartungsneustart nicht bereinigt werden
 - geglätteter FFmpeg-Netzwerkpfad und begrenzter Discord-Rückstaupuffer gegen kurze Transportaussetzer
-- stotterfreierer Live-Radiopfad ohne doppelte Echtzeittaktung, mit eigenem 1-s-Discord-Vorpuffer und sauber ausgerichteten PCM-Samples
-- `/play` mit echten auswählbaren Discord-Suchvorschlägen und exakter Wiedergabe der gewählten Video-ID
+- stotterfreierer Live-Radiopfad ohne doppelte Echtzeittaktung, mit eigenem 2-s-Discord-Vorpuffer und sauber ausgerichteten PCM-Samples
+- `/play` mit echten auswählbaren Discord-Suchvorschlägen, stabilen Treffern beim Weiter-tipppen und exakter Wiedergabe der gewählten Video-ID
+- echte YouTube-Suchergebnis-URLs statt des auf dem Test-CT fehlgeleiteten `ytsearch10:`-Schemas; fremde yt-dlp-Konfigurationen werden ignoriert
+- automatische Discord-Voice-Wiederverbindung mit sichtbarem Zustand nach einem späteren Kanalabbruch
 - erwarteter Discord-Einrichtungsstatus nicht mehr als Fehlermeldung; alte Auswahlwarnung wird nach erfolgreichem Voice-Beitritt entfernt
 - Warteschlangentitel per Pfeil nach oben und unten verschiebbar, ohne den laufenden Titel zu unterbrechen
 - sauberer Dienstabschluss, der laufende Spotify-Abgleiche und andere Hintergrundspeicherungen vollständig abwartet
-- YouTube und Spotify mit eigenem 1-s-/1,5-s-Discord-Vorpuffer sowie positionsgenauer Wiederaufnahme, falls eine aufgelöste Ersatzquelle vorzeitig endet
+- YouTube und Spotify mit eigenem 1,5-s-/2-s-Discord-Vorpuffer, vollständig ausgespieltem Restpuffer sowie positionsgenauer Wiederaufnahme, falls eine aufgelöste Ersatzquelle vorzeitig endet
+- unerwartete API-Fehler werden in der Diagnose festgehalten; Content-Security-Policy und vollständige IPv4-/IPv6-Zielprüfung wurden ergänzt
 - Audit-Prüfungen sind unabhängig vom jeweils verwendeten Arbeitsordner ausführbar
 
 ## Prüfung
 
-- 88 lokale automatisierte Prüfungen bestanden
+- 92 lokale automatisierte Prüfungen bestanden; rund 95 Prozent Backend-Zeilenabdeckung
 - Syntaxprüfung für Backend, Control-Dienst, Frontend und Installer
 - kompletter Browserablauf sowie Desktop- und Mobilansicht geprüft
 - Zwei-Player-Performanceprüfung bestanden
