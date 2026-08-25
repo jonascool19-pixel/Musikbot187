@@ -19,6 +19,6 @@ export class PlayerHub extends EventEmitter{
   close(){for(const player of this.players.values())player.stop();this.removeAllListeners()}
   active(){return this.ensure(this.resolve(this.selectedId))}
   get current(){return this.active().current}get queue(){return this.active().queue}get volume(){return this.active().volume}get mode(){return this.active().mode}get paused(){return this.active().paused}
-  add(...args){return this.active().add(...args)}clear(...args){return this.active().clear(...args)}setVolume(...args){return this.active().setVolume(...args)}setMode(...args){return this.active().setMode(...args)}pause(...args){return this.active().pause(...args)}resume(...args){return this.active().resume(...args)}stop(...args){return this.active().stop(...args)}skip(...args){return this.active().skip(...args)}seekBy(...args){return this.active().seekBy(...args)}
+  add(...args){return this.active().add(...args)}startPlaylist(...args){return this.active().startPlaylist(...args)}clear(...args){return this.active().clear(...args)}setVolume(...args){return this.active().setVolume(...args)}setMode(...args){return this.active().setMode(...args)}pause(...args){return this.active().pause(...args)}resume(...args){return this.active().resume(...args)}stop(...args){return this.active().stop(...args)}skip(...args){return this.active().skip(...args)}seekBy(...args){return this.active().seekBy(...args)}
   remove(index){return this.active().remove(index)}move(index,targetIndex){return this.active().move(index,targetIndex)}
 }

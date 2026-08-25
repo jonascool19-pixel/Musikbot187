@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {PcmJitterBuffer,pcmFrameBytes} from '../backend/src/pcm-buffer.js';
+
+const wait=milliseconds=>new Promise(resolve=>setTimeout(resolve,milliseconds));
+
+test('PCM jitter buffer paces burst input without dropping frames and bounds upstream read-ahead',async()=>{const frames=[],states=[],source={pauses:0,resumes:0,pause(){this.pauses++},resume(){this.resumes++}},drained=new Promise(resolve=>{const buffer=new PcmJitterBuffer({initialBytes:pcmFrameBytes*2,rebufferBytes:pcmFrameBytes,maxBytes:pcmFrameBytes*4,resumeBytes:pcmFrameBytes*2,onFrame:frame=>frames.push(Buffer.from(frame)),onBuffering:value=>states.push(value),onDrain:resolve}).attach(source);for(let index=0;index<6;index++)buffer.write(Buffer.alloc(pcmFrameBytes,index+1));buffer.end()});await Promise.race([drained,wait(500)]);assert.equal(frames.length,6);assert.deepEqual(frames.map(frame=>frame[0]),[1,2,3,4,5,6]);assert.equal(source.pauses,1);assert.equal(source.resumes,1);assert.deepEqual(states,[false])});
+
+test('PCM jitter buffer re-buffers after starvation instead of emitting choppy partial bursts',async()=>{const frames=[],states=[],buffer=new PcmJitterBuffer({initialBytes:pcmFrameBytes*2,rebufferBytes:pcmFrameBytes*2,maxBytes:pcmFrameBytes*8,resumeBytes:pcmFrameBytes*4,onFrame:frame=>frames.push(frame[0]),onBuffering:value=>states.push(value)});buffer.write(Buffer.alloc(pcmFrameBytes,1));buffer.write(Buffer.alloc(pcmFrameBytes,2));await wait(80);assert.deepEqual(frames,[1,2]);assert.equal(buffer.buffering,true);buffer.write(Buffer.alloc(pcmFrameBytes,3));await wait(35);assert.deepEqual(frames,[1,2]);buffer.write(Buffer.alloc(pcmFrameBytes,4));buffer.end();await wait(80);assert.deepEqual(frames,[1,2,3,4]);assert.deepEqual(states,[false,true,false]);buffer.destroy()});
