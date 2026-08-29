@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
-import {clearDiscordSetupDiagnostics,discordAutocompleteDelayMs,discordAutocompleteTimeoutMs,discordOpusBitrate,discordPcmBufferBytes,discordPendingPcmBytes,discordPrebufferBytes,discordRadioPrebufferBytes,discordReadyTimeoutMs,discordSearchText,discordSpotifyPrebufferBytes,discordYouTubePrebufferBytes,flushDiscordPcm,IntegrationManager,writeDiscordPcm} from '../backend/src/integrations.js';
+import {clearDiscordSetupDiagnostics,configureDiscordOpus,discordAutocompleteDelayMs,discordAutocompleteTimeoutMs,discordMaxMissedFrames,discordOpusBitrate,discordOpusPacketLoss,discordPcmBufferBytes,discordPendingPcmBytes,discordPrebufferBytes,discordRadioPrebufferBytes,discordReadyTimeoutMs,discordSearchText,discordSpotifyPrebufferBytes,discordYouTubePrebufferBytes,flushDiscordPcm,IntegrationManager,writeDiscordPcm} from '../backend/src/integrations.js';
 
 test('Discord uses the maximum supported Opus bitrate',()=>{assert.equal(discordOpusBitrate,128_000);assert.equal(discordReadyTimeoutMs,15_000);});
+
+test('Discord Opus enables packet-loss concealment and tolerates a short raw-stream gap',()=>{const calls=[],resource={encoder:{setBitrate:value=>calls.push(['bitrate',value]),setFEC:value=>calls.push(['fec',value]),setPLP:value=>calls.push(['plp',value])}};assert.equal(configureDiscordOpus(resource),resource);assert.equal(discordOpusPacketLoss,0.10);assert.equal(discordMaxMissedFrames,250);assert.deepEqual(calls,[['bitrate',128_000],['fec',true],['plp',0.10]]);assert.doesNotThrow(()=>configureDiscordOpus({}));});
 
 test('Discord PCM transport bridges short backpressure without dropping the next audio block',()=>{const writes=[],runtime={stream:{destroyed:false,write:buffer=>{writes.push(buffer);return false}},backpressured:false,pendingPcm:[],pendingPcmBytes:0},first=Buffer.alloc(3840,1),second=Buffer.alloc(3840,2);assert.equal(discordPcmBufferBytes,576_000);assert.equal(discordPendingPcmBytes,384_000);assert.equal(writeDiscordPcm(runtime,first),false);assert.equal(runtime.backpressured,true);assert.equal(writeDiscordPcm(runtime,second),false);assert.equal(writes.length,1);assert.equal(runtime.pendingPcmBytes,second.length);runtime.stream.write=next=>{writes.push(next);return true};assert.equal(flushDiscordPcm(runtime),true);assert.equal(runtime.pendingPcmBytes,0);assert.deepEqual(writes,[first,second]);});
 

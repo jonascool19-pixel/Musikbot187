@@ -29,6 +29,7 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - `/play` mit echten auswählbaren Discord-Suchvorschlägen, stabilen Treffern beim Weiter-tipppen und exakter Wiedergabe der gewählten Video-ID
 - `/play` liest das Feld **Suche** sowie ältere, noch von Discord gespeicherte Feldnamen zuverlässig aus und beantwortet eine tatsächlich leere Eingabe verständlich
 - eigener begrenzter Player-Audiopuffer mit exakter 20-ms-Taktung und kontrolliertem Nachpuffern für YouTube, Spotify und Radio
+- auf zwölf Sekunden vergrößerter Quellen-Reservepuffer, vollständiges quellabhängiges Nachpuffern sowie Discord-Opus-FEC mit zehn Prozent Paketverlustvorsorge gegen kurze Internet- und UDP-Aussetzer
 - vollständige Playlists mit gespeicherter Wiederholung und Zufallsreihenfolge; Zufallslisten werden pro Durchlauf neu gemischt
 - persönlicher Autoplay-Mix verwirft beim erneuten Start oder Moduswechsel alte Playlist-Wartetitel und Wiederholungssitzungen, lässt den aktuellen Titel weiterlaufen und füllt anschließend sofort neu
 - weitere Empfehlungssuchen greifen automatisch, wenn der erste Trefferblock nur bereits gelernte Titel oder Varianten derselben Songfamilien enthält
@@ -43,7 +44,7 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 
 ## Prüfung
 
-- 105 lokale automatisierte Prüfungen bestanden; rund 95 Prozent Backend-Zeilenabdeckung
+- 106 lokale automatisierte Prüfungen bestanden; rund 95 Prozent Backend-Zeilenabdeckung
 - Syntaxprüfung für Backend, Control-Dienst, Frontend und Installer
 - kompletter Browserablauf sowie Desktop- und Mobilansicht geprüft
 - Zwei-Player-Performanceprüfung bestanden
