@@ -14,6 +14,7 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - aktueller Spotify-Playlist-Endpunkt mit Pagination und klarer Behandlung der seit Februar 2026 geltenden Eigentümer-/Mitwirkenden-Grenze
 - kontogebundene Spotify-Playlist-Auswahl über `/me/playlists`, die Kontoname und importierbare Listen direkt im Dashboard anzeigt
 - direkte Spotify-Playlist-Prüfung über `/playlists/{id}` und `/playlists/{id}/items`; zugängliche gemeinsame Listen werden nicht mehr fälschlich abgewiesen, nur weil sie in `/me/playlists` fehlen
+- begrenzter öffentlicher Spotify-Embed-Rückfall für fremde öffentliche Playlists wie „Top 50 – Germany“, einschließlich sicherer ID-Bindung, Größenlimit und Entfernung von Preview-/Sitzungsdaten
 - kanonische YouTube-Video-IDs, API-bevorzugte Suche und drei zeitlich begrenzte Clientvarianten statt gespeicherter Suchseiten
 - unbrauchbare YouTube-Titel werden aus laufenden Wiederholungen entfernt; Medien-Timeouts erzeugen keine endlose Fehlerschleife mehr
 - Fehler aus Browser-Erweiterungen wie `M_ID` werden nicht mehr fälschlich als Dashboardfehler gespeichert
@@ -42,7 +43,7 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 
 ## Prüfung
 
-- 104 lokale automatisierte Prüfungen bestanden; rund 95 Prozent Backend-Zeilenabdeckung
+- 105 lokale automatisierte Prüfungen bestanden; rund 95 Prozent Backend-Zeilenabdeckung
 - Syntaxprüfung für Backend, Control-Dienst, Frontend und Installer
 - kompletter Browserablauf sowie Desktop- und Mobilansicht geprüft
 - Zwei-Player-Performanceprüfung bestanden

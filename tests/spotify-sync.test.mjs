@@ -7,7 +7,7 @@ import {normalizeSpotifyPlaylistSyncInterval,spotifyPlaylistDue,spotifyPlaylistS
 import {buildServer} from '../backend/src/server.js';
 
 test('Spotify playlist sync mirrors additions and removals without changing the local playlist id',()=>{
-  const playlist={id:'local-list',name:'Alt',source:'spotify',spotifyId:'spotify-list',items:[{id:'keep',title:'Bleibt'},{id:'removed',title:'Entfernt'}]},imported={name:'Neu',spotifyId:'spotify-list',sourceUrl:'https://open.spotify.com/playlist/spotify-list',items:[{id:'keep',title:'Bleibt'},{id:'added',title:'Neu'}]},synced=spotifyPlaylistSyncResult(playlist,imported,'2026-08-24T12:00:00.000Z');
+  const playlist={id:'local-list',name:'Alt',source:'spotify',spotifyId:'spotify-list',items:[{id:'keep',title:'Bleibt'},{id:'removed',title:'Entfernt'}]},imported={name:'Neu',spotifyId:'spotify-list',spotifyImportMode:'public-embed',sourceUrl:'https://open.spotify.com/playlist/spotify-list',items:[{id:'keep',title:'Bleibt'},{id:'added',title:'Neu'}]},synced=spotifyPlaylistSyncResult(playlist,imported,'2026-08-24T12:00:00.000Z');
   assert.equal(synced.id,'local-list');
   assert.deepEqual(synced.items.map(track=>track.id),['keep','added']);
   assert.deepEqual(synced.spotifySync,{added:1,removed:1,total:2});
@@ -15,6 +15,7 @@ test('Spotify playlist sync mirrors additions and removals without changing the 
   assert.equal(synced.spotifySyncCheckedAt,'2026-08-24T12:00:00.000Z');
   assert.equal(synced.spotifySyncIntervalHours,24);
   assert.equal(synced.spotifySyncEnabled,true);
+  assert.equal(synced.spotifyImportMode,'public-embed');
 });
 
 test('automatic Spotify sync selects only linked enabled Spotify playlists',()=>{

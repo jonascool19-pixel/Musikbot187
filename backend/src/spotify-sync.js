@@ -19,6 +19,7 @@ export function spotifyPlaylistSyncResult(playlist,imported,now=new Date().toISO
     sourceUrl:imported?.sourceUrl||playlist?.sourceUrl||'',
     thumbnail:imported?.thumbnail||playlist?.thumbnail||'',
     spotifyId:imported?.spotifyId||playlist?.spotifyId||'',
+    spotifyImportMode:imported?.spotifyImportMode||playlist?.spotifyImportMode||'api',
     spotifySyncEnabled:true,
     spotifySyncIntervalHours:normalizeSpotifyPlaylistSyncInterval(playlist?.spotifySyncIntervalHours),
     spotifySyncedAt:now,
