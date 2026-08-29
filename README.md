@@ -42,6 +42,8 @@ Der Rückweg übermittelt nur einen kurzlebigen Spotify-Code. Client-Secret, PKC
 
 Importierte Spotify-Playlists bleiben mit Spotify verknüpft. Neue und entfernte Titel werden automatisch gespiegelt. Der Abgleich ist pro Playlist auf 1, 5, 12, 24 oder 48 Stunden beziehungsweise wöchentlich einstellbar und kann jederzeit sofort gestartet werden.
 
+Unter **Playlists → Meine Spotify-Playlists laden** liest der MusikBot zuerst die Playlistbibliothek des tatsächlich verbundenen Kontos. Kontoname, eigene Listen, gemeinsam verwaltete Listen und nur gefolgte Listen werden eindeutig unterschieden. Eine auswählbare Liste kann dadurch ohne manuell kopierte oder möglicherweise falsche Playlist-ID importiert werden.
+
 Spotify gibt Playlist-Inhalte seit Februar 2026 über die offizielle Web API nur noch frei, wenn die Playlist dem verbundenen Konto gehört oder dieses Konto an ihr mitwirkt. Nur öffentlich oder gefolgt reicht nicht aus. Eine fremde öffentliche Playlist muss deshalb in Spotify in eine neu erstellte eigene Playlist kopiert werden; anschließend wird der Link dieser Kopie im MusikBot importiert. Bei Apps im Spotify-Entwicklungsmodus muss das verwendete Konto außerdem in den App-Einstellungen zugelassen sein und die aktuellen Spotify-Voraussetzungen erfüllen.
 
 ## Discord
