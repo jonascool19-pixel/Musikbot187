@@ -201,27 +201,31 @@ export class AutoplayController{
 
   async configure(input){
     const prior=this.pending;
+    const enabled=Boolean(this.settings.autoplayEnabled);
     const config=normalizeAutoplayConfiguration(input,this.getPlaylists());
+    this.settings.autoplayEnabled=false;
     this.settings.autoplayMode=config.mode;
     this.settings.autoplayPlaylistIds=config.playlistIds;
     this.settings.autoplayQueueTarget=config.queueTarget;
     this.resetRuntime();
-    if(this.settings.autoplayEnabled)this.player.clear();
+    if(enabled)this.player.clear();
+    this.settings.autoplayEnabled=enabled;
     await this.save();
     if(prior)await prior;
-    if(this.settings.autoplayEnabled)await this.fill();
+    if(enabled)await this.fill();
     return this.state();
   }
 
   async setEnabled(value){
     const enabled=Boolean(value);
     const prior=this.pending;
-    this.settings.autoplayEnabled=enabled;
+    this.settings.autoplayEnabled=false;
     this.resetRuntime();
+    this.player.clear();
+    this.settings.autoplayEnabled=enabled;
     if(!enabled){
       this.statusCode='off';
       this.detail='Automatische Wiedergabe ist ausgeschaltet.';
-      this.player.clear();
     }else{
       this.statusCode='waiting';
       this.detail='Automatische Wiedergabe wird gestartet.';
@@ -312,9 +316,9 @@ export class AutoplayController{
       this.lastSeedTitle=String(seed.title||'Aktueller Titel');
       this.recommendationBuffer=[];
     }
-    const used=new Set([currentKey,seedKey,...this.player.queue.map(autoplayTrackKey),...this.recentKeys,...this.recommendationBuffer.map(autoplayTrackKey)].filter(Boolean)),familyReferences=[current,...(discovery?[]:[seed]),...this.player.queue,...this.recentFamilies].filter(Boolean);
+    const used=new Set([currentKey,seedKey,...this.profile.tracks.map(autoplayTrackKey),...this.player.queue.map(autoplayTrackKey),...this.recentKeys,...this.recommendationBuffer.map(autoplayTrackKey)].filter(Boolean)),familyReferences=[current,...(discovery?[]:[seed]),...this.profile.tracks,...this.player.queue,...this.recentFamilies].filter(Boolean);
     if(this.recommendationBuffer.length<needed){
-      const primaryQuery=recommendationQuery(seed),queries=[...(discovery?autoplayDiscoveryQueries:current?[primaryQuery]:[primaryQuery,...autoplayDiscoveryQueries])].filter(Boolean);
+      const primaryQuery=recommendationQuery(seed),queries=[...new Set([primaryQuery,...autoplayDiscoveryQueries].filter(Boolean))];
       if(!queries.length){
         this.statusCode='waiting';
         this.detail='Der aktuelle Titel enthält zu wenig Angaben für ähnliche Vorschläge.';

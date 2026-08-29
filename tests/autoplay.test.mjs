@@ -8,10 +8,10 @@ import {AutoplayController,inferTrackStyles,listeningProfileLimit,normalizeAutop
 import {buildServer} from '../backend/src/server.js';
 
 class FakePlayer extends EventEmitter{
-  constructor(){super();this.current=null;this.queue=[];this.volume=75;this.mode='queue';this.paused=false;}
+  constructor(){super();this.current=null;this.queue=[];this.volume=75;this.mode='queue';this.paused=false;this.playlistPlayback=null;}
   state(){return {current:this.current,queue:this.queue,volume:this.volume,mode:this.mode,paused:this.paused,playing:Boolean(this.current),resolving:false,reconnecting:false,positionSeconds:0,playbackId:this.current?1:null};}
-  add(items,{now=false}={}){const list=(Array.isArray(items)?items:[items]).filter(Boolean);if(now){this.queue.unshift(...list);this.skip();return}this.queue.push(...list);if(!this.current)this.current=this.queue.shift()||null;this.emit('state',this.state());}
-  clear(){this.queue=[];this.emit('state',this.state());}
+  add(items,{now=false}={}){const list=(Array.isArray(items)?items:[items]).filter(Boolean);this.playlistPlayback=null;if(now){this.queue.unshift(...list);this.skip();return}this.queue.push(...list);if(!this.current)this.current=this.queue.shift()||null;this.emit('state',this.state());}
+  clear(){this.queue=[];this.playlistPlayback=null;this.emit('state',this.state());}
   remove(index){this.queue.splice(index,1);this.emit('state',this.state());}
   skip(){this.current=this.queue.shift()||null;this.emit('state',this.state());}
   stop(){this.current=null;this.queue=[];this.emit('state',this.state());}
@@ -57,6 +57,33 @@ test('similar autoplay filters duplicates, marks recommendations and learns a lo
   assert.equal(controller.state().profile.totalListens,2);
   await controller.resetProfile();
   assert.equal(controller.state().profile.learnedTracks,0);
+  controller.close();
+});
+
+test('personal mix replaces a full repeating playlist queue and excludes learned playlist titles',async()=>{
+  const player=new FakePlayer(),current={id:'spotify-current',title:'Artist Eins – Playlist Titel Eins',source:'spotify'},learned={key:'spotify-learned',id:'spotify-learned',title:'Artist Zwei – Playlist Titel Zwei',source:'spotify',styles:[],listens:2,lastPlayed:2};
+  player.current=current;player.queue=Array.from({length:10},(_,index)=>({id:`playlist-${index}`,title:`Playlist Titel ${index}`,source:'spotify',autoplayMode:'playlists'}));player.playlistPlayback={playlistId:'old-list',repeat:true,items:[current,...player.queue]};
+  const fresh=[{id:'new-one',title:'Neuer Artist – Neuer Song Eins',source:'youtube'},{id:'new-two',title:'Anderer Artist – Neuer Song Zwei',source:'youtube'},{id:'new-three',title:'Dritter Artist – Neuer Song Drei',source:'youtube'}],settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:['old-list'],autoplayQueueTarget:3},queries=[],controller=new AutoplayController({player,settings,profile:{version:1,tracks:[learned]},getPlaylists:()=>[{id:'old-list',items:[current,learned]}],recommend:async(track,{query})=>{queries.push(query);return queries.length%2?[{id:'youtube-copy',title:learned.title,source:'youtube'}]:fresh},save:async()=>{}});
+  await controller.setEnabled(true);
+  assert.equal(player.current.id,'spotify-current');
+  assert.equal(player.playlistPlayback,null);
+  assert.deepEqual(player.queue.map(track=>track.id),['new-one','new-two','new-three']);
+  assert.ok(player.queue.every(track=>track.autoplayMode==='similar'));
+  assert.equal(player.queue.some(track=>track.id==='youtube-copy'),false);
+  assert.equal(queries.length,2);
+  player.queue=Array.from({length:10},(_,index)=>({id:`stale-${index}`,title:`Alte Warteschlange ${index}`,source:'spotify',autoplayMode:'playlists'}));
+  player.playlistPlayback={playlistId:'old-list',repeat:true,items:[current,...player.queue]};
+  await controller.configure({mode:'similar',playlistIds:['old-list'],queueTarget:3});
+  assert.equal(player.playlistPlayback,null);
+  assert.deepEqual(player.queue.map(track=>track.id),['new-one','new-two','new-three']);
+  assert.equal(queries.length,4);
+  await controller.setEnabled(false);
+  await controller.configure({mode:'similar',playlistIds:['old-list'],queueTarget:3});
+  await controller.setEnabled(true);
+  assert.deepEqual(player.queue.map(track=>track.id),['new-one','new-two','new-three']);
+  assert.equal(controller.state().mode,'similar');
+  assert.equal(controller.state().enabled,true);
+  assert.equal(queries.length,6);
   controller.close();
 });
 

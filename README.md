@@ -75,6 +75,8 @@ Der Schalter **Automatische Wiedergabe · EIN/AUS** sitzt direkt über dem laufe
 - **Persönlicher Mix:** Der Bot lernt lokal aus tatsächlich gehörten Titeln und schlägt ähnliche Musik anderer Künstler vor.
 - Auch aus vollständiger Stille startet der Mix selbstständig und hält standardmäßig zehn Titel als Puffer bereit.
 - Varianten und Duplikate derselben Songfamilie werden herausgefiltert.
+- Beim erneuten Start oder Moduswechsel werden alte Wartetitel und eine laufende Playlist-Wiederholung verworfen; der aktuelle Titel darf weiterlaufen und der gewählte Modus wird sofort frisch aufgefüllt.
+- Liefert die erste Ähnlichkeitssuche nur bereits gelernte Titel oder bekannte Varianten, versucht der Bot automatisch weitere gemischte Suchansätze.
 - Das lokale Profil speichert höchstens 200 Titel, bleibt vollständig im CT und kann einzeln oder komplett bereinigt werden.
 - Beim Ausschalten wird nur die vorbereitete Warteschlange geleert; der aktuelle Titel darf zu Ende spielen.
 
