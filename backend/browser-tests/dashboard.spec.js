@@ -89,8 +89,8 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.route('**/api/playlists/spotify-browser/sync-spotify',route=>{importedPlaylist={...importedPlaylist,spotifySync:{added:1,removed:0,total:2},spotifySyncedAt:'2026-08-24T16:00:00.000Z',items:[...importedPlaylist.items,{id:'spotify-track-2',title:'Neuer Spotify-Titel',source:'spotify'}]};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
   await page.route('**/api/spotify/playlists',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({user:{id:'jonas',displayName:'Jonas Spotify',product:'premium'},playlists:[{id:'37i9dQZF1DXcBWIGoYBM5M',name:'Sommer Hits',url:'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',owner:'Jonas Spotify',owned:true,collaborative:false,importable:true,itemCount:1}]})}));
   await page.locator('#nav').getByRole('button',{name:'Playlists'}).click();
-  await page.getByRole('button',{name:'Meine Spotify-Playlists laden'}).click();
-  await expect(page.getByText(/1 importierbare Playlist von „Jonas Spotify“/)).toBeVisible();
+  await page.getByRole('button',{name:'Spotify-Playlists laden'}).click();
+  await expect(page.getByText(/1 direkt auswählbare Playlist von „Jonas Spotify“/)).toBeVisible();
   await page.getByLabel('Playlist aus verbundenem Spotify-Konto').selectOption('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M');
   await expect(page.getByLabel('Spotify-Playlist-URL')).toHaveValue('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M');
   await page.getByRole('button',{name:'Spotify-Playlist hinzufügen'}).click();
