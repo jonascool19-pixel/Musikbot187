@@ -11,6 +11,10 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - zuverlässige Erkennung einer Neuinstallation derselben Version im Dashboard
 - stabilere Hintergrundfehlerbehandlung für Player, Diagnosen und Control-Dienst
 - Spotify-Token-Cache sowie feste Zeitgrenzen für externe Medienanfragen
+- aktueller Spotify-Playlist-Endpunkt mit Pagination und klarer Behandlung der seit Februar 2026 geltenden Eigentümer-/Mitwirkenden-Grenze
+- kanonische YouTube-Video-IDs, API-bevorzugte Suche und drei zeitlich begrenzte Clientvarianten statt gespeicherter Suchseiten
+- unbrauchbare YouTube-Titel werden aus laufenden Wiederholungen entfernt; Medien-Timeouts erzeugen keine endlose Fehlerschleife mehr
+- Fehler aus Browser-Erweiterungen wie `M_ID` werden nicht mehr fälschlich als Dashboardfehler gespeichert
 - weniger Dashboard-Flackern und weniger doppelte Monitoring-Arbeit
 - erneut geprüfte Desktop- und Mobilansicht ohne horizontalen Seitenüberlauf
 - sicherer Ein-Befehl-Weg für einen verlorenen Ersteinrichtungslink
@@ -34,7 +38,7 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 
 ## Prüfung
 
-- 99 lokale automatisierte Prüfungen bestanden; rund 95 Prozent Backend-Zeilenabdeckung
+- 102 lokale automatisierte Prüfungen bestanden; rund 95 Prozent Backend-Zeilenabdeckung
 - Syntaxprüfung für Backend, Control-Dienst, Frontend und Installer
 - kompletter Browserablauf sowie Desktop- und Mobilansicht geprüft
 - Zwei-Player-Performanceprüfung bestanden

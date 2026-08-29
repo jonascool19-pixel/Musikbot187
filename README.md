@@ -10,7 +10,7 @@ MusikBot187 ist für den dauerhaften Betrieb im eigenen Netzwerk gebaut. Die kom
 
 | Bereich | Funktionen |
 | --- | --- |
-| Musikquellen | YouTube, Radio-Browser, Spotify-Suche, Spotify-Playlists, direkte Streams und lokale Audiodateien |
+| Musikquellen | YouTube, Radio-Browser, Spotify-Suche, eigene/mitverwaltete Spotify-Playlists, direkte Streams und lokale Audiodateien |
 | Wiedergabe | Play, Pause, Weiter, Skip, Stop, Lautstärke, Spulen, verschiebbare Warteschlange und Wiederhol-/Zufallsmodus |
 | Ausgaben | Bis zu zwei Discord- und zwei TeamSpeak-Instanzen, getrennte Player oder synchroner Spiegelmodus |
 | Automatik | Endlosschleife aus eigenen Playlists oder persönlicher Mix aus der lokalen Hörhistorie |
@@ -32,7 +32,7 @@ MusikBot187 ist für den dauerhaften Betrieb im eigenen Netzwerk gebaut. Die kom
 
 ## Spotify ohne eigene Domain
 
-Client-ID und Client-Secret reichen für Spotify-Suche und Wiedergabe. Für den Import eigener Spotify-Playlists wird einmalig die kostenlose sichere Callback-Adresse eingetragen:
+Client-ID und Client-Secret reichen für Spotify-Suche und Wiedergabe. Für den Import eigener oder gemeinsam verwalteter Spotify-Playlists wird einmalig die kostenlose sichere Callback-Adresse eingetragen:
 
 ```text
 https://jonascool19-pixel.github.io/Musikbot187/spotify-callback/
@@ -41,6 +41,8 @@ https://jonascool19-pixel.github.io/Musikbot187/spotify-callback/
 Der Rückweg übermittelt nur einen kurzlebigen Spotify-Code. Client-Secret, PKCE-Schlüssel sowie Zugriffs- und Aktualisierungstoken bleiben im Ubuntu-CT. Eine eigene Domain, ein Zertifikat oder ein kostenpflichtiger Tunnel sind nicht nötig.
 
 Importierte Spotify-Playlists bleiben mit Spotify verknüpft. Neue und entfernte Titel werden automatisch gespiegelt. Der Abgleich ist pro Playlist auf 1, 5, 12, 24 oder 48 Stunden beziehungsweise wöchentlich einstellbar und kann jederzeit sofort gestartet werden.
+
+Spotify gibt Playlist-Inhalte seit Februar 2026 über die offizielle Web API nur noch frei, wenn die Playlist dem verbundenen Konto gehört oder dieses Konto an ihr mitwirkt. Nur öffentlich oder gefolgt reicht nicht aus. Eine fremde öffentliche Playlist muss deshalb in Spotify in eine neu erstellte eigene Playlist kopiert werden; anschließend wird der Link dieser Kopie im MusikBot importiert. Bei Apps im Spotify-Entwicklungsmodus muss das verwendete Konto außerdem in den App-Einstellungen zugelassen sein und die aktuellen Spotify-Voraussetzungen erfüllen.
 
 ## Discord
 
