@@ -20,6 +20,7 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - Fehler aus Browser-Erweiterungen wie `M_ID` werden nicht mehr fälschlich als Dashboardfehler gespeichert
 - weniger Dashboard-Flackern und weniger doppelte Monitoring-Arbeit
 - erneut geprüfte Desktop- und Mobilansicht ohne horizontalen Seitenüberlauf
+- Design-Galerie mit 17 benannten Vorschaukarten, neun zusätzlichen ausgearbeiteten Farbsätzen und automatischem Hell-/Dunkelkontrast für frei gewählte Akzentfarben
 - sicherer Ein-Befehl-Weg für einen verlorenen Ersteinrichtungslink
 - geführte Discord-Einrichtung und serialisierter Voice-Beitritt ohne falsche Zwischenfehlermeldung
 - lokaler 24-Stunden-Leistungsberater mit CPU-, RAM-, Kern-, Netzwerk- und CT-Empfehlung

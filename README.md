@@ -93,6 +93,8 @@ Oben stehen live:
 - Netzwerkgeschwindigkeit
 - aktive Player-Instanz und Verbindungszustand
 
+Unter **Design** stehen 17 vollständig abgestimmte Dashboard-Themen als Vorschaukarten bereit: Nacht, Tageslicht, Ozean, Violett, Smaragd, Rubin, Bernstein, Graphit, Mitternacht, Neon, Rosé, Nordlicht, Sonnenuntergang, Kaffee, Eis, Synthwave und Kontrast. Jedes Theme setzt Hintergrund, Karten, Bedienelemente, Rahmen und Lesefarben gemeinsam; die Akzentfarbe bleibt frei anpassbar. Für helle Akzentfarben wählt das Dashboard automatisch eine dunkle Tastenschrift, damit die Beschriftung lesbar bleibt.
+
 Die Monitoring-Seite zeigt CPU, RAM und Speicher mit Belegt-/Frei-Balken, die Load-Werte für 1, 5 und 15 Minuten, Container-Laufzeit, aktuellen Netzwerkdurchsatz und Gesamtverbrauch. Zusätzlich lernt ein lokaler Berater 24 Stunden lang aus CPU-Durchschnitt und -Spitzen, RAM in MB und Prozent, rechnerisch belegten CPU-Kernen sowie Download und Upload. Danach zeigt er ein gemessenes Minimum und einen optimalen CT-Wert einschließlich sicherer Bandbreitenempfehlung an. Grundlage ist der 95-Prozent-Wert mit Reserve, damit eine Drosselung nicht zu Audiostottern führt. Die feinen Messwerte bleiben auf sieben Tage begrenzt; der Netzwerkverlauf nach Tag, Monat und Jahr bleibt länger erhalten. Alles liegt ausschließlich im eigenen CT.
 
 Unter **System** stehen außerdem der tägliche Wartungsneustart, Netzwerkverlauf nach Tag/Monat/Jahr und das sichere Dashboard-Update bereit. Vor Neustart oder Update werden Titel, Position, Lautstärke, Modus und Warteschlange gespeichert und danach wiederhergestellt. Wartungsbereinigung entfernt ausschließlich alte Upload-Zwischendateien; Ressourcenmessungen, Netzwerkverlauf und Lernprofil bleiben dauerhaft gespeichert.

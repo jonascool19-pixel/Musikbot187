@@ -208,9 +208,14 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(systemRow.getByText('MusikBot neu starten wirklich ausführen?')).toBeVisible();
   await systemRow.getByRole('button',{name:'Abbrechen'}).click();
   await page.getByRole('button',{name:'Design'}).click();
-  await page.locator('#content label').filter({hasText:'Theme'}).locator('select').selectOption('ocean');
-  await page.getByRole('button',{name:'Speichern'}).click();
-  await expect(page.locator('body')).toHaveAttribute('data-theme','ocean');
+  await expect(page.locator('.theme-card')).toHaveCount(17);
+  await page.getByLabel('Theme Sonnenuntergang').check();
+  await expect(page.getByLabel('Eigene Akzentfarbe')).toHaveValue('#f97316');
+  await page.getByRole('button',{name:'Design speichern'}).click();
+  await expect(page.locator('body')).toHaveAttribute('data-theme','sunset');
+  await expect.poll(()=>page.locator('body').evaluate(element=>getComputedStyle(element).getPropertyValue('--panel').trim())).toBe('#2b1224');
+  await expect.poll(()=>page.locator('body').evaluate(element=>getComputedStyle(element).getPropertyValue('--accent-text').trim())).toBe('#111827');
+  await expect(page.locator('#toast')).toContainText('Theme „Sonnenuntergang“ gespeichert.');
   await page.setViewportSize({width:800,height:800});await page.locator('#nav').getByRole('button',{name:'Dashboard'}).click();const compactDashboard=await page.locator('aside').evaluate(element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height})),compactNav=await page.locator('#nav').evaluate(element=>({overflowX:getComputedStyle(element).overflowX,buttons:[...element.querySelectorAll('button')].map(button=>({width:button.getBoundingClientRect().width,content:button.scrollWidth}))}));expect(compactNav.overflowX).toBe('auto');expect(compactNav.buttons.every(button=>button.width+1>=button.content)).toBe(true);await page.locator('#nav').getByRole('button',{name:'System',exact:true}).click();const compactSystem=await page.locator('aside').evaluate(element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height}));expect(compactSystem).toEqual(compactDashboard);expect(compactSystem.width).toBeGreaterThan(760);
   expect(browserDialogs).toEqual([]);
 });
