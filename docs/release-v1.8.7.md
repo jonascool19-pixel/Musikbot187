@@ -35,6 +35,7 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - persönliches Musikprofil mit einzeln entfernbaren Titeln, frei pflegbaren Wunschrichtungen und einer vollständig reversiblen Sperrliste für Stil-, Künstler- oder Titelbegriffe; keine Musikrichtung wird fest vorgegeben oder global gesperrt
 - Schutz vor Autoplay-Richtungsdrift: automatisch vorgeschlagene Titel lernen sich nicht selbst zurück ins Profil; bewusst gestartete Titel und eigene Playlists bleiben lernfähig
 - automatische Vorschläge sind auf zehn Minuten begrenzt; unbekannt lange Musikquiz, komplette Alben, lange Mixe, Sets, Podcasts und Livestreams werden zusätzlich am Titel erkannt
+- das vollständige Zurücksetzen gelernter Titel leert Liste und Zähler sofort sichtbar, ohne die Autoplay-Seite verlassen und erneut öffnen zu müssen
 - weitere Empfehlungssuchen greifen automatisch, wenn der erste Trefferblock nur bereits gelernte Titel oder Varianten derselben Songfamilien enthält
 - echte YouTube-Suchergebnis-URLs statt des auf dem Test-CT fehlgeleiteten `ytsearch10:`-Schemas; fremde yt-dlp-Konfigurationen werden ignoriert
 - automatische Discord-Voice-Wiederverbindung mit sichtbarem Zustand nach einem späteren Kanalabbruch
