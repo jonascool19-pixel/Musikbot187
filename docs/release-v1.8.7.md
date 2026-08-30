@@ -32,6 +32,9 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 - auf zwölf Sekunden vergrößerter Quellen-Reservepuffer, vollständiges quellabhängiges Nachpuffern sowie Discord-Opus-FEC mit zehn Prozent Paketverlustvorsorge gegen kurze Internet- und UDP-Aussetzer
 - vollständige Playlists mit gespeicherter Wiederholung und Zufallsreihenfolge; Zufallslisten werden pro Durchlauf neu gemischt
 - persönlicher Autoplay-Mix verwirft beim erneuten Start oder Moduswechsel alte Playlist-Wartetitel und Wiederholungssitzungen, lässt den aktuellen Titel weiterlaufen und füllt anschließend sofort neu
+- persönliches Musikprofil mit einzeln entfernbaren Titeln, frei pflegbaren Wunschrichtungen und einer vollständig reversiblen Sperrliste für Stil-, Künstler- oder Titelbegriffe; keine Musikrichtung wird fest vorgegeben oder global gesperrt
+- Schutz vor Autoplay-Richtungsdrift: automatisch vorgeschlagene Titel lernen sich nicht selbst zurück ins Profil; bewusst gestartete Titel und eigene Playlists bleiben lernfähig
+- automatische Vorschläge sind auf zehn Minuten begrenzt; unbekannt lange Musikquiz, komplette Alben, lange Mixe, Sets, Podcasts und Livestreams werden zusätzlich am Titel erkannt
 - weitere Empfehlungssuchen greifen automatisch, wenn der erste Trefferblock nur bereits gelernte Titel oder Varianten derselben Songfamilien enthält
 - echte YouTube-Suchergebnis-URLs statt des auf dem Test-CT fehlgeleiteten `ytsearch10:`-Schemas; fremde yt-dlp-Konfigurationen werden ignoriert
 - automatische Discord-Voice-Wiederverbindung mit sichtbarem Zustand nach einem späteren Kanalabbruch
@@ -44,7 +47,7 @@ MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-
 
 ## Prüfung
 
-- 106 lokale automatisierte Prüfungen bestanden; rund 95 Prozent Backend-Zeilenabdeckung
+- 107 lokale automatisierte Prüfungen bestanden; rund 95 Prozent Backend-Zeilenabdeckung
 - Syntaxprüfung für Backend, Control-Dienst, Frontend und Installer
 - kompletter Browserablauf sowie Desktop- und Mobilansicht geprüft
 - Zwei-Player-Performanceprüfung bestanden

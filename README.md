@@ -74,6 +74,9 @@ Der Schalter **Automatische Wiedergabe · EIN/AUS** sitzt direkt über dem laufe
 - **Playlist-Modus:** Mehrere eigene Playlists werden in gewählter Reihenfolge endlos abgespielt.
 - **Persönlicher Mix:** Der Bot lernt lokal aus tatsächlich gehörten Titeln und schlägt ähnliche Musik anderer Künstler vor.
 - Auch aus vollständiger Stille startet der Mix selbstständig und hält standardmäßig zehn Titel als Puffer bereit.
+- Automatisch vorgeschlagene Titel werden nicht wieder als eigener Geschmack gelernt. Dadurch kann ein einzelner unpassender Vorschlag das Musikprofil nicht schrittweise in eine falsche Richtung verschieben.
+- Jeder gelernte Titel kann einzeln entfernt oder auf eine persönliche Sperrliste gesetzt werden. Bevorzugte Stilrichtungen wie **Uptempo** sowie gesperrte Stil-, Künstler- und Titelbegriffe lassen sich frei ergänzen und jederzeit wieder löschen; keine Musikrichtung ist ab Werk gesperrt.
+- Automatische Vorschläge sind auf höchstens zehn Minuten begrenzt. Musikquiz, stundenlange Sets, komplette Alben und lange Mixe werden zusätzlich anhand ihrer Titel aussortiert, wenn YouTube noch keine Laufzeit meldet.
 - Varianten und Duplikate derselben Songfamilie werden herausgefiltert.
 - Beim erneuten Start oder Moduswechsel werden alte Wartetitel und eine laufende Playlist-Wiederholung verworfen; der aktuelle Titel darf weiterlaufen und der gewählte Modus wird sofort frisch aufgefüllt.
 - Liefert die erste Ähnlichkeitssuche nur bereits gelernte Titel oder bekannte Varianten, versucht der Bot automatisch weitere gemischte Suchansätze.
