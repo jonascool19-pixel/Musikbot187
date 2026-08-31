@@ -31,6 +31,7 @@ test('playlist autoplay preserves selected order, loops forever and clears only 
   assert.equal(player.current.id,'a');
   assert.deepEqual(player.queue.map(track=>track.id),['b','c','a']);
   assert.ok(player.queue.every(track=>track.autoplay&&track.autoplayMode==='playlists'));
+  assert.deepEqual(player.queue.map(track=>track.autoplayPlaylistName),['Erste','Zweite','Erste']);
   player.skip();await tick();await tick();
   assert.equal(player.current.id,'b');
   assert.deepEqual(player.queue.map(track=>track.id),['c','a','b']);
