@@ -14,6 +14,13 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.getByLabel('Benutzername').fill('browseradmin');
   await page.getByLabel('Passwort').fill('browser-password-187');
   await page.getByRole('button',{name:'Einrichten'}).click();
+  await expect(page.getByRole('heading',{name:'Hauptadmin ist angelegt'})).toBeVisible();
+  await page.getByRole('button',{name:'Weiter zum Backup'}).click();
+  await expect(page.getByRole('heading',{name:'Backup einspielen?'})).toBeVisible();
+  await page.getByRole('button',{name:/Nein · neu beginnen/}).click();
+  await page.getByRole('button',{name:'Weiter zum Design'}).click();
+  await expect(page.getByRole('heading',{name:'Design auswählen'})).toBeVisible();
+  await page.getByRole('button',{name:'Speichern & Dashboard öffnen'}).click();
   await expect(page.locator('#brandName')).toHaveText('Browser Jukebox');
   await expect(page.getByLabel('Aktive Player-Instanz',{exact:true})).toBeVisible();
   await expect(page.locator('#outputStatus')).toHaveClass(/orange/);
@@ -169,8 +176,10 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.getByRole('button',{name:'Spotify-Benutzer verbinden'})).toBeVisible();
   await expect(page.getByLabel('Kostenlose Spotify Callback-Adresse')).toHaveValue('https://jonascool19-pixel.github.io/Musikbot187/spotify-callback/');
   await page.evaluate(async()=>{const token=sessionStorage.getItem('musikbot187.auth');for(let index=1;index<=6;index++)await fetch('/api/diagnostics/client',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({message:`Zusätzliche Testmeldung ${index}`,context:'Browserliste'})})});
+  await expect(page.locator('#notificationBadge')).toBeVisible({timeout:12000});
+  await page.locator('#notificationBell').click();await expect(page.locator('#notificationPanel')).toBeVisible();await expect(page.locator('#notificationPanel .notification-item').first()).toBeVisible();await page.locator('#notificationBell').click();
   await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
-  await expect(page.getByText('Instanz zuerst speichern und verbinden.')).toBeVisible();
+  await expect(page.locator('.diagnostic-entry').getByText('Instanz zuerst speichern und verbinden.')).toBeVisible();
   await expect(page.locator('.diagnostic-entry')).toHaveCount(7);
   const diagnosticScroll=await page.locator('.diagnostic-list').evaluate(element=>({overflowY:getComputedStyle(element).overflowY,scrollHeight:element.scrollHeight,clientHeight:element.clientHeight}));
   expect(diagnosticScroll.overflowY).toBe('auto');expect(diagnosticScroll.scrollHeight).toBeGreaterThan(diagnosticScroll.clientHeight);
@@ -191,7 +200,9 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.locator('#nav').getByRole('button',{name:'System',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Netzwerk',exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Netzwerkverlauf'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Backup'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Update'})).toBeVisible();
+  const networkCard=page.locator('.network-card');await networkCard.locator(':scope > .panel-collapse').click();await expect(networkCard.getByRole('heading',{name:'Netzwerk',exact:true})).toBeHidden();await networkCard.locator(':scope > .panel-collapse').click();await expect(networkCard.getByRole('heading',{name:'Netzwerk',exact:true})).toBeVisible();
   await expect(page.locator('#networkTotal')).toHaveText('192.00 MiB');
   await expect(page.locator('#networkRxTotal')).toHaveText('128.00 MiB');
   await expect(page.locator('#networkTxTotal')).toHaveText('64.00 MiB');

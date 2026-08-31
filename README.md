@@ -14,7 +14,7 @@ MusikBot187 ist für den dauerhaften Betrieb im eigenen Netzwerk gebaut. Die kom
 | Wiedergabe | Play, Pause, Weiter, Skip, Stop, Lautstärke, Spulen, verschiebbare Warteschlange und Wiederhol-/Zufallsmodus |
 | Ausgaben | Bis zu zwei Discord- und zwei TeamSpeak-Instanzen, getrennte Player oder synchroner Spiegelmodus |
 | Automatik | Endlosschleife aus eigenen Playlists oder persönlicher Mix aus der lokalen Hörhistorie |
-| Verwaltung | Hauptadmin, Benutzerrollen, einzelne Rechte, Diagnosen, Monitoring, Netzwerkverlauf und Updates |
+| Verwaltung | Hauptadmin, Benutzerrollen, einzelne Rechte, Diagnosen, Benachrichtigungen, verschlüsselte Backups, Monitoring, Netzwerkverlauf und Updates |
 | 24/7-Betrieb | Automatischer Wiederanlauf, Internet-Reconnect, täglicher Wartungsneustart und Wiedergabe-Fortsetzung |
 
 ## Musik, Suche und Playlists
@@ -95,15 +95,18 @@ Oben stehen live:
 
 Unter **Design** stehen 17 vollständig abgestimmte Dashboard-Themen als Vorschaukarten bereit: Nacht, Tageslicht, Ozean, Violett, Smaragd, Rubin, Bernstein, Graphit, Mitternacht, Neon, Rosé, Nordlicht, Sonnenuntergang, Kaffee, Eis, Synthwave und Kontrast. Jedes Theme setzt Hintergrund, Karten, Bedienelemente, Rahmen und Lesefarben gemeinsam; die Akzentfarbe bleibt frei anpassbar. Für helle Akzentfarben wählt das Dashboard automatisch eine dunkle Tastenschrift, damit die Beschriftung lesbar bleibt.
 
+Fehler und verfügbare Updates erscheinen kurz als Benachrichtigungsbanner oben im Dashboard. Danach bleiben sie an der Glocke rechts neben dem Zahnrad mit ungelesenem Zähler erhalten. Ein Eintrag kann geöffnet, als gelesen markiert oder gelöscht werden; Fehler führen direkt zum Fehlerprotokoll und Updates zur Update-Kachel. Die großen Dashboard-Karten besitzen unten rechts einen Pfeil und merken sich ihren eingeklappten Zustand im jeweiligen Browser.
+
 Die Monitoring-Seite zeigt CPU, RAM und Speicher mit Belegt-/Frei-Balken, die Load-Werte für 1, 5 und 15 Minuten, Container-Laufzeit, aktuellen Netzwerkdurchsatz und Gesamtverbrauch. Zusätzlich lernt ein lokaler Berater 24 Stunden lang aus CPU-Durchschnitt und -Spitzen, RAM in MB und Prozent, rechnerisch belegten CPU-Kernen sowie Download und Upload. Danach zeigt er ein gemessenes Minimum und einen optimalen CT-Wert einschließlich sicherer Bandbreitenempfehlung an. Grundlage ist der 95-Prozent-Wert mit Reserve, damit eine Drosselung nicht zu Audiostottern führt. Die feinen Messwerte bleiben auf sieben Tage begrenzt; der Netzwerkverlauf nach Tag, Monat und Jahr bleibt länger erhalten. Alles liegt ausschließlich im eigenen CT.
 
-Unter **System** stehen außerdem der tägliche Wartungsneustart, Netzwerkverlauf nach Tag/Monat/Jahr und das sichere Dashboard-Update bereit. Vor Neustart oder Update werden Titel, Position, Lautstärke, Modus und Warteschlange gespeichert und danach wiederhergestellt. Wartungsbereinigung entfernt ausschließlich alte Upload-Zwischendateien; Ressourcenmessungen, Netzwerkverlauf und Lernprofil bleiben dauerhaft gespeichert.
+Unter **System** stehen außerdem der tägliche Wartungsneustart, Netzwerkverlauf nach Tag/Monat/Jahr, verschlüsselte Komplett-Backups und das sichere Dashboard-Update bereit. Das Backup umfasst Einstellungen, Playlists, Instanzen samt sicher transportierten Secrets, weitere Benutzer samt bestehendem Passwort-Hash, lokale Musik und dauerhaft gespeicherte Messwerte. Hauptadmin und aktive Anmeldungen werden nie exportiert. Die Datei ist mit einem frei vergebenen, mindestens zehn Zeichen langen Backup-Passwort per AES-256-GCM geschützt. Ohne dieses Passwort ist sie nicht wiederherstellbar. Vor Neustart oder Update werden Titel, Position, Lautstärke, Modus und Warteschlange gespeichert und danach wiederhergestellt. Wartungsbereinigung entfernt ausschließlich alte Upload-Zwischendateien; Ressourcenmessungen, Netzwerkverlauf und Lernprofil bleiben dauerhaft gespeichert.
 
 ## Sicherheit
 
 - Hauptdienst ohne Root-Rechte
 - Scrypt-Passwörter und gehashte, ablaufende Sitzungen
 - AES-256-GCM für Discord-, Spotify- und TeamSpeak-Secrets
+- passwortgeschützte, authentifiziert verschlüsselte Backup-Dateien ohne Hauptadmin oder Sitzungen
 - serverseitige Rollen und Einzelberechtigungen
 - Upload-, Such-, Login-, Player- und Downloadlimits
 - Schutz vor privaten/reservierten Medienzielen und unsicheren Pfaden
@@ -132,7 +135,7 @@ Auf einem frischen Ubuntu-24.04-CT:
 sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/Musikbot187/main/install-latest.sh | sudo bash
 ```
 
-Der Installer richtet Node.js 22, FFmpeg, yt-dlp, Opus, den MusikBot-Dienst und den getrennten Control-Dienst ein. Anschließend erscheinen Dashboard-Link und einmaliger Setup-Link im Terminal.
+Der Installer richtet Node.js 22, FFmpeg, yt-dlp, Opus, den MusikBot-Dienst und den getrennten Control-Dienst ein. Anschließend erscheinen Dashboard-Link und einmaliger Setup-Link im Terminal. Der Einrichtungsassistent legt zuerst den neuen Hauptadmin an, bietet danach eine verschlüsselte Backup-Datei per Auswahl oder Drag-and-drop an, führt optional durch eine erste Discord-/TeamSpeak-Instanz und schließt mit der Designauswahl ab. Auch bei einem Neuladen bleibt die noch offene Einrichtung fortsetzbar.
 
 Standardpfade:
 

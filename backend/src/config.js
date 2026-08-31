@@ -17,5 +17,6 @@ export const config = Object.freeze({
   maxQueue: 100,
   maxPlaylist: 500,
   maxUpload: 128 * 1024 * 1024,
-  musicQuota: 10 * 1024 ** 3
+  musicQuota: 10 * 1024 ** 3,
+  backupMaxUpload: 11 * 1024 ** 3
 });
