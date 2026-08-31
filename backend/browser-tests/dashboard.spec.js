@@ -86,6 +86,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.getByText('Automatische Wiedergabe · AUS',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Einschalten',exact:true}).click();await expect(page.getByText('Automatische Wiedergabe · EIN',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Ausschalten',exact:true}).click();await expect(page.getByRole('heading',{name:'Warteschlange (0)'})).toBeVisible();
+  const playbackCard=page.locator('.playback-card');await playbackCard.locator(':scope > .panel-collapse').click();await expect(playbackCard.getByRole('heading',{name:'Wiedergabe'})).toBeVisible();await expect(playbackCard.locator('#playerCurrent')).toBeVisible();await expect(playbackCard.locator('.now-playing-marquee')).toBeVisible();await expect(playbackCard.locator('.player-controls')).toBeHidden();await playbackCard.locator(':scope > .panel-collapse').click();await expect(playbackCard.locator('.player-controls')).toBeVisible();
   mockPlayer=false;await page.waitForTimeout(3200);
 
   let importedPlaylist=null,playlistPlayBody=null;
@@ -96,11 +97,12 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.route('**/api/playlists/spotify-browser/sync-spotify',route=>{importedPlaylist={...importedPlaylist,spotifySync:{added:1,removed:0,total:2},spotifySyncedAt:'2026-08-24T16:00:00.000Z',items:[...importedPlaylist.items,{id:'spotify-track-2',title:'Neuer Spotify-Titel',source:'spotify'}]};return route.fulfill({contentType:'application/json',body:JSON.stringify(importedPlaylist)})});
   await page.route('**/api/spotify/playlists',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({user:{id:'jonas',displayName:'Jonas Spotify',product:'premium'},playlists:[{id:'37i9dQZF1DXcBWIGoYBM5M',name:'Sommer Hits',url:'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',owner:'Jonas Spotify',owned:true,collaborative:false,importable:true,itemCount:1}]})}));
   await page.locator('#nav').getByRole('button',{name:'Playlists'}).click();
+  const playlistCreate=page.locator('.playlist-create');await playlistCreate.locator(':scope > .panel-collapse').click();await expect(playlistCreate.getByRole('heading',{name:'Neue Playlist'})).toBeVisible();await expect(playlistCreate.locator('input[name="name"]')).toBeHidden();const playlistToolHeights=await page.evaluate(()=>({collapsed:document.querySelector('.playlist-create').getBoundingClientRect().height,open:document.querySelector('.spotify-import').getBoundingClientRect().height}));expect(playlistToolHeights.collapsed).toBeLessThan(playlistToolHeights.open);await playlistCreate.locator(':scope > .panel-collapse').click();await expect(playlistCreate.locator('input[name="name"]')).toBeVisible();
   await page.getByRole('button',{name:'Spotify-Playlists laden'}).click();
   await expect(page.getByText(/1 direkt auswählbare Playlist von „Jonas Spotify“/)).toBeVisible();
   await page.getByLabel('Playlist aus verbundenem Spotify-Konto').selectOption('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M');
   await expect(page.getByLabel('Spotify-Playlist-URL')).toHaveValue('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M');
-  await page.getByRole('button',{name:'Spotify-Playlist hinzufügen'}).click();
+  await page.getByRole('button',{name:'Spotify-Playlist hinzufügen',exact:true}).click();
   await expect(page.getByText('Sommer Hits',{exact:true})).toBeVisible();
   await page.getByText('Sommer Hits',{exact:true}).click();
   await expect(page.getByText('Summer Cem – Testtitel')).toBeVisible();
@@ -139,6 +141,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.getByLabel('Anzahl vorbereiteter Titel').fill('7');
   await page.getByRole('button',{name:'Autoplay-Einstellungen speichern'}).click();
   await expect(page.getByText('Autoplay-Einstellungen gespeichert.')).toBeVisible();
+  const autoplayModeCard=page.locator('.autoplay-mode-settings');await autoplayModeCard.locator(':scope > .panel-collapse').click();await expect(autoplayModeCard.getByRole('heading',{name:'Autoplay-Modus'})).toBeVisible();await expect(autoplayModeCard.getByText('Autoplay ist aus',{exact:true})).toBeVisible();await expect(autoplayModeCard.locator('.autoplay-mode-grid')).toBeHidden();await autoplayModeCard.locator(':scope > .panel-collapse').click();await expect(autoplayModeCard.locator('.autoplay-mode-grid')).toBeVisible();
 
   await page.locator('#nav').getByRole('button',{name:'Fehlermeldungen'}).click();
   await expect(page.getByText('Keine Fehlermeldungen vorhanden.')).toBeVisible();
@@ -190,7 +193,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.locator('#nav').getByRole('button',{name:'Benutzer & Rechte'}).click();
   await expect(page.getByText('Geschütztes Hauptkonto')).toBeVisible();
   const ownerCard=page.locator('.collapsible-user-card').filter({hasText:'browseradmin'});await expect(ownerCard).not.toHaveAttribute('open','');await ownerCard.getByText('browseradmin',{exact:true}).click();await expect(ownerCard).toHaveAttribute('open','');await ownerCard.getByText('browseradmin',{exact:true}).click();await expect(ownerCard).not.toHaveAttribute('open','');
-  const createUser=page.locator('.user-create');await createUser.getByLabel('Benutzername').fill('browseruser');await createUser.getByLabel('Startpasswort').fill('browser-user-password');await createUser.getByRole('button',{name:'Benutzer anlegen'}).click();
+  const createUser=page.locator('.user-create');await createUser.getByLabel('Benutzername').fill('browseruser');await createUser.getByLabel('Startpasswort').fill('browser-user-password');await createUser.getByRole('button',{name:'Benutzer anlegen',exact:true}).click();
   let userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard).toBeVisible();await userCard.getByLabel('Playlists verwalten').check();await userCard.getByRole('button',{name:'Änderungen speichern'}).click();
   userCard=page.locator('.user-card').filter({hasText:'browseruser'});await expect(userCard.getByLabel('Playlists verwalten')).toBeChecked();await userCard.getByRole('button',{name:'Benutzer löschen'}).click();await expect(userCard.getByRole('button',{name:'Löschen bestätigen'})).toBeVisible();await userCard.getByRole('button',{name:'Löschen bestätigen'}).click();await expect(page.locator('.user-card').filter({hasText:'browseruser'})).toHaveCount(0);
   const downloads=Array.from({length:10},(_,index)=>({id:`local:Downloads/file-${index}.mp3`,title:`Download ${index+1}`,source:'local',path:`Downloads/file-${index}.mp3`,size:1048576,downloaded:true}));
@@ -202,7 +205,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(page.getByRole('heading',{name:'Netzwerkverlauf'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Backup'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Update'})).toBeVisible();
-  const networkCard=page.locator('.network-card');await networkCard.locator(':scope > .panel-collapse').click();await expect(networkCard.getByRole('heading',{name:'Netzwerk',exact:true})).toBeHidden();await networkCard.locator(':scope > .panel-collapse').click();await expect(networkCard.getByRole('heading',{name:'Netzwerk',exact:true})).toBeVisible();
+  const networkCard=page.locator('.network-card');await networkCard.locator(':scope > .panel-collapse').click();await expect(networkCard.getByRole('heading',{name:'Netzwerk',exact:true})).toBeVisible();await expect(networkCard.locator('#networkTotal')).toBeHidden();await networkCard.locator(':scope > .panel-collapse').click();await expect(networkCard.locator('#networkTotal')).toBeVisible();
   await expect(page.locator('#networkTotal')).toHaveText('192.00 MiB');
   await expect(page.locator('#networkRxTotal')).toHaveText('128.00 MiB');
   await expect(page.locator('#networkTxTotal')).toHaveText('64.00 MiB');
