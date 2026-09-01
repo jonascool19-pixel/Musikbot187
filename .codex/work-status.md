@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-01T18:15:51.087Z
-Status: in progress
-Base: main at e6bb759b4deb782c2342efa15824841c0da3601d
+Last updated: 2026-09-01T18:18:31.060Z
+Status: published and verified
+Base: main at c25a48b6d4bd516bce7cce147f369da25444b37d
 
 ## Currently working on
 
-Publish the repaired support-report submission, YouTube client fallback, and compact centered power button.
+Support-report submission, YouTube fallback, and the compact power button are complete and verified.
 
 ## Last completed
 
-Invalid attachments no longer consume the hourly report allowance; supported media are recognized by their real file signature even when Windows reports an unusual MIME type; YouTube bot-check errors now continue through every configured client fallback; the top power control is a centered icon tile matching the settings button.
+Published commit c25a48b6d4bd516bce7cce147f369da25444b37d. Invalid media attempts no longer consume the support-report allowance, real supported media are detected by signature, YouTube bot checks try every configured client strategy, and the header power control matches the centered settings tile.
 
 ## Next
 
-Publish the tested files to GitHub main, wait for GitHub Actions, then mark this work status published and verified.
+Read this file first in a new Codex chat. The installed bot must use Dashboard > System > Update once to receive this GitHub fix, then the user can retry a real support report and YouTube playback.
 
 ## Verification
 
-123/123 backend tests passed; the complete Playwright dashboard test passed, including support reporting and the compact power button.
+123/123 backend tests passed; Playwright dashboard test passed; GitHub Actions run 33542742720 succeeded.
 
 ## Safety note
 
