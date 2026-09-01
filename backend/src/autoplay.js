@@ -44,9 +44,18 @@ export function inferTrackStyles(track){
 
 const normalizeStyleValue=value=>String(value||'').normalize('NFKC').replace(/[\u0000-\u001f<>]/g,' ').replace(/\s+/g,' ').trim().slice(0,40);
 const comparable=value=>normalizeStyleValue(value).toLocaleLowerCase('de-DE');
+const comparableMusicTerm=value=>normalizeStyleValue(value).normalize('NFKD').replace(/\p{M}/gu,'').toLocaleLowerCase('de-DE').replace(/[^\p{L}\p{N}]+/gu,' ').replace(/\s+/g,' ').trim();
 const unknownLongFormPattern=/\b(?:musik\s*quiz|music\s*quiz|megamix|continuous\s+mix|full\s+(?:album|mix|set|concert)|dj\s+set|podcast|live\s*stream|livestream|\d+\s*(?:hours?|stunden?))\b/i;
 export function normalizeAutoplayStyles(values){const result=[],seen=new Set();for(const value of Array.isArray(values)?values:[]){const style=normalizeStyleValue(value),key=comparable(style);if(style.length<2||seen.has(key))continue;seen.add(key);result.push(style);if(result.length>=autoplayProfileStyleLimit)break}return result;}
 export function autoplayTrackAllowed(track,blockedStyles=[]){const duration=Number(track?.duration)||0;if(duration>autoplayMaxDurationSeconds)return false;if(duration<=0&&unknownLongFormPattern.test(String(track?.title||'')))return false;const text=comparable(`${track?.title||''} ${(track?.styles||[]).join(' ')} ${inferTrackStyles(track).join(' ')}`);return !normalizeAutoplayStyles(blockedStyles).some(style=>text.includes(comparable(style)));}
+export function autoplayTermSearchQuery(value){const term=normalizeStyleValue(value);return term?`${term} Musik Genre Künstler official audio`:'';}
+export function validateAutoplayTermEvidence(value,results=[]){
+  const normalized=normalizeStyleValue(value),needle=comparableMusicTerm(normalized);if(normalized.length<2||!needle)return {valid:false,normalized,evidence:[]};
+  const known=styleMatchers.find(([label,pattern])=>comparableMusicTerm(label)===needle||pattern.test(normalized));
+  if(known)return {valid:true,normalized,type:'genre',matched:known[0],evidence:[`Bekannte Stilrichtung: ${known[0]}`]};
+  const evidence=(Array.isArray(results)?results:[]).map(item=>String(item?.title||'').trim()).filter(Boolean).filter(title=>` ${comparableMusicTerm(title)} `.includes(` ${needle} `)).slice(0,3);
+  return {valid:Boolean(evidence.length),normalized,type:'music-term',matched:normalized,evidence};
+}
 
 export function normalizeAutoplayConfiguration(input={},playlists=[]){
   const mode=autoplayModes.includes(input.mode)?input.mode:'playlists';

@@ -9,6 +9,7 @@ export const config = Object.freeze({
   stateFile: path.join(dataDir, 'state.json'),
   secretFile: path.join(dataDir, 'secret.key'),
   setupToken: process.env.MUSIKBOT187_SETUP_TOKEN || '',
+  bugReportRelayUrl: process.env.MUSIKBOT187_BUG_REPORT_RELAY_URL || '',
   frontendDir: path.resolve(process.env.MUSIKBOT187_FRONTEND_DIR || new URL('../../frontend', import.meta.url).pathname),
   controlSocket: process.env.MUSIKBOT187_CONTROL_SOCKET || '/run/musikbot187/control.sock',
   spotifyRelayUri: process.env.MUSIKBOT187_SPOTIFY_RELAY_URI || 'https://jonascool19-pixel.github.io/Musikbot187/spotify-callback/',

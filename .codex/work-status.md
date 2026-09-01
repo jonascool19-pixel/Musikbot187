@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-01T04:54:29.936Z
-Status: published
-Base: main at 9a34f79a3de7fe5a1c695650af2274c41a1da37d
+Last updated: 2026-09-01T13:23:58.128Z
+Status: ready to publish
+Base: main at 96dbd1adbb88241eb4f31994cc9bf96a470763ce
 
 ## Currently working on
 
-The requested disclosure controls and secure new-user onboarding are complete on GitHub main.
+Publish the completed central bug-report flow, Autoplay term validation, and stable first-login password form to GitHub main.
 
 ## Last completed
 
-Published commit 9a34f79a3de7fe5a1c695650af2274c41a1da37d with centered expand/collapse arrows, independently collapsible user cards, server-generated one-time passwords, forced first-login password changes, tests, and durable Codex continuity instructions.
+Implemented the Bug melden dialog, sanitized report backend, deployable private Discord relay, existence checks for Autoplay genres and artists, and prevented background refreshes from rebuilding the forced password-change form.
 
 ## Next
 
-Decide where Bug melden should privately deliver the required description, sanitized diagnostics, and optional image or video attachments; recommended destination is a private Discord support channel.
+Deploy the support relay once the owner's private Discord webhook can be stored as a Cloudflare secret, configure MUSIKBOT187_BUG_REPORT_RELAY_URL, then verify one real report in the private Discord channel.
 
 ## Verification
 
-Backend tests 111/111 passed; Playwright end-to-end dashboard and forced-password-change flow passed; syntax checks passed; two-player benchmark passed without native Opus on Windows; GitHub commit tree verified before the fast-forward update.
+All 120 backend tests pass; the complete Playwright dashboard flow passes in 23.9 seconds, including report UI, Autoplay validation, centered collapse arrows, collapsible users, and a 4.2-second password-form persistence check.
 
 ## Safety note
 
