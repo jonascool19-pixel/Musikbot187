@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-01T13:29:07.239Z
-Status: published and verified
-Base: main at 303a087f454379cc09ba34c151427d0c41a59692
+Last updated: 2026-09-01T17:56:06.488Z
+Status: complete
+Base: main at 58a42f1f1f170172bf75a0b33d5c75943c83db96
 
 ## Currently working on
 
-The requested bug-report flow, Autoplay validation, and stable first-login password change are complete and verified on GitHub main.
+Central support relay and real queue ordering are finished and ready on main.
 
 ## Last completed
 
-Published commit 206f856f9e80234e584063168f5cbee38ccacdac and confirmed GitHub Actions run 33513418253 completed successfully, including the browser test.
+Published the Cloudflare support relay, connected its encrypted Discord webhook to the private admin support channel, enabled the central report URL for every installation, made Discord-added tracks play next, and made arrow reordering change the actual playback order.
 
 ## Next
 
-Deploy the support relay once the owner's private Discord webhook can be stored as a Cloudflare secret, configure MUSIKBOT187_BUG_REPORT_RELAY_URL, then verify one real report in the private Discord channel.
+Read this file first in a new Codex chat. Continue only with a new user request or any failed GitHub verification.
 
 ## Verification
 
-All 120 local backend tests pass; the complete local Playwright dashboard flow passes in 23.9 seconds; GitHub Actions run 33513418253 passed npm install, audit, all tests, performance checks, shell checks, and the browser flow.
+Cloudflare health check passed; harmless support report MB187-20260901-ABCDEF01 was accepted by Discord; 121/121 backend tests passed; Playwright dashboard test passed.
 
 ## Safety note
 
