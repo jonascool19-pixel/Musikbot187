@@ -1,16 +1,16 @@
 # Codex work status
 
-Last updated: 2026-09-01T13:23:58.128Z
-Status: ready to publish
-Base: main at 96dbd1adbb88241eb4f31994cc9bf96a470763ce
+Last updated: 2026-09-01T13:26:52.992Z
+Status: published
+Base: main at 206f856f9e80234e584063168f5cbee38ccacdac
 
 ## Currently working on
 
-Publish the completed central bug-report flow, Autoplay term validation, and stable first-login password form to GitHub main.
+The requested bug-report flow, Autoplay validation, and stable first-login password change are complete on GitHub main.
 
 ## Last completed
 
-Implemented the Bug melden dialog, sanitized report backend, deployable private Discord relay, existence checks for Autoplay genres and artists, and prevented background refreshes from rebuilding the forced password-change form.
+Published commit 206f856f9e80234e584063168f5cbee38ccacdac with the private support-report flow, deployable Discord relay, server-side genre and artist checks, and the password-form reset fix.
 
 ## Next
 
@@ -18,7 +18,7 @@ Deploy the support relay once the owner's private Discord webhook can be stored 
 
 ## Verification
 
-All 120 backend tests pass; the complete Playwright dashboard flow passes in 23.9 seconds, including report UI, Autoplay validation, centered collapse arrows, collapsible users, and a 4.2-second password-form persistence check.
+All 120 backend tests pass; the complete Playwright dashboard flow passes in 23.9 seconds, including report UI, Autoplay validation, centered collapse arrows, collapsible users, and a 4.2-second password-form persistence check; the GitHub feature commit tree was verified before fast-forwarding main.
 
 ## Safety note
 
