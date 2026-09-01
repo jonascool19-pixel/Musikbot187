@@ -17,3 +17,9 @@ test('every authenticated user can send a bounded sanitized report without readi
 });
 
 test('bug reporting stays disabled when the relay URL is explicitly cleared',async t=>{const {app,dir}=await fixture({bugReportRelayUrl:''});t.after(async()=>{await app.close();await fs.rm(dir,{recursive:true,force:true})});const token=await setup(app),headers={authorization:`Bearer ${token}`};let response=await app.inject({url:'/api/bug-report/info',headers});assert.equal(response.json().enabled,false);response=await app.inject({method:'POST',url:'/api/bug-report',headers});assert.equal(response.statusCode,503);assert.match(response.json().error,/eingerichtet/)});
+
+test('invalid attachments do not consume the hourly support-report allowance',async t=>{
+  let delivered=0;const {app,dir}=await fixture({bugReportRelayUrl:'https://support.example/reports',bugReportSender:async({report})=>{delivered++;return {ok:true,id:report.id}}});t.after(async()=>{await app.close();await fs.rm(dir,{recursive:true,force:true})});const token=await setup(app),headers={authorization:`Bearer ${token}`},fields={description:'Dieser gültige Testbericht muss trotz vorheriger Dateifehler versendet werden.',category:'problem',context:'Dashboard',includeDiagnostics:'true'};
+  for(let attempt=0;attempt<4;attempt++){const invalid=await multipart(fields,{name:'protokoll.txt',type:'text/plain',data:Buffer.from('kein Bild')});const response=await app.inject({method:'POST',url:'/api/bug-report',headers:{...headers,'content-type':invalid.contentType},payload:invalid.payload});assert.equal(response.statusCode,400,response.body)}
+  const valid=await multipart(fields);const response=await app.inject({method:'POST',url:'/api/bug-report',headers:{...headers,'content-type':valid.contentType},payload:valid.payload});assert.equal(response.statusCode,200,response.body);assert.equal(delivered,1);
+});

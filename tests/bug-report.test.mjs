@@ -15,8 +15,9 @@ test('support report text and diagnostics remove secrets and personal network da
 
 test('bug report attachments use verified media signatures and bounded safe names',()=>{
   const file=validateBugReportAttachment({filename:'Fehler Foto!!.PNG',mimetype:'image/png',data:png});assert.equal(file.filename,'Fehler Foto.png');assert.equal(file.size,png.length);
-  assert.throws(()=>validateBugReportAttachment({filename:'fake.png',mimetype:'image/png',data:Buffer.from('not an image')}),/passt nicht/);
-  assert.throws(()=>validateBugReportAttachment({filename:'script.html',mimetype:'text/html',data:Buffer.from('<html>')}),/Erlaubt/);
+  const inferred=validateBugReportAttachment({filename:'Screenshot.JPEG',mimetype:'application/octet-stream',data:Buffer.from([0xff,0xd8,0xff,0,0])});assert.equal(inferred.mimetype,'image/jpeg');assert.equal(inferred.filename,'Screenshot.jpg');
+  assert.throws(()=>validateBugReportAttachment({filename:'fake.png',mimetype:'image/png',data:Buffer.from('not an image')}),/kein unterstütztes Bild oder Video/);
+  assert.throws(()=>validateBugReportAttachment({filename:'script.html',mimetype:'text/html',data:Buffer.from('<html>')}),/kein unterstütztes Bild oder Video/);
 });
 
 test('installation sender delivers multipart data only to a valid HTTPS relay',async()=>{

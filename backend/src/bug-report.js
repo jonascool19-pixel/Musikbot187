@@ -47,22 +47,22 @@ export function validBugReportRelayUrl(raw){
   try{const url=new URL(String(raw||''));return url.protocol==='https:'&&!url.username&&!url.password&&!url.search&&!url.hash&&url.pathname.length>1?url:null}catch{return null}
 }
 
-function attachmentSignatureMatches(type,data){
-  if(type==='image/png')return data.subarray(0,8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]));
-  if(type==='image/jpeg')return data[0]===0xff&&data[1]===0xd8&&data[2]===0xff;
-  if(type==='image/webp')return data.subarray(0,4).toString('ascii')==='RIFF'&&data.subarray(8,12).toString('ascii')==='WEBP';
-  if(type==='image/gif')return /^GIF8[79]a$/.test(data.subarray(0,6).toString('ascii'));
-  if(type==='video/webm')return data.subarray(0,4).equals(Buffer.from([0x1a,0x45,0xdf,0xa3]));
-  if(type==='video/mp4'||type==='video/quicktime')return data.subarray(4,8).toString('ascii')==='ftyp';
-  return false;
+function attachmentSignatureType(data,filename='',mimetype=''){
+  if(data.subarray(0,8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a])))return'image/png';
+  if(data[0]===0xff&&data[1]===0xd8&&data[2]===0xff)return'image/jpeg';
+  if(data.subarray(0,4).toString('ascii')==='RIFF'&&data.subarray(8,12).toString('ascii')==='WEBP')return'image/webp';
+  if(/^GIF8[79]a$/.test(data.subarray(0,6).toString('ascii')))return'image/gif';
+  if(data.subarray(0,4).equals(Buffer.from([0x1a,0x45,0xdf,0xa3])))return'video/webm';
+  if(data.subarray(4,8).toString('ascii')==='ftyp')return path.extname(filename).toLowerCase()==='.mov'||mimetype==='video/quicktime'?'video/quicktime':'video/mp4';
+  return'';
 }
 
 export function validateBugReportAttachment({filename,mimetype,data}){
-  const type=String(mimetype||'').toLowerCase(),extension=attachmentTypes.get(type),buffer=Buffer.isBuffer(data)?data:Buffer.from(data||[]);
-  if(!extension)throw new Error('Erlaubt sind PNG, JPG, WebP, GIF, MP4, WebM und MOV.');
+  const declared=String(mimetype||'').toLowerCase(),buffer=Buffer.isBuffer(data)?data:Buffer.from(data||[]),original=path.basename(String(filename||'anhang'));
   if(!buffer.length||buffer.length>bugReportLimits.fileBytes)throw new Error('Jeder Anhang darf höchstens 8 MiB groß sein.');
-  if(!attachmentSignatureMatches(type,buffer))throw new Error('Ein Anhang passt nicht zu seinem angegebenen Bild- oder Videoformat.');
-  const original=path.basename(String(filename||`anhang${extension}`)),stem=path.basename(original,path.extname(original)).normalize('NFKC').replace(/[^\p{L}\p{N}_. -]+/gu,'_').replace(/\s+/g,' ').replace(/^[ ._-]+|[ ._-]+$/g,'').slice(0,80)||'anhang';
+  const type=attachmentSignatureType(buffer,original,declared),extension=attachmentTypes.get(type);
+  if(!extension)throw new Error(`„${original.slice(0,100)}“ ist kein unterstütztes Bild oder Video. Erlaubt sind PNG, JPG, WebP, GIF, MP4, WebM und MOV.`);
+  const stem=path.basename(original,path.extname(original)).normalize('NFKC').replace(/[^\p{L}\p{N}_. -]+/gu,'_').replace(/\s+/g,' ').replace(/^[ ._-]+|[ ._-]+$/g,'').slice(0,80)||'anhang';
   return {filename:`${stem}${extension}`,mimetype:type,data:buffer,size:buffer.length};
 }
 
