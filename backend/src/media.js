@@ -8,7 +8,7 @@ export const youtubeRuntimeArgs=['--ignore-config','--js-runtimes','node','--rem
 export const youtubeSearchStrategies=[['--extractor-args','youtubetab:skip=webpage'],[]];
 export const youtubeClientStrategies=[[],['--extractor-args','youtube:player_client=web_safari'],['--extractor-args','youtube:player_client=web_embedded']];
 export const searchResultLimit=50;
-export const bestAudioFormat='bestaudio/best';
+export const bestAudioFormat='bestaudio[protocol=https]/bestaudio[protocol=http]/bestaudio/best';
 const externalRequestTimeoutMs=15_000,youtubeResolveTimeoutMs=45_000,youtubeAttemptTimeoutMs=15_000,spotifyPublicEmbedMaxBytes=2*1024*1024,spotifyAppTokenCaches=new WeakMap(),spotifyPlaybackCache=new Map(),youtubeVideoIdPattern=/^[A-Za-z0-9_-]{11}$/;
 const headers=[Buffer.from('ID3'),Buffer.from('RIFF'),Buffer.from('fLaC'),Buffer.from('OggS'),Buffer.from([0xff,0xfb]),Buffer.from([0xff,0xf3]),Buffer.from([0xff,0xf2]),Buffer.from([0x1a,0x45,0xdf,0xa3])];
 export async function validateAudioFile(file){const h=Buffer.alloc(16);const fd=await fs.open(file,'r');try{await fd.read(h,0,h.length,0);}finally{await fd.close();}if(!headers.some(x=>h.subarray(0,x.length).equals(x))&&!h.subarray(4,8).equals(Buffer.from('ftyp')))throw new Error('Dateiheader ist kein unterstütztes Audioformat');}

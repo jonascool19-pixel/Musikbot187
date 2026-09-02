@@ -6,10 +6,10 @@ export function normalizeSpotifyPlaylistSyncInterval(value){const hours=Number(v
 export function spotifyPlaylistIntervalMs(playlist){return normalizeSpotifyPlaylistSyncInterval(playlist?.spotifySyncIntervalHours)*60*60_000;}
 export function spotifyPlaylistDue(playlist,now=Date.now(),intervalOverrideMs=0){const last=Date.parse(playlist?.spotifySyncCheckedAt||playlist?.spotifySyncedAt||playlist?.importedAt||'');return !Number.isFinite(last)||Number(now)-last>=Math.max(1,Number(intervalOverrideMs)||spotifyPlaylistIntervalMs(playlist));}
 
-const trackKey=track=>String(track?.id||track?.url||`${track?.source||''}:${track?.title||''}`).trim().toLocaleLowerCase('de-DE');
+export const spotifyPlaylistTrackKey=track=>String(track?.id||track?.url||`${track?.source||''}:${track?.title||''}`).trim().toLocaleLowerCase('de-DE');
 
 export function spotifyPlaylistSyncResult(playlist,imported,now=new Date().toISOString()){
-  const previous=Array.isArray(playlist?.items)?playlist.items:[],next=(Array.isArray(imported?.items)?imported.items:[]).filter(Boolean),before=new Set(previous.map(trackKey).filter(Boolean)),after=new Set(next.map(trackKey).filter(Boolean));
+  const excluded=[...new Set((Array.isArray(playlist?.spotifyExcludedTrackKeys)?playlist.spotifyExcludedTrackKeys:[]).map(value=>String(value||'').trim().toLocaleLowerCase('de-DE')).filter(Boolean))],excludedSet=new Set(excluded),previous=Array.isArray(playlist?.items)?playlist.items:[],next=(Array.isArray(imported?.items)?imported.items:[]).filter(track=>track&& !excludedSet.has(spotifyPlaylistTrackKey(track))),before=new Set(previous.map(spotifyPlaylistTrackKey).filter(Boolean)),after=new Set(next.map(spotifyPlaylistTrackKey).filter(Boolean));
   const added=[...after].filter(key=>!before.has(key)).length,removed=[...before].filter(key=>!after.has(key)).length;
   return {
     ...playlist,
@@ -21,6 +21,7 @@ export function spotifyPlaylistSyncResult(playlist,imported,now=new Date().toISO
     spotifyId:imported?.spotifyId||playlist?.spotifyId||'',
     spotifyImportMode:imported?.spotifyImportMode||playlist?.spotifyImportMode||'api',
     spotifySyncEnabled:true,
+    spotifyExcludedTrackKeys:excluded.slice(0,500),
     spotifySyncIntervalHours:normalizeSpotifyPlaylistSyncInterval(playlist?.spotifySyncIntervalHours),
     spotifySyncedAt:now,
     spotifySyncCheckedAt:now,

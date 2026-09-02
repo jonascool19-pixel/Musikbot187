@@ -18,6 +18,13 @@ test('Spotify playlist sync mirrors additions and removals without changing the 
   assert.equal(synced.spotifyImportMode,'public-embed');
 });
 
+test('locally removed Spotify tracks stay hidden during later remote syncs',()=>{
+  const playlist={id:'local-list',name:'Mix',source:'spotify',spotifyId:'spotify-list',spotifyExcludedTrackKeys:['hidden'],items:[{id:'keep',title:'Bleibt'}]},imported={name:'Mix',spotifyId:'spotify-list',items:[{id:'keep',title:'Bleibt'},{id:'hidden',title:'Lokal entfernt'},{id:'new',title:'Neu'}]},synced=spotifyPlaylistSyncResult(playlist,imported,'2026-08-24T12:00:00.000Z');
+  assert.deepEqual(synced.items.map(track=>track.id),['keep','new']);
+  assert.deepEqual(synced.spotifyExcludedTrackKeys,['hidden']);
+  assert.deepEqual(synced.spotifySync,{added:1,removed:0,total:2});
+});
+
 test('automatic Spotify sync selects only linked enabled Spotify playlists',()=>{
   const candidates=spotifySyncCandidates([{id:'one',source:'spotify',spotifyId:'abc'},{id:'two',source:'spotify',sourceUrl:'https://open.spotify.com/playlist/def',spotifySyncEnabled:false},{id:'three',source:'youtube'}]);
   assert.deepEqual(candidates.map(playlist=>playlist.id),['one']);
@@ -41,6 +48,16 @@ test('Spotify import keeps one linked playlist and manual sync mirrors the curre
   version=2;response=await app.inject({method:'POST',url:`/api/playlists/${playlist.id}/sync-spotify`,headers});assert.equal(response.statusCode,200,response.body);assert.deepEqual(response.json().items.map(track=>track.id),['two','three']);assert.deepEqual(response.json().spotifySync,{added:1,removed:1,total:2});
   const successfulSync=response.json().spotifySyncedAt;response=await app.inject({method:'PUT',url:`/api/playlists/${playlist.id}`,headers,payload:{spotifySyncIntervalHours:5}});assert.equal(response.statusCode,200,response.body);assert.equal(response.json().spotifySyncIntervalHours,5);response=await app.inject({method:'PUT',url:`/api/playlists/${playlist.id}`,headers,payload:{spotifySyncIntervalHours:3}});assert.equal(response.statusCode,400,response.body);version=3;response=await app.inject({method:'POST',url:`/api/playlists/${playlist.id}/sync-spotify`,headers});assert.equal(response.statusCode,502,response.body);response=await app.inject({url:'/api/playlists',headers});assert.equal(response.json()[0].spotifySyncedAt,successfulSync);assert.ok(response.json()[0].spotifySyncCheckedAt);version=2;
   response=await app.inject({method:'POST',url:'/api/playlists/import-spotify',headers,payload:{url:'https://open.spotify.com/playlist/spotify-list-123'}});assert.equal(response.statusCode,200,response.body);response=await app.inject({url:'/api/playlists',headers});assert.equal(response.json().length,1);
+});
+
+test('playlist track deletion validates the index and persists a Spotify exclusion',async t=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'musikbot187-playlist-track-delete-')),importer=async()=>({name:'Löschtest',spotifyId:'delete-list-123',sourceUrl:'https://open.spotify.com/playlist/delete-list-123',items:[{id:'one',title:'Titel Eins',source:'spotify'},{id:'two',title:'Titel Zwei',source:'spotify'}]}),app=await buildServer({dataDir:dir,musicDir:path.join(dir,'music'),stateFile:path.join(dir,'state.json'),secretFile:path.join(dir,'secret.key'),frontendDir:path.resolve('frontend'),setupToken:'setup-test-token',logger:false,controlSocket:path.join(dir,'control.sock'),spotifyAccessTokenProvider:async()=>'user-token',spotifyPlaylistImporter:importer});
+  t.after(async()=>{await app.close();await fs.rm(dir,{recursive:true,force:true})});
+  let response=await app.inject({method:'POST',url:'/api/setup',headers:{'x-musikbot-setup-token':'setup-test-token'},payload:{username:'admin',password:'correct-horse-battery'}}),headers={authorization:`Bearer ${response.json().token}`};
+  response=await app.inject({method:'POST',url:'/api/playlists/import-spotify',headers,payload:{url:'https://open.spotify.com/playlist/delete-list-123'}});const playlist=response.json();
+  response=await app.inject({method:'DELETE',url:`/api/playlists/${playlist.id}/items/0`,headers});assert.equal(response.statusCode,200,response.body);assert.deepEqual(response.json().playlist.items.map(track=>track.id),['two']);assert.deepEqual(response.json().playlist.spotifyExcludedTrackKeys,['one']);
+  response=await app.inject({method:'DELETE',url:`/api/playlists/${playlist.id}/items/9`,headers});assert.equal(response.statusCode,404,response.body);
+  response=await app.inject({method:'POST',url:`/api/playlists/${playlist.id}/sync-spotify`,headers});assert.equal(response.statusCode,200,response.body);assert.deepEqual(response.json().items.map(track=>track.id),['two']);
 });
 
 test('linked Spotify playlists are refreshed by the automatic interval',async t=>{
