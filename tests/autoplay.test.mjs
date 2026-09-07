@@ -119,8 +119,18 @@ test('autoplay keeps music results and rejects tutorials and study videos',()=>{
   assert.equal(autoplayMusicCandidateAllowed({title:'Music + Study = DISTRACTING?!',artist:'Study Channel',source:'youtube',duration:52}),false);
   assert.equal(autoplayMusicCandidateAllowed({title:'MilleniumKid & JBS BEATS – Unendlichkeit (Official Visualizer)',source:'youtube',duration:181}),true);
   assert.equal(autoplayMusicCandidateAllowed({title:'Klatschkind - Seelenficker [Rework 2018] (Album: Seelenficker)',source:'youtube',duration:210}),true);
+  assert.equal(autoplayMusicCandidateAllowed({title:'Turbo Saté Remix',artist:'New Kids, Paul Elstak, Satirized, Aalst',source:'youtube',duration:193}),true);
   assert.match(autoplayNonMusicSearchSuffix,/-tutorial/);
   assert.match(autoplayNonMusicSearchSuffix,/-podcast/);
+});
+
+test('similar autoplay accepts ordinary song metadata without an official-video label',async()=>{
+  const player=new FakePlayer();player.current={id:'turbo',title:'New Kids, Paul Elstak, Satirized, Aalst – Turbo (Satirized & Aalst Turbo Saté Remix)',artist:'Paul Elstak',source:'youtube',duration:193,autoplay:true,autoplayMode:'similar'};
+  const settings={autoplayEnabled:true,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo','Techno','Hardstyle'],preferredArtists:[],blockedStyles:[]},recommendations=Array.from({length:5},(_,index)=>({id:`plain-song-${index}`,title:`Turbo Titel ${index}`,artist:`Hard-Dance-Künstler ${index}`,source:'youtube',duration:180+index})),controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async()=>recommendations,save:async()=>{}});
+  await controller.fill();
+  assert.equal(player.current.id,'turbo');
+  assert.deepEqual(player.queue.map(track=>track.id),['plain-song-0','plain-song-1','plain-song-2']);
+  controller.close();
 });
 
 test('similar autoplay removes restored non-music from current playback and queue',async()=>{

@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T19:31:27.301Z
-Status: complete
-Base: main at a5c878173a6275154dafcd0550ab100c3427e347
+Last updated: 2026-09-07T19:43:02.225Z
+Status: in_progress
+Base: main at 4aec71225e1c564c80c2ac9f6942e41ebbe16f8d
 
 ## Currently working on
 
-Keine offene Aufgabe. Der persönliche Autoplay-Mix spielt nur noch plausibel erkannte Musiktitel.
+Autoplay-Warteschlangenfüllung und Wiederanlauf nach unerklärtem FFmpeg exit 255 sind korrigiert und vollständig getestet.
 
 ## Last completed
 
-Nicht-Musik-Filter, negative Suchbegriffe und Bereinigung wiederhergestellter falscher Autoplay-Titel sind auf GitHub veröffentlicht.
+Echte YouTube-Songs werden anhand von Künstler, Länge und Musikkontext zugelassen; Nicht-Musik bleibt gesperrt; Online-FFmpeg-Exit 255 setzt die Wiedergabe zunächst fort.
 
 ## Next
 
-Nach dem Update des Musikbots Autoplay einmal beobachten; weitere konkrete Fehltreffer können mit Titel und Zeitpunkt gemeldet werden.
+Änderungen auf GitHub veröffentlichen und den vollständigen GitHub-CI-Lauf überwachen.
 
 ## Verification
 
-137 Backendtests, lokaler Dashboard-Browsertest und GitHub-CI-Lauf 34155832422 einschließlich Browser-, Sicherheits-, Player- und Discord-Audiotest sind erfolgreich.
+139 Backendtests, Syntaxprüfungen und der vollständige lokale Dashboard-Browsertest sind erfolgreich.
 
 ## Safety note
 

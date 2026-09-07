@@ -76,10 +76,10 @@ export function autoplayTrackAllowed(track,blockedStyles=[]){const duration=Numb
 export function autoplayMusicCandidateAllowed(track,blockedStyles=[]){
   if(!autoplayTrackAllowed(track,blockedStyles))return false;
   if(track?.source&&track.source!=='youtube')return true;
-  const title=String(track?.title||'').trim(),artist=String(track?.artist||track?.channel||track?.uploader||'').trim(),text=`${title} ${artist}`,styleEvidence=stylesIn(`${text} ${(track?.styles||[]).join(' ')}`).length>0,musicEvidence=styleEvidence||musicMarkerPattern.test(text)||artistTitlePattern.test(title)||/\btopic\b/i.test(artist);
+  const title=String(track?.title||'').trim(),artist=String(track?.artist||track?.channel||track?.uploader||'').trim(),text=`${title} ${artist}`,duration=Number(track?.duration)||0,styleEvidence=stylesIn(`${text} ${(track?.styles||[]).join(' ')}`).length>0,strongMusicEvidence=styleEvidence||musicMarkerPattern.test(text)||/\btopic\b/i.test(artist),metadataEvidence=artist.length>=2&&duration>=60&&duration<=autoplayMaxDurationSeconds,musicEvidence=strongMusicEvidence||artistTitlePattern.test(title)||metadataEvidence;
   if(definiteNonMusicPattern.test(text))return false;
-  if(likelyNonMusicPattern.test(text)&&!musicEvidence)return false;
-  const duration=Number(track?.duration)||0;if(duration>0&&duration<60&&!musicMarkerPattern.test(text)&&!styleEvidence)return false;
+  if(likelyNonMusicPattern.test(text)&&!strongMusicEvidence)return false;
+  if(duration>0&&duration<60&&!musicMarkerPattern.test(text)&&!styleEvidence)return false;
   return musicEvidence;
 }
 export const normalizeAutoplayTermKind=value=>['genre','artist'].includes(String(value||''))?String(value):'any';
