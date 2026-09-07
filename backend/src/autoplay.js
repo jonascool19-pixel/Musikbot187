@@ -5,6 +5,7 @@ export const autoplayDiscoveryQueries=Object.freeze([
   'beliebte Musik Deutschland verschiedene Künstler',
   'neue Musik entdecken Mix verschiedene Künstler'
 ]);
+export const autoplayNonMusicSearchSuffix='-tutorial -anleitung -review -reaction -interview -podcast';
 export const listeningProfileLimit=200;
 export const autoplayMaxDurationSeconds=10*60;
 export const autoplayProfileStyleLimit=20;
@@ -19,6 +20,10 @@ const hardDanceStyles=new Set(['Uptempo','Hardcore','Hardstyle']);
 const modernElectronicStyles=new Set(['Uptempo','Hardcore','Hardstyle','Techno','House','Trance','Drum & Bass']);
 const historicallyUnrelatedPattern=/\b(?:symphon(?:y|ie)|orchestra|orchester|philharmoni(?:c|e)|concerto|sonat[ae]|opera|operette?|musical|broadway|original\s+cast|show\s+tune|gershwin|mozart|beethoven|vivaldi|chopin|brahms|tchaikovsky|schubert|haydn)\b/i;
 const oldYearPattern=/\b(?:18\d{2}|19[0-7]\d)\b/;
+const definiteNonMusicPattern=/\b(?:how\s+to|so\s+(?:nutzt|nutzen|benutzt|benutzen|verwendet|verwenden)\s+(?:man|sie)|tutorial|anleitung|erklärt|explained|review|reaction|unboxing|interview|podcast|dokumentation|documentary|web\s+player)\b/i;
+const likelyNonMusicPattern=/\b(?:study|studying|distracting|productivity|konzentrieren|lern(?:en|video))\b/i;
+const musicMarkerPattern=/\b(?:official\s+(?:music\s+)?(?:video|audio)|lyrics?|lyric\s+video|visuali[sz]er|remix|radio\s+edit|extended\s+mix|music\s+video|official\s+song|feat\.?|ft\.?)\b/i;
+const artistTitlePattern=/\S.{0,120}\s+[–—-]\s+\S/;
 
 export function autoplayTrackKey(track){
   if(!track||typeof track!=='object')return '';
@@ -68,6 +73,15 @@ export function autoplayCandidateMatchesPreferences(track,{preferredStyles=[],pr
 const unknownLongFormPattern=/\b(?:musik\s*quiz|music\s*quiz|megamix|continuous\s+mix|full\s+(?:album|mix|set|concert)|dj\s+set|podcast|live\s*stream|livestream|\d+\s*(?:hours?|stunden?))\b/i;
 export function normalizeAutoplayStyles(values){const result=[],seen=new Set();for(const value of Array.isArray(values)?values:[]){const style=normalizeStyleValue(value),key=comparable(style);if(style.length<2||seen.has(key))continue;seen.add(key);result.push(style);if(result.length>=autoplayProfileStyleLimit)break}return result;}
 export function autoplayTrackAllowed(track,blockedStyles=[]){const duration=Number(track?.duration)||0;if(duration>autoplayMaxDurationSeconds)return false;if(duration<=0&&unknownLongFormPattern.test(String(track?.title||'')))return false;const text=comparable(`${track?.title||''} ${(track?.styles||[]).join(' ')} ${inferTrackStyles(track).join(' ')}`);return !normalizeAutoplayStyles(blockedStyles).some(style=>text.includes(comparable(style)));}
+export function autoplayMusicCandidateAllowed(track,blockedStyles=[]){
+  if(!autoplayTrackAllowed(track,blockedStyles))return false;
+  if(track?.source&&track.source!=='youtube')return true;
+  const title=String(track?.title||'').trim(),artist=String(track?.artist||track?.channel||track?.uploader||'').trim(),text=`${title} ${artist}`,styleEvidence=stylesIn(`${text} ${(track?.styles||[]).join(' ')}`).length>0,musicEvidence=styleEvidence||musicMarkerPattern.test(text)||artistTitlePattern.test(title)||/\btopic\b/i.test(artist);
+  if(definiteNonMusicPattern.test(text))return false;
+  if(likelyNonMusicPattern.test(text)&&!musicEvidence)return false;
+  const duration=Number(track?.duration)||0;if(duration>0&&duration<60&&!musicMarkerPattern.test(text)&&!styleEvidence)return false;
+  return musicEvidence;
+}
 export const normalizeAutoplayTermKind=value=>['genre','artist'].includes(String(value||''))?String(value):'any';
 const autoplayArtistCandidate=item=>{const direct=normalizeStyleValue(item?.artist||item?.channel||item?.uploader||'');if(direct.length>=2)return direct;const title=String(item?.title||''),parts=title.split(/\s+[–—-]\s+/);return parts.length>1?normalizeStyleValue(parts[0]):'';};
 export function autoplayTermSearchQuery(value,kind='any'){const term=normalizeStyleValue(value),type=normalizeAutoplayTermKind(kind);return term?type==='genre'?`${term} Musikrichtung Genre official audio`:type==='artist'?`${term} Künstler Songs official audio`:`${term} Musik Genre Künstler official audio`:'';}
@@ -352,6 +366,7 @@ export class AutoplayController{
   async fillNow(){
     const generation=this.generation;
     const config=this.configuration();
+    if(config.mode==='similar')this.removeInvalidSimilarAutoplay();
     const needed=config.queueTarget-this.player.queue.length+(!this.player.current&&this.player.queue.length===0?1:0);
     if(needed<=0){
       this.statusCode='active';
@@ -370,6 +385,12 @@ export class AutoplayController{
       ?'Ausgewählte Playlists laufen der Reihe nach in Endlosschleife.'
       :`Ähnliche Titel zu „${this.lastSeedTitle}“ werden automatisch ergänzt.`;
     return this.state();
+  }
+
+  removeInvalidSimilarAutoplay(){
+    const preferenceOptions={preferredStyles:this.profile.preferredStyles,preferredArtists:this.profile.preferredArtists,queryStyle:this.profile.preferredStyles[0]||'',queryArtist:this.profile.preferredArtists[0]||'',rank:0},valid=track=>autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)&&autoplayCandidateMatchesPreferences(track,preferenceOptions);
+    for(let index=this.player.queue.length-1;index>=0;index--){const track=this.player.queue[index];if(track?.autoplayMode==='similar'&&!valid(track))this.player.remove(index)}
+    const current=this.player.current;if(current?.autoplayMode==='similar'&&!valid(current))this.player.skip();
   }
 
   playlistItems(config,needed){
@@ -413,8 +434,8 @@ export class AutoplayController{
     }
     const used=new Set([currentKey,seedKey,...this.profile.tracks.map(autoplayTrackKey),...this.player.queue.map(autoplayTrackKey),...this.recentKeys,...this.recommendationBuffer.map(autoplayTrackKey)].filter(Boolean)),familyReferences=[current,...(discovery?[]:[seed]),...this.profile.tracks,...this.player.queue,...this.recentFamilies].filter(Boolean);
     if(this.recommendationBuffer.length<needed){
-      const blockedSuffix=this.profile.blockedStyles.map(style=>`-${/\s/.test(style)?`"${style.replaceAll('"','')}"`:style}`).join(' '),preferredStyles=this.profile.preferredStyles,preferredArtists=this.profile.preferredArtists,preferredStyle=preferredStyles[this.mixCounter%Math.max(1,preferredStyles.length)]||'',preferredArtist=preferredArtists[this.mixCounter%Math.max(1,preferredArtists.length)]||'',primaryQuery=[preferredArtist,preferredStyle,recommendationQuery(seed),blockedSuffix].filter(Boolean).join(' '),queryCandidates=[{query:primaryQuery,style:preferredStyle,artist:preferredArtist},...preferredStyles.map(style=>({query:`${style} ähnliche Songs verschiedene Künstler ${blockedSuffix}`.trim(),style,artist:''})),...preferredArtists.map(artist=>({query:`${artist} ähnliche Songs und Künstler ${blockedSuffix}`.trim(),style:'',artist}))];
-      if(!preferredStyles.length&&!preferredArtists.length)queryCandidates.push(...autoplayDiscoveryQueries.map(query=>({query:`${query} ${blockedSuffix}`.trim(),style:'',artist:''})));
+      const blockedSuffix=this.profile.blockedStyles.map(style=>`-${/\s/.test(style)?`"${style.replaceAll('"','')}"`:style}`).join(' '),preferredStyles=this.profile.preferredStyles,preferredArtists=this.profile.preferredArtists,preferredStyle=preferredStyles[this.mixCounter%Math.max(1,preferredStyles.length)]||'',preferredArtist=preferredArtists[this.mixCounter%Math.max(1,preferredArtists.length)]||'',primaryQuery=[preferredArtist,preferredStyle,recommendationQuery(seed),blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' '),queryCandidates=[{query:primaryQuery,style:preferredStyle,artist:preferredArtist},...preferredStyles.map(style=>({query:`${style} ähnliche Songs verschiedene Künstler ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style,artist:''})),...preferredArtists.map(artist=>({query:`${artist} ähnliche Songs und Künstler ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style:'',artist}))];
+      if(!preferredStyles.length&&!preferredArtists.length)queryCandidates.push(...autoplayDiscoveryQueries.map(query=>({query:`${query} ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style:'',artist:''})));
       const querySpecs=[],queryKeys=new Set();for(const spec of queryCandidates){const query=String(spec.query||'').trim(),key=query.toLocaleLowerCase('de-DE');if(!query||queryKeys.has(key))continue;queryKeys.add(key);querySpecs.push({...spec,query});}
       if(!querySpecs.length){
         this.statusCode='waiting';
@@ -428,7 +449,7 @@ export class AutoplayController{
         const fresh=[];
         for(const [rank,track] of (Array.isArray(found)?found:[]).entries()){
           const key=autoplayTrackKey(track);
-          if(!key||candidateKeys.has(key)||!autoplayTrackAllowed(track,this.profile.blockedStyles)||!autoplayCandidateMatchesPreferences(track,{preferredStyles,preferredArtists,queryStyle:spec.style,queryArtist:spec.artist,rank})||familyReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>sameRecommendationFamily(item,track)))continue;
+          if(!key||candidateKeys.has(key)||!autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)||!autoplayCandidateMatchesPreferences(track,{preferredStyles,preferredArtists,queryStyle:spec.style,queryArtist:spec.artist,rank})||familyReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>sameRecommendationFamily(item,track)))continue;
           fresh.push(track);candidateKeys.add(key);
         }
         this.recommendationBuffer.push(...fresh);

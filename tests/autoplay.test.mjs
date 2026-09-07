@@ -4,7 +4,7 @@ import {EventEmitter} from 'node:events';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {AutoplayController,autoplayCandidateMatchesPreferences,autoplayDiscoveryQueries,autoplayMaxDurationSeconds,autoplayTrackAllowed,inferTrackStyles,listeningProfileLimit,normalizeAutoplayConfiguration,normalizeAutoplayStyles,recommendationFamily,recommendationQuery,sameRecommendationFamily} from '../backend/src/autoplay.js';
+import {AutoplayController,autoplayCandidateMatchesPreferences,autoplayDiscoveryQueries,autoplayMaxDurationSeconds,autoplayMusicCandidateAllowed,autoplayNonMusicSearchSuffix,autoplayTrackAllowed,inferTrackStyles,listeningProfileLimit,normalizeAutoplayConfiguration,normalizeAutoplayStyles,recommendationFamily,recommendationQuery,sameRecommendationFamily} from '../backend/src/autoplay.js';
 import {buildServer} from '../backend/src/server.js';
 
 class FakePlayer extends EventEmitter{
@@ -112,6 +112,33 @@ test('preferred modern styles reject unrelated historical and conflicting music 
   assert.equal(autoplayCandidateMatchesPreferences({title:'Künstler – Rawstyle Nacht',artist:'Künstler'},preferences),true);
   assert.equal(autoplayCandidateMatchesPreferences({title:'DJ Nova – Bass Attack',artist:'DJ Nova'},preferences),true);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Neues Lied',artist:'Scooter'},{preferredStyles:['Uptempo'],preferredArtists:['Scooter'],queryArtist:'Scooter'}),true);
+});
+
+test('autoplay keeps music results and rejects tutorials and study videos',()=>{
+  assert.equal(autoplayMusicCandidateAllowed({title:'So nutzen Sie den Apple Music Web Player',artist:'Apple Support',source:'youtube',duration:94}),false);
+  assert.equal(autoplayMusicCandidateAllowed({title:'Music + Study = DISTRACTING?!',artist:'Study Channel',source:'youtube',duration:52}),false);
+  assert.equal(autoplayMusicCandidateAllowed({title:'MilleniumKid & JBS BEATS – Unendlichkeit (Official Visualizer)',source:'youtube',duration:181}),true);
+  assert.equal(autoplayMusicCandidateAllowed({title:'Klatschkind - Seelenficker [Rework 2018] (Album: Seelenficker)',source:'youtube',duration:210}),true);
+  assert.match(autoplayNonMusicSearchSuffix,/-tutorial/);
+  assert.match(autoplayNonMusicSearchSuffix,/-podcast/);
+});
+
+test('similar autoplay removes restored non-music from current playback and queue',async()=>{
+  const player=new FakePlayer();
+  player.current={id:'study',title:'Music + Study = DISTRACTING?!',artist:'Study Channel',source:'youtube',duration:52,autoplay:true,autoplayMode:'similar'};
+  player.queue=[
+    {id:'apple-help',title:'So nutzen Sie den Apple Music Web Player',artist:'Apple Support',source:'youtube',duration:94,autoplay:true,autoplayMode:'similar'},
+    {id:'song-one',title:'DJ Eins – Uptempo Feuer',source:'youtube',duration:180,autoplay:true,autoplayMode:'similar'},
+    {id:'song-two',title:'DJ Zwei – Rawstyle Nacht',source:'youtube',duration:190,autoplay:true,autoplayMode:'similar'},
+    {id:'song-three',title:'DJ Drei – Techno Licht',source:'youtube',duration:200,autoplay:true,autoplayMode:'similar'},
+    {id:'song-four',title:'DJ Vier – Hardstyle Bass',source:'youtube',duration:210,autoplay:true,autoplayMode:'similar'}
+  ];
+  const settings={autoplayEnabled:true,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo','Techno','Hardstyle'],preferredArtists:[],blockedStyles:[]},controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async()=>[],save:async()=>{}});
+  await controller.fill();
+  assert.equal(player.current.id,'song-one');
+  assert.deepEqual(player.queue.map(track=>track.id),['song-two','song-three','song-four']);
+  assert.equal([player.current,...player.queue].some(track=>['study','apple-help'].includes(track.id)),false);
+  controller.close();
 });
 
 test('configured styles never fall back to the broad discovery mix',async()=>{

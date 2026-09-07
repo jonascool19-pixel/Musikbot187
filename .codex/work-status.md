@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T19:17:24.817Z
-Status: complete
-Base: main at 5d495c66cebcec485f1752f22e0de16a946fce86
+Last updated: 2026-09-07T19:28:53.511Z
+Status: in_progress
+Base: main at feb6c75a52a63634bac11d19d49525adf47ffe5f
 
 ## Currently working on
 
-Keine offene Implementierung; Puffer-Langzeitkorrektur und strikte Autoplay-Stilprüfung sind veröffentlicht und verifiziert.
+Der Nicht-Musik-Filter und die Bereinigung bereits gespeicherter falscher Autoplay-Titel sind umgesetzt und vollständig getestet.
 
 ## Last completed
 
-FFmpeg-Zeitstempelkorrektur entfernt, monotone Audiotaktung und getrennte Quellen-/Discord-Pufferdiagnosen ergänzt; bei Wunschstilen keine breite Ersatzsuche mehr, historische oder gegensätzliche Treffer werden verworfen. Veröffentlicht als 5d495c66cebcec485f1752f22e0de16a946fce86.
+YouTube-Anleitungen sowie Lern-, Podcast- und Erklärvideos werden im persönlichen Mix abgewiesen; die sichtbaren Fehlerbeispiele aus dem Nutzerbild sind als Regressionstest erfasst.
 
 ## Next
 
-Update über System installieren, mehrere Titel länger als eine Minute hören und bei einem verbleibenden Aussetzer die neue Meldung aus Fehlermeldungen senden; sie nennt jetzt eindeutig Quelle oder Discord-Ausgabe.
+Änderungen auf GitHub veröffentlichen und den automatischen GitHub-Prüflauf bis zum Ergebnis überwachen.
 
 ## Verification
 
-135 Backendtests, vollständiger Dashboard-Browsertest und GitHub Actions 34154917600 einschließlich nativer Opus-Prüfung bestanden; 600 simulierte Sekunden je Player ohne Speicherwachstum.
+137 Backendtests und der vollständige Dashboard-Browsertest sind erfolgreich; Syntaxprüfung von backend/src/autoplay.js ist erfolgreich.
 
 ## Safety note
 
