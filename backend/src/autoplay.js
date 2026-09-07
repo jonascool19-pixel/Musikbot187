@@ -15,6 +15,10 @@ const styleMatchers=Object.freeze([
   ['Techno',/\btechno\b/i],['House',/\bhouse\b/i],['Trance',/\btrance\b/i],['Drum & Bass',/\b(?:drum\s*(?:&|and|n)\s*bass|dnb)\b/i],
   ['Rap & Hip-Hop',/\b(?:rap|hip[ -]?hop|trap)\b/i],['Rock',/\brock\b/i],['Metal',/\bmetal\b/i],['Pop',/\bpop\b/i],['Schlager',/\bschlager\b/i]
 ]);
+const hardDanceStyles=new Set(['Uptempo','Hardcore','Hardstyle']);
+const modernElectronicStyles=new Set(['Uptempo','Hardcore','Hardstyle','Techno','House','Trance','Drum & Bass']);
+const historicallyUnrelatedPattern=/\b(?:symphon(?:y|ie)|orchestra|orchester|philharmoni(?:c|e)|concerto|sonat[ae]|opera|operette?|musical|broadway|original\s+cast|show\s+tune|gershwin|mozart|beethoven|vivaldi|chopin|brahms|tchaikovsky|schubert|haydn)\b/i;
+const oldYearPattern=/\b(?:18\d{2}|19[0-7]\d)\b/;
 
 export function autoplayTrackKey(track){
   if(!track||typeof track!=='object')return '';
@@ -45,6 +49,22 @@ export function inferTrackStyles(track){
 const normalizeStyleValue=value=>String(value||'').normalize('NFKC').replace(/[\u0000-\u001f<>]/g,' ').replace(/\s+/g,' ').trim().slice(0,40);
 const comparable=value=>normalizeStyleValue(value).toLocaleLowerCase('de-DE');
 const comparableMusicTerm=value=>normalizeStyleValue(value).normalize('NFKD').replace(/\p{M}/gu,'').toLocaleLowerCase('de-DE').replace(/[^\p{L}\p{N}]+/gu,' ').replace(/\s+/g,' ').trim();
+const stylesIn=value=>styleMatchers.filter(([,pattern])=>pattern.test(String(value||''))).map(([label])=>label);
+const compatibleStyle=(candidate,preferred)=>candidate===preferred||hardDanceStyles.has(candidate)&&hardDanceStyles.has(preferred);
+const containsMusicTerm=(text,term)=>{const value=comparableMusicTerm(text),needle=comparableMusicTerm(term);return Boolean(needle&&` ${value} `.includes(` ${needle} `));};
+export function autoplayCandidateMatchesPreferences(track,{preferredStyles=[],preferredArtists=[],queryStyle='',queryArtist='',rank=0}={}){
+  const styles=normalizeAutoplayStyles(preferredStyles),artists=normalizeAutoplayStyles(preferredArtists);
+  if(!styles.length&&!artists.length)return true;
+  const text=`${track?.title||''} ${track?.artist||track?.channel||track?.uploader||''} ${(track?.styles||[]).join(' ')}`,artistMatch=artists.some(artist=>containsMusicTerm(text,artist));
+  if(artistMatch)return true;
+  const preferredKnown=[...new Set(styles.flatMap(stylesIn))],candidateKnown=[...new Set(stylesIn(text))],explicitStyleMatch=styles.some(style=>containsMusicTerm(text,style))||candidateKnown.some(candidate=>preferredKnown.some(preferred=>compatibleStyle(candidate,preferred)));
+  if(explicitStyleMatch)return true;
+  if(candidateKnown.length&&preferredKnown.length)return false;
+  const modernElectronic=preferredKnown.some(style=>modernElectronicStyles.has(style));
+  if(modernElectronic&&(historicallyUnrelatedPattern.test(text)||oldYearPattern.test(text)))return false;
+  if(queryArtist&&!containsMusicTerm(text,queryArtist)&&!queryStyle)return false;
+  return Boolean(queryStyle&&rank<12);
+}
 const unknownLongFormPattern=/\b(?:musik\s*quiz|music\s*quiz|megamix|continuous\s+mix|full\s+(?:album|mix|set|concert)|dj\s+set|podcast|live\s*stream|livestream|\d+\s*(?:hours?|stunden?))\b/i;
 export function normalizeAutoplayStyles(values){const result=[],seen=new Set();for(const value of Array.isArray(values)?values:[]){const style=normalizeStyleValue(value),key=comparable(style);if(style.length<2||seen.has(key))continue;seen.add(key);result.push(style);if(result.length>=autoplayProfileStyleLimit)break}return result;}
 export function autoplayTrackAllowed(track,blockedStyles=[]){const duration=Number(track?.duration)||0;if(duration>autoplayMaxDurationSeconds)return false;if(duration<=0&&unknownLongFormPattern.test(String(track?.title||'')))return false;const text=comparable(`${track?.title||''} ${(track?.styles||[]).join(' ')} ${inferTrackStyles(track).join(' ')}`);return !normalizeAutoplayStyles(blockedStyles).some(style=>text.includes(comparable(style)));}
@@ -393,26 +413,28 @@ export class AutoplayController{
     }
     const used=new Set([currentKey,seedKey,...this.profile.tracks.map(autoplayTrackKey),...this.player.queue.map(autoplayTrackKey),...this.recentKeys,...this.recommendationBuffer.map(autoplayTrackKey)].filter(Boolean)),familyReferences=[current,...(discovery?[]:[seed]),...this.profile.tracks,...this.player.queue,...this.recentFamilies].filter(Boolean);
     if(this.recommendationBuffer.length<needed){
-      const blockedSuffix=this.profile.blockedStyles.map(style=>`-${/\s/.test(style)?`"${style.replaceAll('"','')}"`:style}`).join(' '),preferredStyle=this.profile.preferredStyles[this.mixCounter%Math.max(1,this.profile.preferredStyles.length)]||'',preferredArtist=this.profile.preferredArtists[this.mixCounter%Math.max(1,this.profile.preferredArtists.length)]||'',preferredQueries=[...this.profile.preferredStyles.map(style=>`${style} ähnliche Songs verschiedene Künstler`),...this.profile.preferredArtists.map(artist=>`${artist} ähnliche Songs und Künstler`)],primaryQuery=[preferredArtist,preferredStyle,recommendationQuery(seed),blockedSuffix].filter(Boolean).join(' '),queries=[...new Set([primaryQuery,...preferredQueries.map(query=>`${query} ${blockedSuffix}`.trim()),...autoplayDiscoveryQueries.map(query=>`${query} ${blockedSuffix}`.trim())].filter(Boolean))];
-      if(!queries.length){
+      const blockedSuffix=this.profile.blockedStyles.map(style=>`-${/\s/.test(style)?`"${style.replaceAll('"','')}"`:style}`).join(' '),preferredStyles=this.profile.preferredStyles,preferredArtists=this.profile.preferredArtists,preferredStyle=preferredStyles[this.mixCounter%Math.max(1,preferredStyles.length)]||'',preferredArtist=preferredArtists[this.mixCounter%Math.max(1,preferredArtists.length)]||'',primaryQuery=[preferredArtist,preferredStyle,recommendationQuery(seed),blockedSuffix].filter(Boolean).join(' '),queryCandidates=[{query:primaryQuery,style:preferredStyle,artist:preferredArtist},...preferredStyles.map(style=>({query:`${style} ähnliche Songs verschiedene Künstler ${blockedSuffix}`.trim(),style,artist:''})),...preferredArtists.map(artist=>({query:`${artist} ähnliche Songs und Künstler ${blockedSuffix}`.trim(),style:'',artist}))];
+      if(!preferredStyles.length&&!preferredArtists.length)queryCandidates.push(...autoplayDiscoveryQueries.map(query=>({query:`${query} ${blockedSuffix}`.trim(),style:'',artist:''})));
+      const querySpecs=[],queryKeys=new Set();for(const spec of queryCandidates){const query=String(spec.query||'').trim(),key=query.toLocaleLowerCase('de-DE');if(!query||queryKeys.has(key))continue;queryKeys.add(key);querySpecs.push({...spec,query});}
+      if(!querySpecs.length){
         this.statusCode='waiting';
         this.detail='Der aktuelle Titel enthält zu wenig Angaben für ähnliche Vorschläge.';
         return [];
       }
       const failures=[],candidateKeys=new Set(used);
-      for(const query of queries){
+      for(const spec of querySpecs){
         let found=[];
-        try{found=await this.recommend(seed,{query,limit:50})}catch(error){failures.push(String(error?.message||error));continue}
+        try{found=await this.recommend(seed,{query:spec.query,limit:50})}catch(error){failures.push(String(error?.message||error));continue}
         const fresh=[];
-        for(const track of Array.isArray(found)?found:[]){
+        for(const [rank,track] of (Array.isArray(found)?found:[]).entries()){
           const key=autoplayTrackKey(track);
-          if(!key||candidateKeys.has(key)||!autoplayTrackAllowed(track,this.profile.blockedStyles)||familyReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>sameRecommendationFamily(item,track)))continue;
+          if(!key||candidateKeys.has(key)||!autoplayTrackAllowed(track,this.profile.blockedStyles)||!autoplayCandidateMatchesPreferences(track,{preferredStyles,preferredArtists,queryStyle:spec.style,queryArtist:spec.artist,rank})||familyReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>sameRecommendationFamily(item,track)))continue;
           fresh.push(track);candidateKeys.add(key);
         }
         this.recommendationBuffer.push(...fresh);
         if(this.recommendationBuffer.length>=needed)break;
       }
-      if(!this.recommendationBuffer.length&&failures.length===queries.length)throw new Error(`YouTube-Suche für den Startmix fehlgeschlagen: ${failures.at(-1)}`);
+      if(!this.recommendationBuffer.length&&failures.length===querySpecs.length)throw new Error(`YouTube-Suche für den Startmix fehlgeschlagen: ${failures.at(-1)}`);
     }
     const items=[];
     while(items.length<needed&&this.recommendationBuffer.length){

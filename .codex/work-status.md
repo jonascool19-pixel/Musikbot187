@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T18:57:32.961Z
-Status: complete
-Base: main at 6b4bfe264c86cbe25ef787f2c46a088ee1637f0a
+Last updated: 2026-09-07T19:14:15.178Z
+Status: in_progress
+Base: main at 344bddee9c80630fee9d09330cfdd5904e7c625a
 
 ## Currently working on
 
-No active implementation task; playback stabilization and the new playlist workflows are published and verified.
+Puffer-Langzeitkorrektur und strikte Autoplay-Stilprüfung sind implementiert und lokal vollständig getestet; Veröffentlichung läuft.
 
 ## Last completed
 
-Deferred online next-track preparation until startup buffering is stable, increased source and Discord audio reserves, added a dedicated searchable playlist window, and added playlist-based local profile learning. Published as 6b4bfe264c86cbe25ef787f2c46a088ee1637f0a.
+FFmpeg-Zeitstempelkorrektur entfernt, monotone Audiotaktung und getrennte Quellen-/Discord-Pufferdiagnosen ergänzt; breite Autoplay-Ersatzsuche bei Wunschstilen gesperrt und unpassende historische sowie gegensätzliche Treffer gefiltert.
 
 ## Next
 
-Install the update through System, test several consecutive YouTube and Spotify track starts in the live Discord channel, and report whether any dropout remains.
+Änderungen auf GitHub veröffentlichen, GitHub Actions bis zum Ergebnis prüfen und danach das Update über System installieren.
 
 ## Verification
 
-132 backend tests and the full Playwright dashboard test passed locally; GitHub Actions run 34153628009 completed successfully.
+135 Backendtests und der vollständige Dashboard-Browsertest bestanden; 600 simulierte Sekunden je Player liefen ohne Speicherwachstum.
 
 ## Safety note
 

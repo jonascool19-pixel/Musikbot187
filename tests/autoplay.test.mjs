@@ -4,7 +4,7 @@ import {EventEmitter} from 'node:events';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {AutoplayController,autoplayMaxDurationSeconds,autoplayTrackAllowed,inferTrackStyles,listeningProfileLimit,normalizeAutoplayConfiguration,normalizeAutoplayStyles,recommendationFamily,recommendationQuery,sameRecommendationFamily} from '../backend/src/autoplay.js';
+import {AutoplayController,autoplayCandidateMatchesPreferences,autoplayDiscoveryQueries,autoplayMaxDurationSeconds,autoplayTrackAllowed,inferTrackStyles,listeningProfileLimit,normalizeAutoplayConfiguration,normalizeAutoplayStyles,recommendationFamily,recommendationQuery,sameRecommendationFamily} from '../backend/src/autoplay.js';
 import {buildServer} from '../backend/src/server.js';
 
 class FakePlayer extends EventEmitter{
@@ -103,6 +103,30 @@ test('autoplay configuration and recommendation text are bounded and normalized'
   assert.equal(autoplayTrackAllowed({title:'Drei Stunden Musikquiz',duration:autoplayMaxDurationSeconds+1},[]),false);
   assert.equal(autoplayTrackAllowed({title:'Full Album Continuous Mix'},[]),false);
   assert.equal(autoplayTrackAllowed({title:'Schlager Party',duration:180},['Schlager']),false);
+});
+
+test('preferred modern styles reject unrelated historical and conflicting music results',()=>{
+  const preferences={preferredStyles:['Uptempo','Techno','Hardstyle'],queryStyle:'Uptempo'};
+  assert.equal(autoplayCandidateMatchesPreferences({title:'Jemand, der über mich wacht (GERSHWIN, Oh Kay, 1926)',artist:'Historische Aufnahmen'},preferences),false);
+  assert.equal(autoplayCandidateMatchesPreferences({title:'Künstler – Schlager Party',artist:'Künstler'},preferences),false);
+  assert.equal(autoplayCandidateMatchesPreferences({title:'Künstler – Rawstyle Nacht',artist:'Künstler'},preferences),true);
+  assert.equal(autoplayCandidateMatchesPreferences({title:'DJ Nova – Bass Attack',artist:'DJ Nova'},preferences),true);
+  assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Neues Lied',artist:'Scooter'},{preferredStyles:['Uptempo'],preferredArtists:['Scooter'],queryArtist:'Scooter'}),true);
+});
+
+test('configured styles never fall back to the broad discovery mix',async()=>{
+  const player=new FakePlayer(),queries=[],settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo','Techno','Hardstyle'],preferredArtists:[],blockedStyles:[]},recommendations=[
+    {id:'wrong-old',title:'Jemand, der über mich wacht (GERSHWIN, Oh Kay, 1926)',source:'youtube'},
+    {id:'wrong-style',title:'Sänger – Schlager Party',source:'youtube'},
+    {id:'right-one',title:'DJ Eins – Uptempo Feuer',source:'youtube'},
+    {id:'right-two',title:'DJ Zwei – Rawstyle Nacht',source:'youtube'},
+    {id:'right-three',title:'DJ Drei – Techno Licht',source:'youtube'},
+    {id:'right-four',title:'DJ Vier – Bass Attack',source:'youtube'}
+  ],controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{queries.push(query);return recommendations},save:async()=>{}});
+  await controller.setEnabled(true);
+  assert.deepEqual([player.current,...player.queue].map(track=>track.id),['right-one','right-two','right-three','right-four']);
+  assert.equal(queries.some(query=>autoplayDiscoveryQueries.some(discovery=>query.includes(discovery))),false);
+  controller.close();
 });
 
 test('personal mix keeps manual taste controls, rejects long-form results and never learns its own suggestions',async()=>{const seed={id:'seed-hardstyle',title:'Artist – Hardstyle Anthem',source:'youtube',duration:220},player=new FakePlayer();player.current=seed;const settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo'],preferredArtists:['Scooter'],blockedStyles:['Schlager']},queries=[],recommendations=[{id:'quiz',title:'Das große Musikquiz',source:'youtube',duration:3900},{id:'unknown-mix',title:'Full Album Continuous Mix',source:'youtube'},{id:'schlager',title:'Schlager Party Hit',source:'youtube',duration:190},{id:'valid-one',title:'Künstler Eins – Uptempo Feuer',source:'youtube',duration:210},{id:'valid-two',title:'Künstler Zwei – Rawstyle Nacht',source:'youtube',duration:260},{id:'valid-three',title:'Künstler Drei – Hardcore Licht',source:'youtube',duration:599}],controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{queries.push(query);return recommendations},save:async()=>{}});await controller.setEnabled(true);assert.deepEqual(player.queue.map(track=>track.id),['valid-one','valid-two','valid-three']);assert.match(queries[0],/Uptempo/);assert.match(queries[0],/Scooter/);assert.match(queries[0],/-Schlager/);await controller.recordListened(player.queue[0],1000);assert.equal(controller.state().profile.learnedTracks,0);await controller.recordListened({id:'manual-schlager',title:'Schlager Party',source:'youtube',duration:180},2000);assert.equal(controller.state().profile.learnedTracks,0);await controller.recordListened({id:'manual-pop',title:'Artist – Pop Song',source:'youtube',duration:200},3000);const learned=controller.state().profile.tracks[0];assert.equal(controller.state().profile.learnedTracks,1);const blocked=await controller.blockProfileTrack(learned.key);assert.deepEqual(blocked.added,['Pop']);assert.deepEqual(blocked.profile.blockedStyles,['Schlager','Pop']);assert.deepEqual(blocked.profile.preferredArtists,['Scooter']);assert.equal(blocked.profile.learnedTracks,0);assert.deepEqual(player.queue,[]);await controller.updateProfileStyles({preferredStyles:['Schlager','Uptempo'],preferredArtists:['Rammstein'],blockedStyles:[]});assert.deepEqual(controller.state().profile.preferredStyles,['Schlager','Uptempo']);assert.deepEqual(controller.state().profile.preferredArtists,['Rammstein']);assert.deepEqual(controller.state().profile.blockedStyles,[]);controller.close()});
