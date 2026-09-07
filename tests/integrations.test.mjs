@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
-import {clearDiscordSetupDiagnostics,configureDiscordOpus,discordAutocompleteDelayMs,discordAutocompleteTimeoutMs,discordMaxMissedFrames,discordOpusBitrate,discordOpusPacketLoss,discordPcmBufferBytes,discordPendingPcmBytes,discordPrebufferBytes,discordRadioPrebufferBytes,discordReadyTimeoutMs,discordSearchText,discordSpotifyPrebufferBytes,discordYouTubePrebufferBytes,flushDiscordPcm,IntegrationManager,writeDiscordPcm} from '../backend/src/integrations.js';
+import {clearDiscordSetupDiagnostics,configureDiscordOpus,discordAutocompleteDelayMs,discordAutocompleteTimeoutMs,discordVoiceErrorMessage,discordMaxMissedFrames,discordOpusBitrate,discordOpusPacketLoss,discordPcmBufferBytes,discordPendingPcmBytes,discordPrebufferBytes,discordRadioPrebufferBytes,discordReadyTimeoutMs,discordSearchText,discordSpotifyPrebufferBytes,discordYouTubePrebufferBytes,flushDiscordPcm,IntegrationManager,writeDiscordPcm} from '../backend/src/integrations.js';
 
 test('Discord uses the maximum supported Opus bitrate',()=>{assert.equal(discordOpusBitrate,128_000);assert.equal(discordReadyTimeoutMs,15_000);});
+
+test('Discord voice failures always retain a useful diagnostic reason',()=>{assert.equal(discordVoiceErrorMessage({message:'Unexpected server response: 522'}),'Unexpected server response: 522');assert.equal(discordVoiceErrorMessage({message:'   '}),'Discord hat die Voice-Verbindung ohne nähere Fehlerangabe beendet.');assert.equal(discordVoiceErrorMessage({message:'',code:'ECONNRESET'}),'Code ECONNRESET');assert.equal(discordVoiceErrorMessage({cause:{message:'Socket geschlossen'}}),'Socket geschlossen');});
 
 test('Discord Opus enables packet-loss concealment and tolerates a short raw-stream gap',()=>{const calls=[],resource={encoder:{setBitrate:value=>calls.push(['bitrate',value]),setFEC:value=>calls.push(['fec',value]),setPLP:value=>calls.push(['plp',value])}};assert.equal(configureDiscordOpus(resource),resource);assert.equal(discordOpusPacketLoss,0.10);assert.equal(discordMaxMissedFrames,250);assert.deepEqual(calls,[['bitrate',128_000],['fec',true],['plp',0.10]]);assert.doesNotThrow(()=>configureDiscordOpus({}));});
 
