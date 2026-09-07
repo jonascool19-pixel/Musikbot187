@@ -63,7 +63,7 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await expect(searchSource).toHaveValue('youtube');
   await expect(page.getByText('Test Suchergebnis 1',{exact:true})).toBeVisible();
 
-  const playerCalls=[];let mockPlayer=true;const browserAutoplay={enabled:false,mode:'playlists',playlistIds:[],queueTarget:5,status:'off',detail:'Automatische Wiedergabe ist ausgeschaltet.',profile:{learnedTracks:2,maxTracks:200,maxDurationMinutes:10,totalListens:2,preferredStyles:[],preferredArtists:[],blockedStyles:[],styles:[{name:'Hardstyle',weight:1},{name:'Pop',weight:1}],tracks:[{key:'learned-hardstyle',title:'Test Artist – Hardstyle Titel',source:'youtube',listens:1,lastPlayed:2,styles:['Hardstyle']},{key:'learned-pop',title:'Andere Band – Pop Titel',source:'youtube',listens:1,lastPlayed:1,styles:['Pop']}],top:[]}},mockState={player:{current:{id:'long-track',title:'DIES IST EIN SEHR LANGER TITEL FÜR DAS LAUFENDE RADIO-DISPLAY – SOMMER CEM UND SHIRIN DAVID',source:'youtube',quality:'Beste verfügbare Audioqualität',duration:245,autoplay:true,autoplayMode:'similar'},queue:Array.from({length:8},(_,index)=>({id:`queue-${index}`,title:`Wartelistentitel ${index+1}`,source:'youtube'})),volume:40,mode:'queue',paused:false,playing:true,positionSeconds:61,playbackId:7},autoplay:browserAutoplay,settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d'},connections:[],runtimes:[]};
+  const playerCalls=[];let mockPlayer=true;const browserAutoplay={enabled:false,mode:'playlists',playlistIds:[],queueTarget:5,status:'off',detail:'Automatische Wiedergabe ist ausgeschaltet.',profile:{learnedTracks:2,maxTracks:200,maxDurationMinutes:6,totalListens:2,preferredStyles:[],preferredArtists:[],blockedStyles:[],styles:[{name:'Hardstyle',weight:1},{name:'Pop',weight:1}],artists:[{name:'Test Artist',weight:1},{name:'Andere Band',weight:1}],tracks:[{key:'learned-hardstyle',title:'Test Artist – Hardstyle Titel',source:'youtube',listens:1,lastPlayed:2,styles:['Hardstyle']},{key:'learned-pop',title:'Andere Band – Pop Titel',source:'youtube',listens:1,lastPlayed:1,styles:['Pop']}],top:[]}},mockState={player:{current:{id:'long-track',title:'DIES IST EIN SEHR LANGER TITEL FÜR DAS LAUFENDE RADIO-DISPLAY – SOMMER CEM UND SHIRIN DAVID',source:'youtube',quality:'Beste verfügbare Audioqualität',duration:245,autoplay:true,autoplayMode:'similar'},queue:Array.from({length:8},(_,index)=>({id:`queue-${index}`,title:`Wartelistentitel ${index+1}`,source:'youtube'})),volume:40,mode:'queue',paused:false,playing:true,positionSeconds:61,playbackId:7},autoplay:browserAutoplay,settings:{theme:'dark',accent:'#7c3aed',output:'none',outputId:null,marqueeSpeed:45,marqueeTextColor:'#eef2ff',marqueeBackground:'#171e2d'},connections:[],runtimes:[]};
   await page.route('**/api/state',route=>mockPlayer?route.fulfill({contentType:'application/json',body:JSON.stringify(mockState)}):route.fallback());
   await page.route('**/api/player/**',async route=>{playerCalls.push({url:route.request().url(),method:route.request().method(),body:route.request().postData()});await route.fulfill({contentType:'application/json',body:JSON.stringify(mockState.player)})});
   await page.route('**/api/autoplay/enabled',async route=>{const enabled=route.request().postDataJSON().enabled;browserAutoplay.enabled=enabled;browserAutoplay.status=enabled?'active':'off';browserAutoplay.detail=enabled?'Ausgewählte Playlists laufen der Reihe nach in Endlosschleife.':'Automatische Wiedergabe ist ausgeschaltet.';if(enabled)Object.assign(mockState.player.current,{autoplay:true,autoplayMode:'playlists',autoplayPlaylistName:'Browser-Mix'});else mockState.player.queue=[];await route.fulfill({contentType:'application/json',body:JSON.stringify({autoplay:browserAutoplay,player:mockState.player,started:true,message:enabled?'Automatische Wiedergabe läuft.':'Automatische Wiedergabe ist ausgeschaltet.'})})});
@@ -132,15 +132,22 @@ test('first-run setup, live dashboard controls, playlists, Discord editor and di
   await page.locator('#nav').getByRole('button',{name:'Automatische Wiedergabe'}).click();
   await expect(page.getByRole('heading',{name:'Autoplay-Modus'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Dein lokales Musikprofil'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Automatisch erkannte Künstler'})).toBeVisible();
   await expect(page.getByText('Nichts gesperrt – alle Musikrichtungen und Künstler sind erlaubt.')).toBeVisible();
   await page.getByRole('textbox',{name:'Gewünschte Musikrichtungen',exact:true}).fill('Hard');
   await page.getByRole('button',{name:'Hardstyle als geprüften Vorschlag übernehmen'}).click();
   await expect(page.locator('.profile-style-chip.genres')).toContainText('Hardstyle');
+  await page.getByRole('button',{name:'Hardstyle aus Gewünschte Musikrichtungen entfernen'}).click();
+  await expect(page.locator('.profile-style-chip.genres')).toHaveCount(0);
   await page.getByRole('textbox',{name:'Gewünschte Künstler',exact:true}).fill('Ramm');
   await page.getByRole('button',{name:'Rammstein als geprüften Vorschlag übernehmen'}).click();
   await expect(page.locator('.profile-style-chip.artists')).toContainText('Rammstein');
+  await page.getByRole('button',{name:'Rammstein aus Gewünschte Künstler entfernen'}).click();
+  await expect(page.locator('.profile-style-chip.artists')).toHaveCount(0);
   await page.getByRole('button',{name:'Test Artist – Hardstyle Titel zur Sperrliste hinzufügen'}).click();
   await expect(page.locator('.profile-style-chip.blocked')).toContainText('Hardstyle');
+  await page.getByRole('button',{name:'Hardstyle aus Sperrliste entfernen'}).click();
+  await expect(page.locator('.profile-style-chip.blocked')).toHaveCount(0);
   await expect(page.getByText('Andere Band – Pop Titel')).toBeVisible();
   await page.getByRole('button',{name:'Gelernte Titel zurücksetzen'}).click();
   await page.getByRole('button',{name:'Jetzt bestätigen'}).click();

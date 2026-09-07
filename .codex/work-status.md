@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T20:34:37.959Z
-Status: complete
-Base: main at 2c303ba527fb017a5dfe161a34d333d123b3eb24
+Last updated: 2026-09-07T20:59:15.237Z
+Status: in_progress
+Base: main at 595fed8a836ef1789fd0c2d12b534f39b495ee91
 
 ## Currently working on
 
-Keine offene Implementierung in diesem Paket.
+Autoplay mischt manuelle und automatisch gelernte Genres sowie Künstler in getrennten Suchgruppen; Wunsch- und Sperreinträge aktualisieren sich nach einem Klick zuverlässig.
 
 ## Last completed
 
-Commit 2c303ba stabilisiert lokale Dateien/Downloads und verankert Autoplay an Vorgaben bzw. gelerntem Profil; YouTube-Künstleranzeige, Suchvariation, dauerhafte Wiederholungssperre, Sechs-Minuten-Grenze und Listen-/Compilation-Filter sind veröffentlicht.
+Künstlererkennung, gewichtetes Künstlerprofil, Genre-Künstler-Rundlauf und sofortige Profilaktualisierung sind implementiert; 148 Backendtests und der vollständige Browsertest sind erfolgreich.
 
 ## Next
 
-Dashboard-Update installieren und lokale Datei-/Download-Wiedergabe sowie einen längeren Autoplay-Durchlauf im echten Discord-Voice-Kanal beobachten.
+Geprüften Stand committen, zu GitHub hochladen und die GitHub-Prüfungen bis zum Ergebnis beobachten.
 
 ## Verification
 
-144 von 144 lokale Backendtests und Playwright erfolgreich; GitHub-CI 34159819340 inklusive npm audit, Linux-Player-Benchmark, nativem Discord-Opus-Smoke-Test und Browserprüfung vollständig erfolgreich.
+148 von 148 Backendtests erfolgreich; Playwright-Browsertest einschließlich Entfernen von Genre, Künstler und Sperrbegriff erfolgreich; Syntaxprüfungen und Diff-Prüfung sauber.
 
 ## Safety note
 
