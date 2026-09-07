@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-02T15:48:41.252Z
-Status: published and verified
-Base: main at cd2a1c40bb4479338473dc425de38f282f8c0860
+Last updated: 2026-09-07T18:01:02.629Z
+Status: complete
+Base: main at 529d3d264ca456e363ea88fc4247a198199ff1cf
 
 ## Currently working on
 
-Autoplay/YouTube playback smoothing and per-track playlist deletion are complete and published.
+No unfinished implementation task. The latest Autoplay and playback-resilience changes are published and verified.
 
 ## Last completed
 
-Published commit cd2a1c40bb4479338473dc425de38f282f8c0860. Direct HTTP YouTube audio is preferred, network sources use larger source-specific start and recovery buffers, and every playlist row has a confirmed trash action. Locally removed Spotify tracks remain excluded during later syncs without modifying Spotify itself.
+Published commit 529d3d264ca456e363ea88fc4247a198199ff1cf: separate verified Autoplay music genres and artists with selectable suggestions; preserve old profiles; use both groups in recommendations; make YouTube and GoogleVideo network failures recover faster; keep useful Discord voice error reasons.
 
 ## Next
 
-Read this file first in a new Codex chat. The installed bot must use Dashboard > System > Update once, then verify Autoplay playback over Discord and remove a test title from a playlist.
+Test the updated installation normally. If an external network outage appears again, capture the new diagnostic entry; permanent unavailable YouTube videos will continue to be skipped because no client can play them.
 
 ## Verification
 
-125/125 backend tests passed; Playwright dashboard test passed; GitHub Actions run 33650632969 succeeded.
+All 127 backend tests passed. The complete Playwright dashboard flow passed. GitHub Actions CI run 34149817801 completed successfully.
 
 ## Safety note
 
