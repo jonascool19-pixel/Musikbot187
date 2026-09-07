@@ -1,8 +1,8 @@
 # Codex work status
 
-Last updated: 2026-09-07T20:27:25.190Z
+Last updated: 2026-09-07T20:34:37.959Z
 Status: complete
-Base: main at 6a0612b1accf44cda12f318d9a04af146a45af18 before publication
+Base: main at 2c303ba527fb017a5dfe161a34d333d123b3eb24
 
 ## Currently working on
 
@@ -10,15 +10,15 @@ Keine offene Implementierung in diesem Paket.
 
 ## Last completed
 
-Lokale Dateien und Downloads nutzen größere PCM- und Discord-Puffer. YouTube zeigt Künstler/Kanal. Autoplay folgt festen Vorgaben oder dem gelernten Profil, variiert Suchen, verbraucht ungenutzte Treffer, merkt sich 250 Titel über Neustarts, vermeidet Wiederholungsschleifen und lehnt Titel über sechs Minuten sowie Top-/Playlist-/Compilation-Videos ab.
+Commit 2c303ba stabilisiert lokale Dateien/Downloads und verankert Autoplay an Vorgaben bzw. gelerntem Profil; YouTube-Künstleranzeige, Suchvariation, dauerhafte Wiederholungssperre, Sechs-Minuten-Grenze und Listen-/Compilation-Filter sind veröffentlicht.
 
 ## Next
 
-GitHub-Update installieren und lokale Datei-/Download-Wiedergabe sowie einen längeren Autoplay-Durchlauf im echten Discord-Voice-Kanal beobachten.
+Dashboard-Update installieren und lokale Datei-/Download-Wiedergabe sowie einen längeren Autoplay-Durchlauf im echten Discord-Voice-Kanal beobachten.
 
 ## Verification
 
-144 von 144 Backendtests sowie der vollständige Playwright-Dashboardablauf erfolgreich; vorheriger Zwei-Player-300-Sekunden-Benchmark ohne Speicherwachstum.
+144 von 144 lokale Backendtests und Playwright erfolgreich; GitHub-CI 34159819340 inklusive npm audit, Linux-Player-Benchmark, nativem Discord-Opus-Smoke-Test und Browserprüfung vollständig erfolgreich.
 
 ## Safety note
 
