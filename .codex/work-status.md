@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T19:45:44.160Z
-Status: complete
-Base: main at 2e3fb041ae26fdf3ab2bdb476e91b385e57ac640
+Last updated: 2026-09-07T19:54:13.960Z
+Status: in_progress
+Base: main at e7f3b458299f3d2ff3b7687757a487aa5a23dd42
 
 ## Currently working on
 
-Keine offene Aufgabe. Autoplay füllt die Warteschlange wieder mit geprüften Musiktiteln und Online-Wiedergabe erholt sich von FFmpeg exit 255.
+Autoplay-Leerstand ist auf drei Ebenen behoben: flache YouTube-Treffer, musikgerichtete Suchanfragen und Profiltitel als Reserve.
 
 ## Last completed
 
-Ausgewogene Musikmetadaten-Prüfung und Wiederholungsbehandlung für unerklärten Online-FFmpeg-Exit 255 sind auf GitHub veröffentlicht.
+Gelernte Titel sind keine dauerhafte Sperrliste mehr; Nicht-Musik-Begriffe wurden erweitert und die Leermeldung unterscheidet künftig null YouTube-Treffer von vollständig gefilterten Treffern.
 
 ## Next
 
-Auf dem Musikbot das Dashboard-Update installieren und Autoplay nach dem Neustart prüfen.
+Änderungen auf GitHub veröffentlichen und den vollständigen CI-Lauf bis zum Ergebnis überwachen.
 
 ## Verification
 
-139 Backendtests, lokaler Dashboard-Browsertest und GitHub-CI-Lauf 34156726711 einschließlich Sicherheits-, Player-, Discord-Audio- und Browsertest sind erfolgreich.
+140 Backendtests, Syntaxprüfung und vollständiger lokaler Dashboard-Browsertest sind erfolgreich.
 
 ## Safety note
 

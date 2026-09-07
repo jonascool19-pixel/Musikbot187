@@ -5,7 +5,7 @@ export const autoplayDiscoveryQueries=Object.freeze([
   'beliebte Musik Deutschland verschiedene Künstler',
   'neue Musik entdecken Mix verschiedene Künstler'
 ]);
-export const autoplayNonMusicSearchSuffix='-tutorial -anleitung -review -reaction -interview -podcast';
+export const autoplayNonMusicSearchSuffix='-tutorial -anleitung -guide -review -reaction -interview -podcast -documentary -trailer -gameplay';
 export const listeningProfileLimit=200;
 export const autoplayMaxDurationSeconds=10*60;
 export const autoplayProfileStyleLimit=20;
@@ -20,10 +20,9 @@ const hardDanceStyles=new Set(['Uptempo','Hardcore','Hardstyle']);
 const modernElectronicStyles=new Set(['Uptempo','Hardcore','Hardstyle','Techno','House','Trance','Drum & Bass']);
 const historicallyUnrelatedPattern=/\b(?:symphon(?:y|ie)|orchestra|orchester|philharmoni(?:c|e)|concerto|sonat[ae]|opera|operette?|musical|broadway|original\s+cast|show\s+tune|gershwin|mozart|beethoven|vivaldi|chopin|brahms|tchaikovsky|schubert|haydn)\b/i;
 const oldYearPattern=/\b(?:18\d{2}|19[0-7]\d)\b/;
-const definiteNonMusicPattern=/\b(?:how\s+to|so\s+(?:nutzt|nutzen|benutzt|benutzen|verwendet|verwenden)\s+(?:man|sie)|tutorial|anleitung|erklärt|explained|review|reaction|unboxing|interview|podcast|dokumentation|documentary|web\s+player)\b/i;
-const likelyNonMusicPattern=/\b(?:study|studying|distracting|productivity|konzentrieren|lern(?:en|video))\b/i;
+const definiteNonMusicPattern=/\b(?:how\s+to|so\s+(?:nutzt|nutzen|benutzt|benutzen|verwendet|verwenden)\s+(?:man|sie)|tutorials?|anleitung|einrichtung|setup|guide|erklärt|erklärung|explained|review|reaction|unboxing|interview|podcast|dokumentation|documentary|web\s+player|walkthrough|gameplay|let'?s\s+play|trailer|behind\s+the\s+scenes|making\s+of|nachrichten|news)\b/i;
+const likelyNonMusicPattern=/\b(?:study|studying|distracting|productivity|konzentrieren|lern(?:en|video)|tipps?|tips?|vergleich|comparison|episode|folge|vlog|shorts?)\b/i;
 const musicMarkerPattern=/\b(?:official\s+(?:music\s+)?(?:video|audio)|lyrics?|lyric\s+video|visuali[sz]er|remix|radio\s+edit|extended\s+mix|music\s+video|official\s+song|feat\.?|ft\.?)\b/i;
-const artistTitlePattern=/\S.{0,120}\s+[–—-]\s+\S/;
 
 export function autoplayTrackKey(track){
   if(!track||typeof track!=='object')return '';
@@ -39,7 +38,7 @@ export function recommendationQuery(track){
     .trim()
     .slice(0,150);
   const styles=inferTrackStyles(track);
-  return title?(styles.length?`${styles.slice(0,2).join(' ')} ähnliche Songs verschiedene Künstler Mix`:`${title} ähnliche Songs verschiedene Künstler Mix -cover -lyrics -remix`):'';
+  return title?(styles.length?`${styles.slice(0,2).join(' ')} ähnliche Songs verschiedene Künstler Mix`:`${title} ähnliche Songs verschiedene Künstler Mix -cover -lyrics`):'';
 }
 
 const variantWords=new Set(['official','music','video','audio','lyrics','lyric','live','remix','remastered','remaster','edit','version','sped','slowed','reverb','nightcore','cover','karaoke','instrumental','visualizer','visualiser','hq','hd','mv']);
@@ -76,11 +75,11 @@ export function autoplayTrackAllowed(track,blockedStyles=[]){const duration=Numb
 export function autoplayMusicCandidateAllowed(track,blockedStyles=[]){
   if(!autoplayTrackAllowed(track,blockedStyles))return false;
   if(track?.source&&track.source!=='youtube')return true;
-  const title=String(track?.title||'').trim(),artist=String(track?.artist||track?.channel||track?.uploader||'').trim(),text=`${title} ${artist}`,duration=Number(track?.duration)||0,styleEvidence=stylesIn(`${text} ${(track?.styles||[]).join(' ')}`).length>0,strongMusicEvidence=styleEvidence||musicMarkerPattern.test(text)||/\btopic\b/i.test(artist),metadataEvidence=artist.length>=2&&duration>=60&&duration<=autoplayMaxDurationSeconds,musicEvidence=strongMusicEvidence||artistTitlePattern.test(title)||metadataEvidence;
+  const title=String(track?.title||'').trim(),artist=String(track?.artist||track?.channel||track?.uploader||'').trim(),text=`${title} ${artist}`,duration=Number(track?.duration)||0,styleEvidence=stylesIn(`${text} ${(track?.styles||[]).join(' ')}`).length>0,strongMusicEvidence=styleEvidence||musicMarkerPattern.test(text)||/\btopic\b/i.test(artist);
   if(definiteNonMusicPattern.test(text))return false;
   if(likelyNonMusicPattern.test(text)&&!strongMusicEvidence)return false;
   if(duration>0&&duration<60&&!musicMarkerPattern.test(text)&&!styleEvidence)return false;
-  return musicEvidence;
+  return true;
 }
 export const normalizeAutoplayTermKind=value=>['genre','artist'].includes(String(value||''))?String(value):'any';
 const autoplayArtistCandidate=item=>{const direct=normalizeStyleValue(item?.artist||item?.channel||item?.uploader||'');if(direct.length>=2)return direct;const title=String(item?.title||''),parts=title.split(/\s+[–—-]\s+/);return parts.length>1?normalizeStyleValue(parts[0]):'';};
@@ -432,10 +431,11 @@ export class AutoplayController{
       this.lastSeedTitle=String(seed.title||'Aktueller Titel');
       this.recommendationBuffer=[];
     }
-    const used=new Set([currentKey,seedKey,...this.profile.tracks.map(autoplayTrackKey),...this.player.queue.map(autoplayTrackKey),...this.recentKeys,...this.recommendationBuffer.map(autoplayTrackKey)].filter(Boolean)),familyReferences=[current,...(discovery?[]:[seed]),...this.profile.tracks,...this.player.queue,...this.recentFamilies].filter(Boolean);
+    const used=new Set([currentKey,seedKey,...this.player.queue.map(autoplayTrackKey),...this.recentKeys,...this.recommendationBuffer.map(autoplayTrackKey)].filter(Boolean)),profileKeys=new Set(this.profile.tracks.map(autoplayTrackKey).filter(Boolean)),profileReferences=this.profile.tracks,familyReferences=[current,...(discovery?[]:[seed]),...this.player.queue,...this.recentFamilies].filter(Boolean),knownProfileFallback=[];
+    let inspectedCandidates=0;
     if(this.recommendationBuffer.length<needed){
-      const blockedSuffix=this.profile.blockedStyles.map(style=>`-${/\s/.test(style)?`"${style.replaceAll('"','')}"`:style}`).join(' '),preferredStyles=this.profile.preferredStyles,preferredArtists=this.profile.preferredArtists,preferredStyle=preferredStyles[this.mixCounter%Math.max(1,preferredStyles.length)]||'',preferredArtist=preferredArtists[this.mixCounter%Math.max(1,preferredArtists.length)]||'',primaryQuery=[preferredArtist,preferredStyle,recommendationQuery(seed),blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' '),queryCandidates=[{query:primaryQuery,style:preferredStyle,artist:preferredArtist},...preferredStyles.map(style=>({query:`${style} ähnliche Songs verschiedene Künstler ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style,artist:''})),...preferredArtists.map(artist=>({query:`${artist} ähnliche Songs und Künstler ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style:'',artist}))];
-      if(!preferredStyles.length&&!preferredArtists.length)queryCandidates.push(...autoplayDiscoveryQueries.map(query=>({query:`${query} ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style:'',artist:''})));
+      const blockedSuffix=this.profile.blockedStyles.map(style=>`-${/\s/.test(style)?`"${style.replaceAll('"','')}"`:style}`).join(' '),preferredStyles=this.profile.preferredStyles,preferredArtists=this.profile.preferredArtists,preferredStyle=preferredStyles[this.mixCounter%Math.max(1,preferredStyles.length)]||'',preferredArtist=preferredArtists[this.mixCounter%Math.max(1,preferredArtists.length)]||'',primaryQuery=[preferredArtist,preferredStyle,recommendationQuery(seed),'official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' '),queryCandidates=[{query:primaryQuery,style:preferredStyle,artist:preferredArtist},...preferredStyles.map(style=>({query:`${style} Songs official audio verschiedene Künstler ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style,artist:''})),...preferredArtists.map(artist=>({query:`${artist} Songs official audio ähnliche Künstler ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style:'',artist}))];
+      if(!preferredStyles.length&&!preferredArtists.length)queryCandidates.push(...autoplayDiscoveryQueries.map(query=>({query:`${query} official audio ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style:'',artist:''})));
       const querySpecs=[],queryKeys=new Set();for(const spec of queryCandidates){const query=String(spec.query||'').trim(),key=query.toLocaleLowerCase('de-DE');if(!query||queryKeys.has(key))continue;queryKeys.add(key);querySpecs.push({...spec,query});}
       if(!querySpecs.length){
         this.statusCode='waiting';
@@ -448,13 +448,16 @@ export class AutoplayController{
         try{found=await this.recommend(seed,{query:spec.query,limit:50})}catch(error){failures.push(String(error?.message||error));continue}
         const fresh=[];
         for(const [rank,track] of (Array.isArray(found)?found:[]).entries()){
+          inspectedCandidates++;
           const key=autoplayTrackKey(track);
           if(!key||candidateKeys.has(key)||!autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)||!autoplayCandidateMatchesPreferences(track,{preferredStyles,preferredArtists,queryStyle:spec.style,queryArtist:spec.artist,rank})||familyReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>sameRecommendationFamily(item,track)))continue;
+          if(profileKeys.has(key)||profileReferences.some(item=>sameRecommendationFamily(item,track))){knownProfileFallback.push(track);candidateKeys.add(key);continue}
           fresh.push(track);candidateKeys.add(key);
         }
         this.recommendationBuffer.push(...fresh);
         if(this.recommendationBuffer.length>=needed)break;
       }
+      if(!this.recommendationBuffer.length)for(const track of knownProfileFallback){if(this.recommendationBuffer.some(item=>sameRecommendationFamily(item,track)))continue;this.recommendationBuffer.push(track);if(this.recommendationBuffer.length>=needed)break}
       if(!this.recommendationBuffer.length&&failures.length===querySpecs.length)throw new Error(`YouTube-Suche für den Startmix fehlgeschlagen: ${failures.at(-1)}`);
     }
     const items=[];
@@ -470,7 +473,7 @@ export class AutoplayController{
     }
     if(!items.length){
       this.statusCode='waiting';
-      this.detail=`Zu „${this.lastSeedTitle}“ wurden gerade keine weiteren eindeutigen Vorschläge gefunden. In 30 Sekunden wird automatisch erneut gesucht.`;
+      this.detail=inspectedCandidates?`Zu „${this.lastSeedTitle}“ wurden ${inspectedCandidates} YouTube-Treffer geprüft, aber gerade keine passenden neuen Musiktitel gefunden. In 30 Sekunden wird automatisch erneut gesucht.`:`Zu „${this.lastSeedTitle}“ hat YouTube gerade keine Suchtreffer geliefert. In 30 Sekunden wird automatisch erneut gesucht.`;
     }
     return items;
   }

@@ -93,7 +93,7 @@ test('personal mix replaces a full repeating playlist queue and excludes learned
 test('autoplay configuration and recommendation text are bounded and normalized',()=>{
   const playlists=[{id:'known'}],config=normalizeAutoplayConfiguration({mode:'invalid',playlistIds:['missing','known','known'],queueTarget:999},playlists);
   assert.deepEqual(config,{mode:'playlists',playlistIds:['known'],queueTarget:20});
-  assert.equal(recommendationQuery({title:'Artist – Track (Official Video).mp3'}),'Artist – Track ähnliche Songs verschiedene Künstler Mix -cover -lyrics -remix');
+  assert.equal(recommendationQuery({title:'Artist – Track (Official Video).mp3'}),'Artist – Track ähnliche Songs verschiedene Künstler Mix -cover -lyrics');
   assert.deepEqual(inferTrackStyles({title:'Uptempo und Rawstyle Mix'}),['Uptempo','Hardstyle']);
   assert.equal(recommendationFamily({title:'Artist – Track (Official Video)'}),recommendationFamily({title:'Artist – Track (Sped Up Version)'}));
   assert.equal(sameRecommendationFamily({title:'Artist – Track (Official Video)'},{title:'Artist – Track (DJ Remix)'}),true);
@@ -124,12 +124,20 @@ test('autoplay keeps music results and rejects tutorials and study videos',()=>{
   assert.match(autoplayNonMusicSearchSuffix,/-podcast/);
 });
 
-test('similar autoplay accepts ordinary song metadata without an official-video label',async()=>{
+test('similar autoplay accepts flat music-search results without optional YouTube metadata',async()=>{
   const player=new FakePlayer();player.current={id:'turbo',title:'New Kids, Paul Elstak, Satirized, Aalst – Turbo (Satirized & Aalst Turbo Saté Remix)',artist:'Paul Elstak',source:'youtube',duration:193,autoplay:true,autoplayMode:'similar'};
-  const settings={autoplayEnabled:true,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo','Techno','Hardstyle'],preferredArtists:[],blockedStyles:[]},recommendations=Array.from({length:5},(_,index)=>({id:`plain-song-${index}`,title:`Turbo Titel ${index}`,artist:`Hard-Dance-Künstler ${index}`,source:'youtube',duration:180+index})),controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async()=>recommendations,save:async()=>{}});
+  const settings={autoplayEnabled:true,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo','Techno','Hardstyle'],preferredArtists:[],blockedStyles:[]},recommendations=Array.from({length:5},(_,index)=>({id:`plain-song-${index}`,title:`Turbo Titel ${index}`,source:'youtube'})),controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async()=>recommendations,save:async()=>{}});
   await controller.fill();
   assert.equal(player.current.id,'turbo');
   assert.deepEqual(player.queue.map(track=>track.id),['plain-song-0','plain-song-1','plain-song-2']);
+  controller.close();
+});
+
+test('learned profile songs are a last-resort music source instead of a permanent blacklist',async()=>{
+  const learned=Array.from({length:5},(_,index)=>({key:`youtube:known-${index}`,id:`known-${index}`,title:`Bekannter Künstler ${index} – Uptempo Lied ${index}`,source:'youtube',styles:['Uptempo'],listens:index+1,lastPlayed:index+1})),player=new FakePlayer(),settings={autoplayEnabled:true,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:learned,preferredStyles:['Uptempo'],preferredArtists:[],blockedStyles:[]},recommendations=learned.map(track=>({...track})),controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async()=>recommendations,save:async()=>{}});
+  await controller.fill();
+  assert.equal(player.current.id,'known-0');
+  assert.deepEqual(player.queue.map(track=>track.id),['known-1','known-2','known-3']);
   controller.close();
 });
 
