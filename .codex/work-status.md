@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T21:02:29.078Z
-Status: complete
-Base: main at 6b105cfae876e580fef033f3471f17ee5461e4d2
+Last updated: 2026-09-07T21:27:38.292Z
+Status: completed
+Base: main at 53cab11
 
 ## Currently working on
 
-Kein offener Umsetzungsschritt: der personalisierte Autoplay-Mix und die zuverlässige Profilbearbeitung sind auf GitHub veröffentlicht.
+Kein offener Entwicklungsschritt; der freigegebene Ausbau des persönlichen Musikprofils ist abgeschlossen.
 
 ## Last completed
 
-Commit 6b105cf mischt manuelle und gelernte Genres sowie Künstler abwechselnd, lernt Künstler samt Hörgewicht und entfernt Wunsch-/Sperreinträge nach einem Klick zuverlässig.
+Mehr-/Weniger-Feedback, getrennte Durchhör- und Früh-Skip-Signale, dauerhafte Titel- und Playlist-Ausschlüsse sowie ein kontrollierter 75/25-Entdeckungsmix wurden in 53cab11 umgesetzt.
 
 ## Next
 
-Im Ubuntu-CT aktualisieren und den echten Mix beobachten. Als sinnvolle nächste Profilstufe kommen bewusstes Gefällt-mir/Weniger-davon sowie Skip- und Durchhörsignale infrage.
+Nach dem Update im echten Discord-Betrieb beobachten, ob die Mischung aus erkannten Stilrichtungen und Künstlern langfristig abwechslungsreich bleibt; neue konkrete Auffälligkeiten mit Titel und Zeitpunkt prüfen.
 
 ## Verification
 
-148 von 148 Backendtests und der Playwright-Browsertest erfolgreich; GitHub-CI 34161523039 vollständig erfolgreich.
+154 Backendtests und die vollständige Playwright-Dashboardprüfung erfolgreich; Syntax- und Diff-Prüfung sauber. Zwei bereits vorhandene unversionierte pnpm-Hilfsdateien blieben unberührt.
 
 ## Safety note
 
