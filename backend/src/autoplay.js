@@ -193,6 +193,27 @@ export class AutoplayController{
     return this.profileSummary();
   }
 
+  async learnFromPlaylists(playlists,now=Date.now()){
+    const selected=(Array.isArray(playlists)?playlists:[]).filter(playlist=>playlist&&Array.isArray(playlist.items));
+    if(!selected.length)throw new Error('Bitte mindestens eine Playlist auswählen.');
+    const rows=[],largest=Math.max(0,...selected.map(playlist=>playlist.items.length));
+    for(let index=0;index<largest;index++)for(const playlist of selected)if(playlist.items[index])rows.push(playlist.items[index]);
+    const beforeKeys=new Set(this.profile.tracks.map(track=>track.key)),seen=new Set();let accepted=0,existing=0,ignored=0;
+    for(let rowIndex=0;rowIndex<rows.length;rowIndex++){
+      const track=rows[rowIndex];
+      const key=autoplayTrackKey(track);
+      if(!key||seen.has(key)||track?.source==='radio'||track?.autoplayMode==='similar'||!autoplayTrackAllowed(track,this.profile.blockedStyles)){ignored++;continue}
+      seen.add(key);accepted++;
+      const entry=this.profile.tracks.find(value=>value.key===key),styles=[...new Set([...(entry?.styles||[]),...inferTrackStyles(track)])];
+      if(entry){existing++;entry.title=String(track.title||entry.title||'Ohne Titel').slice(0,200);entry.source=String(track.source||entry.source||'');entry.id=String(track.id||entry.id||'');entry.url=String(track.url||entry.url||'');entry.path=String(track.path||entry.path||'');entry.duration=Number(track.duration)||Number(entry.duration)||0;entry.styles=styles;continue}
+      this.profile.tracks.push({key,title:String(track.title||'Ohne Titel').slice(0,200),source:String(track.source||''),id:String(track.id||''),url:String(track.url||''),path:String(track.path||''),duration:Number(track.duration)||0,styles,listens:1,lastPlayed:now-rowIndex});
+    }
+    if(this.profile.tracks.length>listeningProfileLimit){const favorites=[...this.profile.tracks].sort((a,b)=>Number(b.listens||0)-Number(a.listens||0)||Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).slice(0,listeningProfileFavorites),favoriteKeys=new Set(favorites.map(value=>value.key)),recent=[...this.profile.tracks].filter(value=>!favoriteKeys.has(value.key)).sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).slice(0,listeningProfileLimit-favorites.length);this.profile.tracks=[...favorites,...recent].sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0));}
+    await this.save();
+    const afterKeys=new Set(this.profile.tracks.map(track=>track.key)),added=[...afterKeys].filter(key=>!beforeKeys.has(key)).length;
+    return {profile:this.profileSummary(),playlistCount:selected.length,scanned:rows.length,accepted,added,existing,ignored};
+  }
+
   async removeProfileTrack(key){const value=String(key||''),index=this.profile.tracks.findIndex(track=>track.key===value);if(index<0)throw new Error('Der gelernte Titel wurde nicht gefunden.');this.profile.tracks.splice(index,1);this.recentKeys=this.recentKeys.filter(item=>item!==value);this.recommendationBuffer=this.recommendationBuffer.filter(item=>autoplayTrackKey(item)!==value);if(this.lastSeedKey===value){this.lastSeedKey='';this.lastSeedTitle='';}await this.save();return this.profileSummary();}
 
   async updateProfileStyles({preferredStyles=[],preferredArtists=[],blockedStyles=[]}={}){
