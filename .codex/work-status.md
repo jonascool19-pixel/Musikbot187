@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T19:28:53.511Z
-Status: in_progress
-Base: main at feb6c75a52a63634bac11d19d49525adf47ffe5f
+Last updated: 2026-09-07T19:31:27.301Z
+Status: complete
+Base: main at a5c878173a6275154dafcd0550ab100c3427e347
 
 ## Currently working on
 
-Der Nicht-Musik-Filter und die Bereinigung bereits gespeicherter falscher Autoplay-Titel sind umgesetzt und vollständig getestet.
+Keine offene Aufgabe. Der persönliche Autoplay-Mix spielt nur noch plausibel erkannte Musiktitel.
 
 ## Last completed
 
-YouTube-Anleitungen sowie Lern-, Podcast- und Erklärvideos werden im persönlichen Mix abgewiesen; die sichtbaren Fehlerbeispiele aus dem Nutzerbild sind als Regressionstest erfasst.
+Nicht-Musik-Filter, negative Suchbegriffe und Bereinigung wiederhergestellter falscher Autoplay-Titel sind auf GitHub veröffentlicht.
 
 ## Next
 
-Änderungen auf GitHub veröffentlichen und den automatischen GitHub-Prüflauf bis zum Ergebnis überwachen.
+Nach dem Update des Musikbots Autoplay einmal beobachten; weitere konkrete Fehltreffer können mit Titel und Zeitpunkt gemeldet werden.
 
 ## Verification
 
-137 Backendtests und der vollständige Dashboard-Browsertest sind erfolgreich; Syntaxprüfung von backend/src/autoplay.js ist erfolgreich.
+137 Backendtests, lokaler Dashboard-Browsertest und GitHub-CI-Lauf 34155832422 einschließlich Browser-, Sicherheits-, Player- und Discord-Audiotest sind erfolgreich.
 
 ## Safety note
 
