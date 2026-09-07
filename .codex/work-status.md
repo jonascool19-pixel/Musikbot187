@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T18:01:02.629Z
+Last updated: 2026-09-07T18:21:59.319Z
 Status: complete
-Base: main at 529d3d264ca456e363ea88fc4247a198199ff1cf
+Base: main at 0f06210e8ce710ce920d233293eb1d8beda88f1d
 
 ## Currently working on
 
-No unfinished implementation task. The latest Autoplay and playback-resilience changes are published and verified.
+No unfinished implementation task. The reported Spotify near-end reconnect loop is fixed and published.
 
 ## Last completed
 
-Published commit 529d3d264ca456e363ea88fc4247a198199ff1cf: separate verified Autoplay music genres and artists with selectable suggestions; preserve old profiles; use both groups in recommendations; make YouTube and GoogleVideo network failures recover faster; keep useful Discord voice error reasons.
+Published commit 0f06210e8ce710ce920d233293eb1d8beda88f1d: source-duration differences of up to 12 seconds now finish normally; genuinely premature clean endings retry at most twice and are then skipped instead of looping forever.
 
 ## Next
 
-Test the updated installation normally. If an external network outage appears again, capture the new diagnostic entry; permanent unavailable YouTube videos will continue to be skipped because no client can play them.
+Install the latest update and retry the affected Spotify title. It should finish once and continue with the next queued title.
 
 ## Verification
 
-All 127 backend tests passed. The complete Playwright dashboard flow passed. GitHub Actions CI run 34149817801 completed successfully.
+All 129 backend tests passed, including the exact 208-of-216-second regression and bounded retry behavior. GitHub Actions CI run 34151246561 completed successfully.
 
 ## Safety note
 
