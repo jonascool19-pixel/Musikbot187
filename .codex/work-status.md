@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T19:56:30.043Z
+Last updated: 2026-09-07T20:27:25.190Z
 Status: complete
-Base: main at 230948e61b7bab1937899154c0b0a8f292277a21
+Base: main at 6a0612b1accf44cda12f318d9a04af146a45af18 before publication
 
 ## Currently working on
 
-Keine offene Aufgabe. Autoplay kann sich nicht mehr durch fehlende YouTube-Metadaten oder das eigene Musikprofil leerfiltern.
+Keine offene Implementierung in diesem Paket.
 
 ## Last completed
 
-Flache Musiksuchergebnisse, musikgerichtete Suchabfragen, erweiterte Nicht-Musik-Sperren, Profiltitel-Reserve und aussagekräftige Leermeldung sind auf GitHub veröffentlicht.
+Lokale Dateien und Downloads nutzen größere PCM- und Discord-Puffer. YouTube zeigt Künstler/Kanal. Autoplay folgt festen Vorgaben oder dem gelernten Profil, variiert Suchen, verbraucht ungenutzte Treffer, merkt sich 250 Titel über Neustarts, vermeidet Wiederholungsschleifen und lehnt Titel über sechs Minuten sowie Top-/Playlist-/Compilation-Videos ab.
 
 ## Next
 
-Dashboard-Update installieren; falls die Warteschlange wider Erwarten leer bleibt, die neue Meldung mit der angezeigten Anzahl geprüfter YouTube-Treffer senden.
+GitHub-Update installieren und lokale Datei-/Download-Wiedergabe sowie einen längeren Autoplay-Durchlauf im echten Discord-Voice-Kanal beobachten.
 
 ## Verification
 
-140 Backendtests, lokaler Dashboard-Browsertest und GitHub-CI-Lauf 34157427777 einschließlich Sicherheits-, Player-, Discord-Audio- und Browsertest sind erfolgreich.
+144 von 144 Backendtests sowie der vollständige Playwright-Dashboardablauf erfolgreich; vorheriger Zwei-Player-300-Sekunden-Benchmark ohne Speicherwachstum.
 
 ## Safety note
 

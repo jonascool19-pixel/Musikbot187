@@ -5,9 +5,10 @@ export const autoplayDiscoveryQueries=Object.freeze([
   'beliebte Musik Deutschland verschiedene Künstler',
   'neue Musik entdecken Mix verschiedene Künstler'
 ]);
-export const autoplayNonMusicSearchSuffix='-tutorial -anleitung -guide -review -reaction -interview -podcast -documentary -trailer -gameplay';
+export const autoplaySearchVariants=Object.freeze(['neue Releases','Underground Tracks','Festival Tracks','aktuelle Songs','Label Releases']);
+export const autoplayNonMusicSearchSuffix='-tutorial -anleitung -guide -review -reaction -interview -podcast -documentary -trailer -gameplay -playlist -compilation -"top 10" -"top 100"';
 export const listeningProfileLimit=200;
-export const autoplayMaxDurationSeconds=10*60;
+export const autoplayMaxDurationSeconds=6*60;
 export const autoplayProfileStyleLimit=20;
 const listeningProfileFavorites=40;
 const listeningThresholdMs=30_000;
@@ -20,7 +21,7 @@ const hardDanceStyles=new Set(['Uptempo','Hardcore','Hardstyle']);
 const modernElectronicStyles=new Set(['Uptempo','Hardcore','Hardstyle','Techno','House','Trance','Drum & Bass']);
 const historicallyUnrelatedPattern=/\b(?:symphon(?:y|ie)|orchestra|orchester|philharmoni(?:c|e)|concerto|sonat[ae]|opera|operette?|musical|broadway|original\s+cast|show\s+tune|gershwin|mozart|beethoven|vivaldi|chopin|brahms|tchaikovsky|schubert|haydn)\b/i;
 const oldYearPattern=/\b(?:18\d{2}|19[0-7]\d)\b/;
-const definiteNonMusicPattern=/\b(?:how\s+to|so\s+(?:nutzt|nutzen|benutzt|benutzen|verwendet|verwenden)\s+(?:man|sie)|tutorials?|anleitung|einrichtung|setup|guide|erklärt|erklärung|explained|review|reaction|unboxing|interview|podcast|dokumentation|documentary|web\s+player|walkthrough|gameplay|let'?s\s+play|trailer|behind\s+the\s+scenes|making\s+of|nachrichten|news)\b/i;
+const definiteNonMusicPattern=/\b(?:how\s+to|so\s+(?:nutzt|nutzen|benutzt|benutzen|verwendet|verwenden)\s+(?:man|sie)|tutorials?|anleitung|einrichtung|setup|guide|erklärt|erklärung|explained|review|reaction|unboxing|interview|podcast|dokumentation|documentary|web\s+player|walkthrough|gameplay|let'?s\s+play|trailer|behind\s+the\s+scenes|making\s+of|nachrichten|news|top\s*\d+|best(?:e|en)?\s*\d+|best\s+of|greatest\s+hits|playlists?|compilations?|zusammenstellung|(?:songs?|lieder|hits)\s+(?:mix|sammlung))\b/i;
 const likelyNonMusicPattern=/\b(?:study|studying|distracting|productivity|konzentrieren|lern(?:en|video)|tipps?|tips?|vergleich|comparison|episode|folge|vlog|shorts?)\b/i;
 const musicMarkerPattern=/\b(?:official\s+(?:music\s+)?(?:video|audio)|lyrics?|lyric\s+video|visuali[sz]er|remix|radio\s+edit|extended\s+mix|music\s+video|official\s+song|feat\.?|ft\.?)\b/i;
 
@@ -56,6 +57,7 @@ const comparableMusicTerm=value=>normalizeStyleValue(value).normalize('NFKD').re
 const stylesIn=value=>styleMatchers.filter(([,pattern])=>pattern.test(String(value||''))).map(([label])=>label);
 const compatibleStyle=(candidate,preferred)=>candidate===preferred||hardDanceStyles.has(candidate)&&hardDanceStyles.has(preferred);
 const containsMusicTerm=(text,term)=>{const value=comparableMusicTerm(text),needle=comparableMusicTerm(term);return Boolean(needle&&` ${value} `.includes(` ${needle} `));};
+const learnedPreferenceStyles=tracks=>{const counts=new Map();for(const track of Array.isArray(tracks)?tracks:[]){const weight=Math.max(1,Number(track?.listens)||1);for(const style of normalizeAutoplayStyles([...(track?.styles||[]),...inferTrackStyles(track)]))counts.set(style,(counts.get(style)||0)+weight)}return [...counts].sort((left,right)=>right[1]-left[1]).slice(0,3).map(([style])=>style);};
 export function autoplayCandidateMatchesPreferences(track,{preferredStyles=[],preferredArtists=[],queryStyle='',queryArtist='',rank=0}={}){
   const styles=normalizeAutoplayStyles(preferredStyles),artists=normalizeAutoplayStyles(preferredArtists);
   if(!styles.length&&!artists.length)return true;
@@ -67,7 +69,7 @@ export function autoplayCandidateMatchesPreferences(track,{preferredStyles=[],pr
   const modernElectronic=preferredKnown.some(style=>modernElectronicStyles.has(style));
   if(modernElectronic&&(historicallyUnrelatedPattern.test(text)||oldYearPattern.test(text)))return false;
   if(queryArtist&&!containsMusicTerm(text,queryArtist)&&!queryStyle)return false;
-  return Boolean(queryStyle&&rank<12);
+  return Boolean(queryStyle&&rank<6);
 }
 const unknownLongFormPattern=/\b(?:musik\s*quiz|music\s*quiz|megamix|continuous\s+mix|full\s+(?:album|mix|set|concert)|dj\s+set|podcast|live\s*stream|livestream|\d+\s*(?:hours?|stunden?))\b/i;
 export function normalizeAutoplayStyles(values){const result=[],seen=new Set();for(const value of Array.isArray(values)?values:[]){const style=normalizeStyleValue(value),key=comparable(style);if(style.length<2||seen.has(key))continue;seen.add(key);result.push(style);if(result.length>=autoplayProfileStyleLimit)break}return result;}
@@ -136,8 +138,9 @@ export class AutoplayController{
     this.diagnostic=diagnostic;
     this.cursor=0;
     this.recommendationBuffer=[];
-    this.recentKeys=[];
-    this.recentFamilies=[];
+    this.profile.recentAutoplay=(Array.isArray(this.profile.recentAutoplay)?this.profile.recentAutoplay:[]).filter(item=>item&&typeof item.key==='string'&&item.key).slice(-250).map(item=>({key:String(item.key).slice(0,500),title:String(item.title||'').slice(0,200)}));
+    this.recentKeys=this.profile.recentAutoplay.map(item=>item.key);
+    this.recentFamilies=this.profile.recentAutoplay.map(item=>({title:item.title}));
     this.lastSeedKey='';
     this.lastSeedTitle='';
     this.addedTotal=0;
@@ -247,7 +250,7 @@ export class AutoplayController{
     return {profile:this.profileSummary(),playlistCount:selected.length,scanned:rows.length,accepted,added,existing,ignored};
   }
 
-  async removeProfileTrack(key){const value=String(key||''),index=this.profile.tracks.findIndex(track=>track.key===value);if(index<0)throw new Error('Der gelernte Titel wurde nicht gefunden.');this.profile.tracks.splice(index,1);this.recentKeys=this.recentKeys.filter(item=>item!==value);this.recommendationBuffer=this.recommendationBuffer.filter(item=>autoplayTrackKey(item)!==value);if(this.lastSeedKey===value){this.lastSeedKey='';this.lastSeedTitle='';}await this.save();return this.profileSummary();}
+  async removeProfileTrack(key){const value=String(key||''),index=this.profile.tracks.findIndex(track=>track.key===value);if(index<0)throw new Error('Der gelernte Titel wurde nicht gefunden.');this.profile.tracks.splice(index,1);this.recommendationBuffer=this.recommendationBuffer.filter(item=>autoplayTrackKey(item)!==value);if(this.lastSeedKey===value){this.lastSeedKey='';this.lastSeedTitle='';}await this.save();return this.profileSummary();}
 
   async updateProfileStyles({preferredStyles=[],preferredArtists=[],blockedStyles=[]}={}){
     const prior=this.pending,enabled=Boolean(this.settings.autoplayEnabled);
@@ -269,6 +272,7 @@ export class AutoplayController{
 
   async resetProfile(){
     this.profile.tracks=[];
+    this.profile.recentAutoplay=[];
     this.recommendationBuffer=[];
     this.recentKeys=[];
     this.recentFamilies=[];
@@ -281,8 +285,6 @@ export class AutoplayController{
     this.generation++;
     this.cursor=0;
     this.recommendationBuffer=[];
-    this.recentKeys=[];
-    this.recentFamilies=[];
     this.lastSeedKey='';
     this.lastSeedTitle='';
     this.addedTotal=0;
@@ -380,14 +382,19 @@ export class AutoplayController{
     this.player.add(items);
     this.addedTotal+=items.length;
     this.statusCode='active';
+    const hasManualPreferences=Boolean(this.profile.preferredStyles.length||this.profile.preferredArtists.length),learnedStyles=hasManualPreferences?[]:learnedPreferenceStyles(this.profile.tracks);
     this.detail=config.mode==='playlists'
       ?'Ausgewählte Playlists laufen der Reihe nach in Endlosschleife.'
-      :`Ähnliche Titel zu „${this.lastSeedTitle}“ werden automatisch ergänzt.`;
+      :hasManualPreferences
+        ?`Neue Titel passend zu deinen Musikvorgaben (${[...this.profile.preferredStyles,...this.profile.preferredArtists].join(', ')}) werden automatisch ergänzt.`
+        :learnedStyles.length
+          ?`Neue Titel passend zu deinem gelernten Musikprofil (${learnedStyles.join(', ')}) werden automatisch ergänzt.`
+          :`Ähnliche Titel zu „${this.lastSeedTitle}“ werden automatisch ergänzt.`;
     return this.state();
   }
 
   removeInvalidSimilarAutoplay(){
-    const preferenceOptions={preferredStyles:this.profile.preferredStyles,preferredArtists:this.profile.preferredArtists,queryStyle:this.profile.preferredStyles[0]||'',queryArtist:this.profile.preferredArtists[0]||'',rank:0},valid=track=>autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)&&autoplayCandidateMatchesPreferences(track,preferenceOptions);
+    const hasManualPreferences=Boolean(this.profile.preferredStyles.length||this.profile.preferredArtists.length),preferredStyles=hasManualPreferences?this.profile.preferredStyles:learnedPreferenceStyles(this.profile.tracks),preferredArtists=hasManualPreferences?this.profile.preferredArtists:[],preferenceOptions={preferredStyles,preferredArtists,queryStyle:preferredStyles[0]||'',queryArtist:preferredArtists[0]||'',rank:0},valid=track=>autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)&&autoplayCandidateMatchesPreferences(track,preferenceOptions);
     for(let index=this.player.queue.length-1;index>=0;index--){const track=this.player.queue[index];if(track?.autoplayMode==='similar'&&!valid(track))this.player.remove(index)}
     const current=this.player.current;if(current?.autoplayMode==='similar'&&!valid(current))this.player.skip();
   }
@@ -420,21 +427,21 @@ export class AutoplayController{
       this.detail='Ein Radiosender läuft dauerhaft. Ähnliche Titel werden bei einzelnen Musikstücken ergänzt.';
       return [];
     }
-    const currentKey=autoplayTrackKey(current),profileSeeds=[...this.profile.tracks].sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).filter(track=>autoplayTrackKey(track)!==currentKey&&autoplayTrackAllowed(track,this.profile.blockedStyles)),librarySeeds=this.getPlaylists().flatMap(playlist=>playlist.items||[]).filter(track=>track&&track.source!=='radio'&&autoplayTrackAllowed(track,this.profile.blockedStyles));
+    const hasManualPreferences=Boolean(this.profile.preferredStyles.length||this.profile.preferredArtists.length),preferredStyles=hasManualPreferences?this.profile.preferredStyles:learnedPreferenceStyles(this.profile.tracks),preferredArtists=hasManualPreferences?this.profile.preferredArtists:[],hasMusicPreferences=Boolean(preferredStyles.length||preferredArtists.length),currentKey=autoplayTrackKey(current),profileSeeds=[...this.profile.tracks].sort((a,b)=>Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).filter(track=>autoplayTrackKey(track)!==currentKey&&autoplayTrackAllowed(track,this.profile.blockedStyles)),librarySeeds=this.getPlaylists().flatMap(playlist=>playlist.items||[]).filter(track=>track&&track.source!=='radio'&&autoplayTrackAllowed(track,this.profile.blockedStyles)),mixIndex=this.mixCounter;
     let useProfile=false,seed=current,discovery=false;
     if(!seed){if(profileSeeds.length){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}else if(librarySeeds.length)seed=librarySeeds[this.mixCounter%librarySeeds.length];else{discovery=true;seed={id:'musikbot187-discovery',title:'Startmix',source:'youtube'};}}
-    else if(profileSeeds.length>0&&this.mixCounter%3===2){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}
+    else if(profileSeeds.length>0&&(current?.autoplayMode==='similar'||this.mixCounter%3===2)){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}
     this.mixCounter++;
     const seedKey=autoplayTrackKey(seed);
     if(seedKey!==this.lastSeedKey){
       this.lastSeedKey=seedKey;
-      this.lastSeedTitle=String(seed.title||'Aktueller Titel');
-      this.recommendationBuffer=[];
+      this.lastSeedTitle=hasMusicPreferences?[...preferredStyles,...preferredArtists].join(', '):String(seed.title||'Aktueller Titel');
+      if(!current?.autoplay||current?.autoplayMode!=='similar')this.recommendationBuffer=[];
     }
-    const used=new Set([currentKey,seedKey,...this.player.queue.map(autoplayTrackKey),...this.recentKeys,...this.recommendationBuffer.map(autoplayTrackKey)].filter(Boolean)),profileKeys=new Set(this.profile.tracks.map(autoplayTrackKey).filter(Boolean)),profileReferences=this.profile.tracks,familyReferences=[current,...(discovery?[]:[seed]),...this.player.queue,...this.recentFamilies].filter(Boolean),knownProfileFallback=[];
+    const used=new Set([currentKey,seedKey,...this.player.queue.map(autoplayTrackKey),...this.recentKeys].filter(Boolean)),profileKeys=new Set(this.profile.tracks.map(autoplayTrackKey).filter(Boolean)),profileReferences=this.profile.tracks,familyReferences=[current,...(discovery?[]:[seed]),...this.player.queue,...this.recentFamilies].filter(Boolean),knownProfileFallback=[];
     let inspectedCandidates=0;
     if(this.recommendationBuffer.length<needed){
-      const blockedSuffix=this.profile.blockedStyles.map(style=>`-${/\s/.test(style)?`"${style.replaceAll('"','')}"`:style}`).join(' '),preferredStyles=this.profile.preferredStyles,preferredArtists=this.profile.preferredArtists,preferredStyle=preferredStyles[this.mixCounter%Math.max(1,preferredStyles.length)]||'',preferredArtist=preferredArtists[this.mixCounter%Math.max(1,preferredArtists.length)]||'',primaryQuery=[preferredArtist,preferredStyle,recommendationQuery(seed),'official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' '),queryCandidates=[{query:primaryQuery,style:preferredStyle,artist:preferredArtist},...preferredStyles.map(style=>({query:`${style} Songs official audio verschiedene Künstler ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style,artist:''})),...preferredArtists.map(artist=>({query:`${artist} Songs official audio ähnliche Künstler ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style:'',artist}))];
+      const blockedSuffix=this.profile.blockedStyles.map(style=>`-${/\s/.test(style)?`"${style.replaceAll('"','')}"`:style}`).join(' '),preferredStyle=preferredStyles[mixIndex%Math.max(1,preferredStyles.length)]||'',preferredArtist=preferredArtists[mixIndex%Math.max(1,preferredArtists.length)]||'',searchVariant=autoplaySearchVariants[mixIndex%autoplaySearchVariants.length],primaryQuery=[preferredArtist,preferredStyle,hasMusicPreferences?'':recommendationQuery(seed),searchVariant,'official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' '),queryCandidates=[{query:primaryQuery,style:preferredStyle,artist:preferredArtist},...preferredStyles.map((style,index)=>({query:`${style} ${autoplaySearchVariants[(mixIndex+index)%autoplaySearchVariants.length]} verschiedene Künstler official audio ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style,artist:''})),...preferredArtists.map((artist,index)=>({query:`${artist} ${autoplaySearchVariants[(mixIndex+index+1)%autoplaySearchVariants.length]} ähnliche Künstler official audio ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style:'',artist}))];
       if(!preferredStyles.length&&!preferredArtists.length)queryCandidates.push(...autoplayDiscoveryQueries.map(query=>({query:`${query} official audio ${blockedSuffix} ${autoplayNonMusicSearchSuffix}`.trim(),style:'',artist:''})));
       const querySpecs=[],queryKeys=new Set();for(const spec of queryCandidates){const query=String(spec.query||'').trim(),key=query.toLocaleLowerCase('de-DE');if(!query||queryKeys.has(key))continue;queryKeys.add(key);querySpecs.push({...spec,query});}
       if(!querySpecs.length){
@@ -442,7 +449,7 @@ export class AutoplayController{
         this.detail='Der aktuelle Titel enthält zu wenig Angaben für ähnliche Vorschläge.';
         return [];
       }
-      const failures=[],candidateKeys=new Set(used);
+      const failures=[],candidateKeys=new Set([...used,...this.recommendationBuffer.map(autoplayTrackKey).filter(Boolean)]);
       for(const spec of querySpecs){
         let found=[];
         try{found=await this.recommend(seed,{query:spec.query,limit:50})}catch(error){failures.push(String(error?.message||error));continue}
@@ -469,11 +476,15 @@ export class AutoplayController{
       if(this.recentKeys.length>250)this.recentKeys.splice(0,this.recentKeys.length-250);
       this.recentFamilies.push({title:track.title});
       if(this.recentFamilies.length>250)this.recentFamilies.splice(0,this.recentFamilies.length-250);
+      this.profile.recentAutoplay.push({key,title:String(track.title||'').slice(0,200)});
+      if(this.profile.recentAutoplay.length>250)this.profile.recentAutoplay.splice(0,this.profile.recentAutoplay.length-250);
       items.push({...track,autoplay:true,autoplayMode:'similar',autoplaySeed:this.lastSeedTitle,autoplayFromProfile:useProfile});
     }
+    if(items.length)await this.save();
     if(!items.length){
       this.statusCode='waiting';
-      this.detail=inspectedCandidates?`Zu „${this.lastSeedTitle}“ wurden ${inspectedCandidates} YouTube-Treffer geprüft, aber gerade keine passenden neuen Musiktitel gefunden. In 30 Sekunden wird automatisch erneut gesucht.`:`Zu „${this.lastSeedTitle}“ hat YouTube gerade keine Suchtreffer geliefert. In 30 Sekunden wird automatisch erneut gesucht.`;
+      const subject=hasMusicPreferences?`Für ${hasManualPreferences?'deine Musikvorgaben':'dein gelerntes Musikprofil'} (${this.lastSeedTitle})`:`Zu „${this.lastSeedTitle}“`;
+      this.detail=inspectedCandidates?`${subject} wurden ${inspectedCandidates} YouTube-Treffer geprüft, aber gerade keine passenden neuen Musiktitel gefunden. In 30 Sekunden wird automatisch mit einer anderen Suche erneut gesucht.`:`${subject} hat YouTube gerade keine Suchtreffer geliefert. In 30 Sekunden wird automatisch mit einer anderen Suche erneut gesucht.`;
     }
     return items;
   }
