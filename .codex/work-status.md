@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T19:14:15.178Z
-Status: in_progress
-Base: main at 344bddee9c80630fee9d09330cfdd5904e7c625a
+Last updated: 2026-09-07T19:17:24.817Z
+Status: complete
+Base: main at 5d495c66cebcec485f1752f22e0de16a946fce86
 
 ## Currently working on
 
-Puffer-Langzeitkorrektur und strikte Autoplay-Stilprüfung sind implementiert und lokal vollständig getestet; Veröffentlichung läuft.
+Keine offene Implementierung; Puffer-Langzeitkorrektur und strikte Autoplay-Stilprüfung sind veröffentlicht und verifiziert.
 
 ## Last completed
 
-FFmpeg-Zeitstempelkorrektur entfernt, monotone Audiotaktung und getrennte Quellen-/Discord-Pufferdiagnosen ergänzt; breite Autoplay-Ersatzsuche bei Wunschstilen gesperrt und unpassende historische sowie gegensätzliche Treffer gefiltert.
+FFmpeg-Zeitstempelkorrektur entfernt, monotone Audiotaktung und getrennte Quellen-/Discord-Pufferdiagnosen ergänzt; bei Wunschstilen keine breite Ersatzsuche mehr, historische oder gegensätzliche Treffer werden verworfen. Veröffentlicht als 5d495c66cebcec485f1752f22e0de16a946fce86.
 
 ## Next
 
-Änderungen auf GitHub veröffentlichen, GitHub Actions bis zum Ergebnis prüfen und danach das Update über System installieren.
+Update über System installieren, mehrere Titel länger als eine Minute hören und bei einem verbleibenden Aussetzer die neue Meldung aus Fehlermeldungen senden; sie nennt jetzt eindeutig Quelle oder Discord-Ausgabe.
 
 ## Verification
 
-135 Backendtests und der vollständige Dashboard-Browsertest bestanden; 600 simulierte Sekunden je Player liefen ohne Speicherwachstum.
+135 Backendtests, vollständiger Dashboard-Browsertest und GitHub Actions 34154917600 einschließlich nativer Opus-Prüfung bestanden; 600 simulierte Sekunden je Player ohne Speicherwachstum.
 
 ## Safety note
 
