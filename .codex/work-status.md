@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T21:27:38.292Z
+Last updated: 2026-09-07T23:46:05.005Z
 Status: completed
-Base: main at 53cab11
+Base: main at e26210a
 
 ## Currently working on
 
-Kein offener Entwicklungsschritt; der freigegebene Ausbau des persönlichen Musikprofils ist abgeschlossen.
+Kein offener Entwicklungsschritt; die Autoplay-Warteschlange und die sichtbare Einmischung gelernter Favoriten sind korrigiert.
 
 ## Last completed
 
-Mehr-/Weniger-Feedback, getrennte Durchhör- und Früh-Skip-Signale, dauerhafte Titel- und Playlist-Ausschlüsse sowie ein kontrollierter 75/25-Entdeckungsmix wurden in 53cab11 umgesetzt.
+Profilbewertungen und Ausschlüsse erhalten die vorbereitete Warteschlange. Gelernte Playlist-Favoriten werden regelmäßig zwischen neuen passenden Titeln abgespielt und im Dashboard eindeutig gekennzeichnet; deaktivierte Lern-Playlists beeinflussen den Mix nicht mehr.
 
 ## Next
 
-Nach dem Update im echten Discord-Betrieb beobachten, ob die Mischung aus erkannten Stilrichtungen und Künstlern langfristig abwechslungsreich bleibt; neue konkrete Auffälligkeiten mit Titel und Zeitpunkt prüfen.
+Nach dem Update im echten Discord-Betrieb Mehr davon und Weniger davon sowie mehrere Autoplay-Nachfüllungen beobachten; konkrete Ausreißer mit Titel und Zeitpunkt melden.
 
 ## Verification
 
-154 Backendtests und die vollständige Playwright-Dashboardprüfung erfolgreich; Syntax- und Diff-Prüfung sauber. Zwei bereits vorhandene unversionierte pnpm-Hilfsdateien blieben unberührt.
+155 Backendtests und die vollständige Playwright-Dashboardprüfung erfolgreich; Syntax- und Diff-Prüfung sauber. Zwei bereits vorhandene unversionierte pnpm-Hilfsdateien blieben unberührt.
 
 ## Safety note
 
