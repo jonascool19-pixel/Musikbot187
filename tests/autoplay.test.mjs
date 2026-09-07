@@ -4,7 +4,7 @@ import {EventEmitter} from 'node:events';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {AutoplayController,autoplayCandidateMatchesPreferences,autoplayDiscoveryQueries,autoplayMaxDurationSeconds,autoplayMusicCandidateAllowed,autoplayNonMusicSearchSuffix,autoplayTrackAllowed,inferTrackStyles,listeningProfileLimit,normalizeAutoplayConfiguration,normalizeAutoplayStyles,recommendationFamily,recommendationQuery,sameRecommendationFamily} from '../backend/src/autoplay.js';
+import {AutoplayController,autoplayCandidateMatchesPreferences,autoplayDiscoveryQueries,autoplayMaxDurationSeconds,autoplayMusicCandidateAllowed,autoplayNonMusicSearchSuffix,autoplayTrackAllowed,inferTrackStyles,listeningProfileLimit,listeningSignalWeight,normalizeAutoplayConfiguration,normalizeAutoplayStyles,recommendationFamily,recommendationQuery,sameRecommendationFamily} from '../backend/src/autoplay.js';
 import {buildServer} from '../backend/src/server.js';
 
 class FakePlayer extends EventEmitter{
@@ -160,10 +160,10 @@ test('profile preference changes return immediately and refill after an older se
   const oldFill=controller.fill();await tick();
   await controller.updateProfileStyles({preferredStyles:['Techno'],preferredArtists:[],blockedStyles:[]});
   assert.deepEqual(controller.profileSummary().preferredStyles,['Techno']);
-  assert.equal(calls,1);
+  assert.equal(calls,2);
   releaseFirst([]);
   await oldFill;await tick();await tick();
-  assert.ok(calls>=3);
+  assert.ok(calls>=4);
   controller.close();
 });
 
@@ -197,7 +197,7 @@ test('a learned style profile pulls an unrelated autoplay drift back to the lear
   await controller.fill();
   assert.doesNotMatch(queries[0],/Fremder Pop Song/);
   assert.match(queries[0],/Uptempo/);
-  assert.deepEqual([player.current,...player.queue].map(track=>track.id),recommendations.map(track=>track.id));
+  assert.deepEqual(new Set([player.current,...player.queue].map(track=>track.id)),new Set(recommendations.map(track=>track.id)));
   assert.match(controller.state().detail,/gelernten Musikprofil/);
   controller.close();
 });
@@ -207,11 +207,11 @@ test('autoplay consumes unused fresh search results before asking YouTube for th
   const settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo'],preferredArtists:[],blockedStyles:[]},recommendations=Array.from({length:8},(_,index)=>({id:`fresh-${index}`,title:`DJ ${index} – Uptempo Lied ${index}`,source:'youtube'}));let searches=0;
   const controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async()=>{searches++;return recommendations},save:async()=>{}});
   await controller.setEnabled(true);
-  assert.equal(searches,1);
-  assert.deepEqual(player.queue.map(track=>track.id),['fresh-0','fresh-1','fresh-2']);
+  assert.equal(searches,2);
+  assert.equal(player.queue.length,3);
   player.skip();await tick();await tick();
-  assert.equal(searches,1);
-  assert.deepEqual(player.queue.map(track=>track.id),['fresh-1','fresh-2','fresh-3']);
+  assert.equal(searches,2);
+  assert.equal(player.queue.length,3);
   controller.close();
 });
 
@@ -280,6 +280,29 @@ test('autoplay tries several discovery searches when the first search is empty',
 
 test('an empty discovery remains enabled and schedules an automatic retry',async()=>{const player=new FakePlayer(),settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},controller=new AutoplayController({player,settings,profile:{version:1,tracks:[]},getPlaylists:()=>[],recommend:async()=>[],save:async()=>{}});await controller.setEnabled(true);assert.equal(controller.state().enabled,true);assert.equal(controller.state().status,'waiting');assert.match(controller.state().detail,/30 Sekunden/);assert.equal(controller.scheduled?.kind,'timeout');controller.close()});
 
+test('completed plays, early skips and explicit feedback produce separate profile signals',async()=>{
+  const player=new FakePlayer(),settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:[],preferredArtists:[],blockedStyles:[]},controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async()=>[],save:async()=>{}}),completed={id:'complete',title:'Finish DJ – Techno Ende',source:'youtube',duration:200,autoplayMode:'similar'},skipped={id:'skip',title:'Skip DJ – Schlager Früh',source:'youtube',duration:200,autoplayMode:'similar'};
+  player.emit('track-end',{track:completed,reason:'completed',positionSeconds:198,duration:200});await tick();await tick();
+  player.emit('track-end',{track:skipped,reason:'skipped',positionSeconds:12,duration:200});await tick();await tick();
+  player.emit('track-end',{track:{id:'failed',title:'Fehler DJ – Rock',source:'youtube'},reason:'failed',positionSeconds:4,duration:200});await tick();await tick();
+  player.emit('track-end',{track:{id:'late',title:'Spät DJ – Pop',source:'youtube'},reason:'skipped',positionSeconds:100,duration:200});await tick();await tick();
+  let summary=controller.profileSummary(),finished=summary.tracks.find(track=>track.key==='complete'),early=summary.tracks.find(track=>track.key==='skip');
+  assert.equal(finished.completed,1);assert.equal(finished.weight,2);assert.equal(early.earlySkips,1);assert.equal(early.weight,0);assert.equal(summary.tracks.some(track=>track.key==='failed'||track.key==='late'),false);assert.ok(summary.styles.some(style=>style.name==='Techno'));assert.equal(summary.styles.some(style=>style.name==='Schlager'),false);
+  player.current=completed;let result=await controller.feedbackCurrent('more');assert.equal(result.rating,1);assert.equal(listeningSignalWeight(profile.tracks.find(track=>track.key==='complete')),6);result=await controller.feedbackCurrent('less');assert.equal(result.rating,0);controller.close();
+});
+
+test('track and playlist exclusions prevent learning until they are restored',async()=>{
+  const player=new FakePlayer(),playlists=[{id:'ignored',name:'Ignoriert',items:[{id:'hidden',title:'Hidden DJ – Hardstyle',source:'youtube'}]},{id:'learned',name:'Lernen',items:[{id:'visible',title:'Visible DJ – Techno',source:'youtube'}]}],settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:[],preferredArtists:[],blockedStyles:[]},controller=new AutoplayController({player,settings,profile,getPlaylists:()=>playlists,recommend:async()=>[],save:async()=>{}});
+  await controller.setPlaylistLearning('ignored',false);let result=await controller.learnFromPlaylists(playlists);assert.equal(result.added,1);assert.equal(result.profile.tracks[0].key,'visible');assert.deepEqual(result.profile.excludedPlaylistIds,['ignored']);
+  player.current={id:'current',title:'Current DJ – Uptempo',source:'youtube'};let summary=await controller.excludeCurrentTrack();assert.equal(summary.excludedTracks[0].key,'current');await controller.recordPlaybackOutcome({track:player.current,reason:'completed',positionSeconds:180,duration:180});assert.equal(controller.profileSummary().tracks.some(track=>track.key==='current'),false);
+  summary=await controller.restoreProfileTrack('current');assert.deepEqual(summary.excludedTracks,[]);await controller.recordPlaybackOutcome({track:player.current,reason:'completed',positionSeconds:180,duration:180});assert.equal(controller.profileSummary().tracks.find(track=>track.key==='current').completed,1);await controller.setPlaylistLearning('ignored',true);assert.deepEqual(controller.profileSummary().excludedPlaylistIds,[]);controller.close();
+});
+
+test('personal autoplay interleaves one style-matched discovery after three taste matches',async()=>{
+  const player=new FakePlayer(),settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:7},profile={version:2,tracks:[],preferredStyles:['Hardstyle','Uptempo'],preferredArtists:[],blockedStyles:[]},controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{const exploration=query.includes('Geheimtipps'),style=query.startsWith('Hardstyle')?'Hardstyle':'Uptempo';return Array.from({length:8},(_,index)=>({id:`${exploration?'explore':'taste'}-${style}-${index}`,title:`${exploration?'Newcomer':'Favorit'} ${index} – ${style} Titel`,source:'youtube',duration:200}))},save:async()=>{}});
+  await controller.setEnabled(true);const firstFour=[player.current,...player.queue].slice(0,4);assert.deepEqual(firstFour.map(track=>Boolean(track.autoplayExploration)),[false,false,false,true]);assert.ok(firstFour.every(track=>/Hardstyle|Uptempo/.test(track.title)));controller.close();
+});
+
 test('autoplay API saves configuration, fills the queue and clears it from the dashboard switch',async t=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'musikbot187-autoplay-')),player=new FakePlayer(),app=await buildServer({dataDir:dir,musicDir:path.join(dir,'music'),stateFile:path.join(dir,'state.json'),secretFile:path.join(dir,'secret.key'),frontendDir:path.resolve('frontend'),setupToken:'setup-test-token',logger:false,controlSocket:path.join(dir,'control.sock'),player,autoplayRecommendationProvider:async()=>[],autoplayStyleValidationProvider:async query=>/Rammstein/.test(query)?[{title:'Rammstein – Sonne'}]:[]});
   t.after(async()=>{await app.close();await fs.rm(dir,{recursive:true,force:true});});
@@ -287,8 +310,10 @@ test('autoplay API saves configuration, fills the queue and clears it from the d
   response=await app.inject({url:'/api/autoplay',headers});assert.deepEqual(response.json().profile.blockedStyles,[]);response=await app.inject({method:'PUT',url:'/api/autoplay/profile/styles',headers,payload:{preferredStyles:['Uptempo'],preferredArtists:['Rammstein'],blockedStyles:['Schlager']}});assert.equal(response.statusCode,200,response.body);assert.deepEqual(response.json().profile.preferredStyles,['Uptempo']);assert.deepEqual(response.json().profile.preferredArtists,['Rammstein']);assert.deepEqual(response.json().profile.blockedStyles,['Schlager']);const persistedProfile=JSON.parse(await fs.readFile(path.join(dir,'state.json'),'utf8')).listeningProfile;assert.deepEqual(persistedProfile.preferredStyles,['Uptempo']);assert.deepEqual(persistedProfile.preferredArtists,['Rammstein']);assert.deepEqual(persistedProfile.blockedStyles,['Schlager']);response=await app.inject({method:'PUT',url:'/api/autoplay/profile/styles',headers,payload:{preferredStyles:[],blockedStyles:Array.from({length:21},(_,index)=>`Stil ${index}`)}});assert.equal(response.statusCode,400,response.body);
   response=await app.inject({method:'POST',url:'/api/playlists',headers,payload:{name:'Autoplay Liste',items:[{id:'one',title:'Titel Eins',source:'youtube'},{id:'two',title:'Titel Zwei',source:'spotify'}]}});const playlist=response.json();
   response=await app.inject({method:'POST',url:'/api/autoplay/profile/playlists',headers,payload:{playlistIds:[playlist.id]}});assert.equal(response.statusCode,200,response.body);assert.equal(response.json().playlistCount,1);assert.equal(response.json().scanned,2);assert.equal(response.json().added,2);assert.equal(response.json().profile.learnedTracks,2);response=await app.inject({method:'POST',url:'/api/autoplay/profile/playlists',headers,payload:{playlistIds:['missing']}});assert.equal(response.statusCode,400,response.body);
+  response=await app.inject({method:'PUT',url:'/api/autoplay/profile/playlist',headers,payload:{playlistId:playlist.id,enabled:false}});assert.equal(response.statusCode,200,response.body);assert.deepEqual(response.json().profile.excludedPlaylistIds,[playlist.id]);response=await app.inject({method:'POST',url:'/api/autoplay/profile/playlists',headers,payload:{playlistIds:[playlist.id]}});assert.equal(response.json().accepted,0);response=await app.inject({method:'PUT',url:'/api/autoplay/profile/playlist',headers,payload:{playlistId:playlist.id,enabled:true}});assert.deepEqual(response.json().profile.excludedPlaylistIds,[]);
   response=await app.inject({method:'PUT',url:'/api/autoplay/config',headers,payload:{mode:'playlists',playlistIds:[playlist.id],queueTarget:4}});assert.equal(response.statusCode,200,response.body);assert.deepEqual(response.json().playlistIds,[playlist.id]);
   response=await app.inject({method:'PUT',url:'/api/autoplay/enabled',headers,payload:{enabled:true}});assert.equal(response.statusCode,200,response.body);assert.equal(response.json().autoplay.enabled,true);assert.equal(response.json().player.current.id,'one');assert.equal(response.json().player.queue.length,4);
+  response=await app.inject({method:'POST',url:'/api/autoplay/profile/feedback',headers,payload:{action:'more'}});assert.equal(response.statusCode,200,response.body);assert.equal(response.json().rating,1);assert.match(response.json().message,/stärker/);response=await app.inject({method:'POST',url:'/api/autoplay/profile/feedback',headers,payload:{action:'less'}});assert.equal(response.statusCode,200,response.body);assert.match(response.json().message,/übersprungen/);assert.equal(response.json().player.current.id,'two');response=await app.inject({method:'POST',url:'/api/autoplay/profile/current/exclude',headers});assert.equal(response.statusCode,200,response.body);const excluded=response.json().profile.excludedTracks[0];assert.equal(excluded.key,'two');response=await app.inject({method:'POST',url:'/api/autoplay/profile/track/restore',headers,payload:{key:excluded.key}});assert.deepEqual(response.json().profile.excludedTracks,[]);response=await app.inject({method:'POST',url:'/api/autoplay/profile/feedback',headers,payload:{action:'unknown'}});assert.equal(response.statusCode,400,response.body);
   response=await app.inject({url:'/api/state',headers});assert.equal(response.json().autoplay.mode,'playlists');assert.equal(response.json().autoplay.status,'active');
   response=await app.inject({method:'POST',url:'/api/player/queue',headers,payload:{item:{id:'manual',title:'Manueller Titel',source:'youtube'},now:true}});assert.equal(response.statusCode,200,response.body);assert.equal(response.json().current.id,'manual');assert.ok(response.json().queue.length<=4);
   response=await app.inject({method:'PUT',url:'/api/autoplay/enabled',headers,payload:{enabled:false}});assert.equal(response.statusCode,200,response.body);assert.equal(response.json().player.current.id,'manual');assert.deepEqual(response.json().player.queue,[]);

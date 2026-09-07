@@ -20,6 +20,8 @@ test('PCM from simultaneous players is routed only to its matching runtime',()=>
   assert.deepEqual(writes,[['one','A'],['two','B']]);hub.close();
 });
 
+test('playback outcomes keep the originating player id',()=>{const hub=new PlayerHub({musicDir:'.',diagnostic(){}}),events=[];hub.on('track-end',event=>events.push(event));hub.for('discord-one').emit('track-end',{track:{id:'one'},reason:'completed'});assert.deepEqual(events,[{track:{id:'one'},reason:'completed',playerId:'discord-one'}]);hub.close();});
+
 test('state changes prepare only the Discord transport belonging to that player',()=>{
   const hub=new PlayerHub({musicDir:'.',diagnostic(){}}),store={data:{settings:{output:'none',outputId:null}}},manager=new IntegrationManager({player:hub,store,secrets:{}}),prepared=[];
   const runtime=id=>({type:'discord',playbackId:null,lastPaused:null,prepare(playbackId){prepared.push([id,playbackId]);this.playbackId=playbackId},reset(){this.playbackId=null},audio:{pause(){},unpause(){}}});
