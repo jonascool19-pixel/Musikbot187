@@ -4,6 +4,8 @@ import {resolveInput} from './media.js';
 import {PcmJitterBuffer,pcmBytesPerSecond} from './pcm-buffer.js';
 export const queueLimit=500;
 export const playbackDrainDelays=Object.freeze({local:300,youtube:1500,spotify:2000});
+export const onDemandEndToleranceSeconds=12;
+export const prematureEndRetryLimit=2;
 export const playbackPcmBufferBytes=Object.freeze({local:Math.round(pcmBytesPerSecond*.25),youtube:pcmBytesPerSecond*3,spotify:pcmBytesPerSecond*4,radio:pcmBytesPerSecond*4});
 export const playbackPcmRebufferBytes=Object.freeze({local:Math.round(pcmBytesPerSecond*.75),youtube:pcmBytesPerSecond*5,spotify:pcmBytesPerSecond*6,radio:pcmBytesPerSecond*6});
 export const playbackPcmMaxBytes=pcmBytesPerSecond*16;
@@ -63,10 +65,12 @@ export class Player extends EventEmitter{
   }
   finish(generation,code,error,attempt){
     if(generation!==this.generation)return;
-    const resumeSeconds=this.position(),prior=this.current,wasPaused=this.paused,knownDuration=Math.max(0,Number(prior?.duration)||0),onDemandStream=['spotify','youtube'].includes(prior?.source),endedTooSoon=onDemandStream&&code===0&&knownDuration>=15&&resumeSeconds<knownDuration-5,errorText=endedTooSoon?`${prior.source==='spotify'?'Spotify':'YouTube'}-Quelle vorzeitig beendet bei ${Math.floor(resumeSeconds)} von ${Math.floor(knownDuration)} Sekunden.`:String(error||`FFmpeg exit ${code}`),transient=Boolean(code&&isTransientPlaybackError(errorText)),retry=prior?.source==='radio'||endedTooSoon||transient&&(isPersistentNetworkLoss(errorText)||attempt<this.retries.length);
+    const resumeSeconds=this.position(),prior=this.current,wasPaused=this.paused,knownDuration=Math.max(0,Number(prior?.duration)||0),onDemandStream=['spotify','youtube'].includes(prior?.source),endedTooSoon=onDemandStream&&code===0&&knownDuration>=15&&resumeSeconds<knownDuration-onDemandEndToleranceSeconds,prematureEndExhausted=endedTooSoon&&attempt>=prematureEndRetryLimit,errorText=endedTooSoon?`${prior.source==='spotify'?'Spotify':'YouTube'}-Quelle vorzeitig beendet bei ${Math.floor(resumeSeconds)} von ${Math.floor(knownDuration)} Sekunden.`:String(error||`FFmpeg exit ${code}`),transient=Boolean(code&&isTransientPlaybackError(errorText)),retry=prior?.source==='radio'||endedTooSoon&&!prematureEndExhausted||transient&&(isPersistentNetworkLoss(errorText)||attempt<this.retries.length);
     this.process=null;this.resolver=null;this.startedAt=null;this.paused=false;this.elapsedSeconds=prior?.source==='radio'?0:resumeSeconds;
     if(retry){
       const delay=this.retries[Math.min(attempt,this.retries.length-1)];this.reconnecting=true;this.retryAt=Date.now()+delay;this.current=prior;this.report('warn','player',`${prior?.title||'Wiedergabe'}: Verbindung unterbrochen. Neuer Versuch in ${Math.ceil(delay/1000)} Sekunden. ${errorText}`);this.retryTimer=setTimeout(()=>{if(generation!==this.generation)return;this.retryTimer=null;this.current=null;this.reconnecting=false;this.retryAt=null;this.queue.unshift(prior);this.next(attempt+1,this.elapsedSeconds,wasPaused);},delay);
+    }else if(prematureEndExhausted){
+      this.completeTrack(generation,prior,1,`${errorText} Nach ${prematureEndRetryLimit} Wiederholungsversuchen wird der Titel übersprungen.`);
     }else if(code||!prior){
       this.completeTrack(generation,prior,code,errorText);
     }else{
