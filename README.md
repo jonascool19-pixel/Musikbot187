@@ -1,193 +1,217 @@
-# MusikBot187 · Version 1.8.7
+# 🎵 MusikBot187
 
-[![Ubuntu-Audit](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml/badge.svg)](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml)
+**Deine Musik. Dein Dashboard. Dein Server.**
 
-Ein selbst gehosteter Musik- und Radiobot für einen **Ubuntu-24.04-CT** mit modernem Web-Dashboard, YouTube, Radio, Spotify, lokalen Dateien, Playlists, automatischer Wiedergabe und Discord-Steuerung.
+Ein selbst gehosteter Musik- und Radiobot für Ubuntu 24.04 mit Discord-Audio, Playlists, lokalen Dateien und einem persönlichen Autoplay-Profil.
 
-MusikBot187 ist für den dauerhaften Betrieb im eigenen Netzwerk gebaut. Die komplette Einrichtung und Bedienung läuft im Dashboard; Passwörter, Tokens und Spotify-Zugänge bleiben verschlüsselt im eigenen Container.
+[![CI](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml/badge.svg)](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml)
+![Version](https://img.shields.io/badge/Version-1.8.8-blue)
+![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?logo=ubuntu&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white)
 
-## Auf einen Blick
+[🚀 Installation](#installation) · [✨ Funktionen](#funktionen) · [🎧 Autoplay](#autoplay) · [🔄 Updates](#updates) · [🐞 Support](#support) · [📦 Änderungen](CHANGELOG.md)
 
-| Bereich | Funktionen |
-| --- | --- |
-| Musikquellen | YouTube, Radio-Browser, Spotify-Suche, eigene/mitverwaltete Spotify-Playlists, direkte Streams und lokale Audiodateien |
-| Wiedergabe | Play, Pause, Weiter, Skip, Stop, Lautstärke, Spulen, verschiebbare Warteschlange und Wiederhol-/Zufallsmodus |
-| Ausgaben | Bis zu zwei Discord- und zwei TeamSpeak-Instanzen, getrennte Player oder synchroner Spiegelmodus |
-| Automatik | Endlosschleife aus eigenen Playlists oder persönlicher Mix aus der lokalen Hörhistorie |
-| Verwaltung | Hauptadmin, Benutzerrollen, einzelne Rechte, Diagnosen, Benachrichtigungen, verschlüsselte Backups, Monitoring, Netzwerkverlauf und Updates |
-| 24/7-Betrieb | Automatischer Wiederanlauf, Internet-Reconnect, täglicher Wartungsneustart und Wiedergabe-Fortsetzung |
+---
 
-## Musik, Suche und Playlists
+<a id="installation"></a>
+## 🚀 In wenigen Minuten startklar
 
-- Die Suche startet automatisch ab zwei Zeichen und hält bis zu 150 eindeutige Treffer in einer kompakten Scrollliste.
-- Die zuletzt gewählte Quelle bleibt gespeichert: Alle, YouTube, Radio oder Spotify.
-- Suchtreffer lassen sich sofort abspielen, in die Warteschlange oder ohne Browser-Popup in eine Playlist übernehmen.
-- Jede Playlist ist aufklappbar. Jeder einzelne Titel besitzt einen eigenen **Play**-Knopf.
-- Vor dem Start einer vollständigen Playlist lassen sich **Playlist wiederholen** und **Zufällige Reihenfolge** direkt in der geöffneten Playlist einstellen. Die Auswahl bleibt gespeichert; bei Wiederholung wird eine Zufallsliste nach jedem vollständigen Durchlauf neu gemischt.
-- Der aktuell laufende Titel kann ebenfalls direkt einer Playlist hinzugefügt werden.
-- Die Wiedergabe verwendet die beste verfügbare Audioqualität; Radio bevorzugt die höchste erreichbare Bitrate.
-- Der nächste Wartelisteneintrag wird im Hintergrund vorbereitet, damit Titel schneller wechseln.
-- Titel lassen sich mit Pfeilen in der Warteschlange nach oben oder unten verschieben, ohne die laufende Wiedergabe zu unterbrechen.
-- Ungeeignete oder dauerhaft nicht verfügbare Quellen werden übersprungen, statt den Player minutenlang zu blockieren.
-
-## Spotify ohne eigene Domain
-
-Client-ID und Client-Secret reichen für Spotify-Suche und Wiedergabe. Für den Import eigener oder gemeinsam verwalteter Spotify-Playlists wird einmalig die kostenlose sichere Callback-Adresse eingetragen:
-
-```text
-https://jonascool19-pixel.github.io/Musikbot187/spotify-callback/
-```
-
-Der Rückweg übermittelt nur einen kurzlebigen Spotify-Code. Client-Secret, PKCE-Schlüssel sowie Zugriffs- und Aktualisierungstoken bleiben im Ubuntu-CT. Eine eigene Domain, ein Zertifikat oder ein kostenpflichtiger Tunnel sind nicht nötig.
-
-Importierte Spotify-Playlists bleiben mit Spotify verknüpft. Neue und entfernte Titel werden automatisch gespiegelt. Der Abgleich ist pro Playlist auf 1, 5, 12, 24 oder 48 Stunden beziehungsweise wöchentlich einstellbar und kann jederzeit sofort gestartet werden.
-
-Unter **Playlists → Spotify-Playlists laden** kann der MusikBot die Playlistbibliothek des tatsächlich verbundenen Kontos als bequeme Auswahl anzeigen. Zusätzlich lässt sich ein Spotify-Playlist-Link direkt einfügen. Der Import prüft zuerst Spotifys Playlist- und Inhaltsendpunkte und funktioniert deshalb auch dann, wenn eine zugängliche gemeinsame Playlist nicht in der Kontoauswahl erscheint. Verweigert Spotify dort eine fremde öffentliche Playlist, liest MusikBot187 als begrenzten Rückfall ausschließlich deren öffentlich sichtbare Einbettungsansicht von `open.spotify.com`; private Listen bleiben ausgeschlossen.
-
-Spotify gibt Playlist-Inhalte seit Februar 2026 über die offizielle Web API nur noch frei, wenn die Playlist dem verbundenen Konto gehört oder dieses Konto an ihr mitwirkt. Die Kontoauswahl des MusikBots ist keine zusätzliche Sperre mehr. Für tatsächlich öffentliche Listen – beispielsweise **Top 50 – Germany** – übernimmt der Rückfall Titel, Künstler, Laufzeit und ursprünglichen Spotify-Link aus der öffentlichen Spotify-Ansicht, niemals Preview-Audio oder dort enthaltene Sitzungstoken. Der automatische Abgleich verwendet denselben Weg. Bei Apps im Spotify-Entwicklungsmodus muss das verwendete Konto weiterhin in den App-Einstellungen zugelassen sein und die aktuellen Spotify-Voraussetzungen erfüllen.
-
-## Discord
-
-Discord-Instanzen können getrennte Musik spielen oder denselben Player spiegeln. Nach Auswahl eines Voice-Channels tritt der Bot über den eigenen Button bei. Der aktuell laufende Titel erscheint in Discord als „Hört …“-Aktivität.
-
-Einrichtung in der richtigen Reihenfolge:
-
-1. Name, Bot-Token und Client-ID/Bot-ID eintragen und **Speichern / verbinden** wählen.
-2. **Bot zu Discord hinzufügen** öffnen und den gewünschten Server bestätigen.
-3. Neben Voice-Channel auf **↻** klicken, damit die erreichbaren Server und Kanäle geladen werden.
-4. Discord-Server und Voice-Channel auswählen.
-5. **Voice-Channel betreten** wählen. Ein noch laufender Verbindungsaufbau wird automatisch abgewartet, statt fälschlich „nicht verbunden“ zu melden. Der vorherige Hinweis zur Serverauswahl ist nur ein Einrichtungsstatus und wird nach erfolgreichem Beitritt aus alten Warnungen entfernt.
-
-Unterstützte Slash-Befehle:
-
-```text
-/play  /pause  /resume  /skip  /stop
-/clear /volume /queue   /nowplaying /help
-```
-
-Bei `/play` erscheinen beim Tippen bis zu zehn echte YouTube-Treffer. Bereits bekannte Treffer bleiben beim Weiter-tipppen sichtbar, statt aus der nächsten Vorschlagsliste zu verschwinden. Nach der Auswahl wird exakt die gewählte Video-ID eingereiht; Freitext bleibt als Rückfall möglich. Das Eingabefeld heißt **Suche**; während der Aktualisierung werden auch ältere bereits von Discord gespeicherte Feldnamen weiterhin verstanden. Nach einem Update genügt einmal **Neu verbinden**, um die aktuelle Befehlsbeschreibung beim Server zu registrieren. Die Suche verwendet eine echte YouTube-Suchergebnis-Adresse und ist damit nicht mehr von der fehleranfälligen internen `ytsearch`-Pseudo-URL abhängig. Langsame Befehle werden sofort von Discord bestätigt und anschließend beantwortet. Antwort-, Such- oder Logfehler bleiben innerhalb des Discord-Moduls und können den Musikdienst nicht mehr beenden. Alle Netzwerkquellen besitzen Zeitgrenzen und automatische Wiederverbindung. FFmpeg darf Ton begrenzt vorauslesen; der Player taktet ihn danach in exakten 20-ms-Blöcken und puffert YouTube, Spotify und Radio abhängig von der Quelle. Bei einer kurzen Netzschwankung wird erst kontrolliert nachgepuffert, statt abgehackte Teilblöcke auszugeben. Der Reservepuffer hält nach dem Einlesen bis zu zwölf Sekunden PCM und lässt die Quelle ab acht Sekunden Restvorrat wieder nachliefern; nach einer echten Leerphase wird erneut mit dem vollständigen quellabhängigen Startvorrat begonnen. Vor Discord werden zusätzlich für YouTube 1,5 Sekunden sowie für Live-Radio und Spotify jeweils zwei Sekunden Ton vorbereitet. Discord-Opus verwendet 128 kbit/s, Vorwärtsfehlerkorrektur und eine Paketverlustannahme von zehn Prozent, um einzelne verlorene Sprachpakete ohne hörbaren harten Abriss zu überbrücken. Alle Puffer sind begrenzt, damit im Dauerbetrieb weder RAM noch Verzögerung anwachsen. Am regulären Titelende darf der Rest vollständig ausspielen, bevor der nächste Titel den Audiokanal übernimmt. Eine vorzeitig endende aufgelöste YouTube- oder Spotify-Quelle wird an ihrer letzten Position erneut aufgelöst und fortgesetzt. Bricht Discord-Voice später ab, wird der Zustand sichtbar markiert und der Voice-Kanal automatisch mit begrenztem Rückstau erneut aufgebaut.
-
-## Automatische Wiedergabe
-
-Der Schalter **Automatische Wiedergabe · EIN/AUS** sitzt direkt über dem laufenden Titel.
-
-- **Playlist-Modus:** Mehrere eigene Playlists werden in gewählter Reihenfolge endlos abgespielt.
-- **Persönlicher Mix:** Der Bot lernt lokal aus tatsächlich gehörten Titeln und schlägt ähnliche Musik anderer Künstler vor.
-- Auch aus vollständiger Stille startet der Mix selbstständig und hält standardmäßig zehn Titel als Puffer bereit.
-- Automatisch vorgeschlagene Titel werden nicht wieder als eigener Geschmack gelernt. Dadurch kann ein einzelner unpassender Vorschlag das Musikprofil nicht schrittweise in eine falsche Richtung verschieben.
-- Jeder gelernte Titel kann einzeln entfernt oder auf eine persönliche Sperrliste gesetzt werden. Bevorzugte Stilrichtungen wie **Uptempo** sowie gesperrte Stil-, Künstler- und Titelbegriffe lassen sich frei ergänzen und jederzeit wieder löschen; keine Musikrichtung ist ab Werk gesperrt.
-- Automatische Vorschläge sind auf höchstens zehn Minuten begrenzt. Musikquiz, stundenlange Sets, komplette Alben und lange Mixe werden zusätzlich anhand ihrer Titel aussortiert, wenn YouTube noch keine Laufzeit meldet.
-- Varianten und Duplikate derselben Songfamilie werden herausgefiltert.
-- Beim erneuten Start oder Moduswechsel werden alte Wartetitel und eine laufende Playlist-Wiederholung verworfen; der aktuelle Titel darf weiterlaufen und der gewählte Modus wird sofort frisch aufgefüllt.
-- Liefert die erste Ähnlichkeitssuche nur bereits gelernte Titel oder bekannte Varianten, versucht der Bot automatisch weitere gemischte Suchansätze.
-- Das lokale Profil speichert höchstens 200 Titel, bleibt vollständig im CT und kann einzeln oder komplett bereinigt werden.
-- Beim Ausschalten wird nur die vorbereitete Warteschlange geleert; der aktuelle Titel darf zu Ende spielen.
-
-## Dashboard und Monitoring
-
-Oben stehen live:
-
-- belegter Speicherplatz in Prozent
-- CPU-Auslastung
-- RAM-Auslastung
-- Netzwerkgeschwindigkeit
-- aktive Player-Instanz und Verbindungszustand
-
-Unter **Design** stehen 17 vollständig abgestimmte Dashboard-Themen als Vorschaukarten bereit: Nacht, Tageslicht, Ozean, Violett, Smaragd, Rubin, Bernstein, Graphit, Mitternacht, Neon, Rosé, Nordlicht, Sonnenuntergang, Kaffee, Eis, Synthwave und Kontrast. Jedes Theme setzt Hintergrund, Karten, Bedienelemente, Rahmen und Lesefarben gemeinsam; die Akzentfarbe bleibt frei anpassbar. Für helle Akzentfarben wählt das Dashboard automatisch eine dunkle Tastenschrift, damit die Beschriftung lesbar bleibt.
-
-Fehler und verfügbare Updates erscheinen kurz als Benachrichtigungsbanner oben im Dashboard. Danach bleiben sie an der Glocke rechts neben dem Zahnrad mit ungelesenem Zähler erhalten. Ein Eintrag kann geöffnet, als gelesen markiert oder gelöscht werden; Fehler führen direkt zum Fehlerprotokoll und Updates zur Update-Kachel. Die großen Dashboard-Karten besitzen unten rechts einen Pfeil und merken sich ihren eingeklappten Zustand im jeweiligen Browser.
-
-Die Monitoring-Seite zeigt CPU, RAM und Speicher mit Belegt-/Frei-Balken, die Load-Werte für 1, 5 und 15 Minuten, Container-Laufzeit, aktuellen Netzwerkdurchsatz und Gesamtverbrauch. Zusätzlich lernt ein lokaler Berater 24 Stunden lang aus CPU-Durchschnitt und -Spitzen, RAM in MB und Prozent, rechnerisch belegten CPU-Kernen sowie Download und Upload. Danach zeigt er ein gemessenes Minimum und einen optimalen CT-Wert einschließlich sicherer Bandbreitenempfehlung an. Grundlage ist der 95-Prozent-Wert mit Reserve, damit eine Drosselung nicht zu Audiostottern führt. Die feinen Messwerte bleiben auf sieben Tage begrenzt; der Netzwerkverlauf nach Tag, Monat und Jahr bleibt länger erhalten. Alles liegt ausschließlich im eigenen CT.
-
-Unter **System** stehen außerdem der tägliche Wartungsneustart, Netzwerkverlauf nach Tag/Monat/Jahr, verschlüsselte Komplett-Backups und das sichere Dashboard-Update bereit. Das Backup umfasst Einstellungen, Playlists, Instanzen samt sicher transportierten Secrets, weitere Benutzer samt bestehendem Passwort-Hash, lokale Musik und dauerhaft gespeicherte Messwerte. Hauptadmin und aktive Anmeldungen werden nie exportiert. Die Datei ist mit einem frei vergebenen, mindestens zehn Zeichen langen Backup-Passwort per AES-256-GCM geschützt. Ohne dieses Passwort ist sie nicht wiederherstellbar. Vor Neustart oder Update werden Titel, Position, Lautstärke, Modus und Warteschlange gespeichert und danach wiederhergestellt. Wartungsbereinigung entfernt ausschließlich alte Upload-Zwischendateien; Ressourcenmessungen, Netzwerkverlauf und Lernprofil bleiben dauerhaft gespeichert.
-
-## Sicherheit
-
-- Hauptdienst ohne Root-Rechte
-- Scrypt-Passwörter und gehashte, ablaufende Sitzungen
-- AES-256-GCM für Discord-, Spotify- und TeamSpeak-Secrets
-- passwortgeschützte, authentifiziert verschlüsselte Backup-Dateien ohne Hauptadmin oder Sitzungen
-- serverseitige Rollen und Einzelberechtigungen
-- Upload-, Such-, Login-, Player- und Downloadlimits
-- Schutz vor privaten/reservierten Medienzielen und unsicheren Pfaden
-- getrennt privilegierter Control-Dienst für genau definierte Systemaktionen
-- fest auf dieses Repository begrenzter Updatepfad mit automatischem Rollback
-
-## Systemanforderungen
-
-| Bereich | Minimum | Optimal für 24/7-Betrieb |
-| --- | --- | --- |
-| Einsatz | ein aktiver Player und gelegentliche Dashboard-Nutzung | zwei getrennte Player, Autoplay, Spotify-Abgleich und Downloads |
-| Betriebssystem | Ubuntu Server 24.04 LTS, 64-Bit, mit systemd | frischer Ubuntu-24.04-Proxmox-LXC/CT |
-| Prozessor | 1 vCPU, x86-64 | 2 moderne vCPU |
-| Arbeitsspeicher | 1 GB RAM; zusätzlicher Swap ist optional | 2 GB RAM |
-| Speicherplatz | 8 GB CT-Speicher | mindestens 32 GB auf SSD, bei lokaler Musik entsprechend mehr |
-| Netzwerk | stabil, zunächst 5 Mbit/s Download und 2 Mbit/s Upload | 10 Mbit/s Download und 5 Mbit/s Upload mit niedriger Latenz; danach am lokalen 24-Stunden-Berater ausrichten |
-| Grafik | keine GPU erforderlich | keine GPU erforderlich |
-
-Jeder eigenständige Player benötigt einen eigenen FFmpeg-Audiopfad. Gespiegelte Ausgaben teilen sich die Medienauflösung und brauchen daher weniger zusätzliche CPU-Leistung. Hochgeladene Musik und YouTube-Downloads belegen zusätzlichen Speicherplatz unter `/var/lib/musikbot187/music`. Eine Netzwerkbegrenzung sollte erst nach mindestens 24 Stunden typischer Nutzung und nie unter dem im Dashboard errechneten Minimum gesetzt werden.
-
-## Einmal-Installation
-
-Auf einem frischen Ubuntu-24.04-CT:
+Auf einem **Ubuntu-24.04-Server oder Proxmox-LXC/CT mit systemd** ausführen:
 
 ```bash
 sudo apt update && sudo apt upgrade -y && sudo apt install -y curl && curl -fsSL https://raw.githubusercontent.com/jonascool19-pixel/Musikbot187/main/install-latest.sh | sudo bash
 ```
 
-Der Installer richtet Node.js 22, FFmpeg, yt-dlp, Opus, den MusikBot-Dienst und den getrennten Control-Dienst ein. Anschließend erscheinen Dashboard-Link und einmaliger Setup-Link im Terminal. Der Einrichtungsassistent legt zuerst den neuen Hauptadmin an, bietet danach eine verschlüsselte Backup-Datei per Auswahl oder Drag-and-drop an, führt optional durch eine erste Discord-/TeamSpeak-Instanz und schließt mit der Designauswahl ab. Auch bei einem Neuladen bleibt die noch offene Einrichtung fortsetzbar.
+Der Einzeiler lädt den Installer aus dem aktuellen **`main`-Zweig**. Die Installation verwendet ebenfalls diesen Zweig und enthält damit die dort veröffentlichten Fehlerkorrekturen. Ein älteres Release-Archiv muss nicht heruntergeladen werden.
 
-Standardpfade:
+1. **Installieren:** Node.js, FFmpeg, yt-dlp, Opus und die Systemdienste werden eingerichtet.
+2. **Dashboard öffnen:** Dashboard-Adresse und einmaliger Einrichtungslink erscheinen im Terminal.
+3. **Hauptadmin anlegen:** Der Assistent führt durch Konto, optionales Backup, erste Verbindung und Design.
+4. **Musik starten:** Discord verbinden, Titel suchen oder eine eigene Playlist öffnen.
 
-```text
-/opt/musikbot187       Anwendung
-/var/lib/musikbot187   Daten, Musik und verschlüsselte Einstellungen
-/run/musikbot187       Control-Socket
-```
+<details>
+<summary>🔗 Einrichtungslink verloren?</summary>
 
-### Einrichtungslink erneut anzeigen
-
-Wurde das Konsolenfenster nach der Installation geschlossen, bevor das Hauptkonto eingerichtet wurde, kann ein neuer sicherer Einrichtungslink mit einem einzigen Befehl erzeugt werden:
+Solange noch kein Hauptadmin eingerichtet ist, erzeugt dieser Befehl einen neuen Link:
 
 ```bash
 sudo bash /opt/musikbot187/scripts/new-setup-link.sh
 ```
 
-Der Befehl ersetzt ausschließlich den noch unbenutzten Setup-Token, startet den MusikBot neu und zeigt anschließend den neuen Link an. Sobald bereits ein Hauptadmin existiert, bricht er ohne Änderungen ab und kann deshalb kein bestehendes Konto umgehen oder zurücksetzen.
+Er ersetzt den unbenutzten Einrichtungslink und startet den Bot neu. Bereits eingerichtete Konten werden dadurch nicht zurückgesetzt.
 
-## Bestehenden CT aktualisieren
+</details>
 
-Im Dashboard **System → Update** öffnen, nach Updates suchen und die Installation bestätigen. Alternativ kann derselbe Einmal-Installer erneut ausgeführt werden; vorhandene Benutzerdaten und Einstellungen im Datenverzeichnis bleiben erhalten.
+### Was dein Server braucht
 
-## Entwicklung und Prüfung
+| | Einstieg | Empfehlung |
+| --- | --- | --- |
+| Betriebssystem | Ubuntu 24.04 LTS, 64-Bit, systemd | Frischer Ubuntu-24.04-LXC/CT |
+| CPU | 1 vCPU, x86-64 | 2 moderne vCPU |
+| RAM | 1 GB | 2 GB |
+| Speicher | 8 GB | 32 GB auf SSD, mehr bei eigener Musik |
+| Netzwerk | Stabile Verbindung | Ausreichend Reserve für Downloads und Discord-Audio |
 
-Benötigt werden Node.js 22 oder neuer sowie FFmpeg.
+Eine Grafikkarte ist nicht nötig. Der integrierte Ressourcenberater ermittelt nach 24 Stunden typischer Nutzung passendere CPU-, RAM- und Netzwerkempfehlungen für deinen Betrieb.
+
+<a id="funktionen"></a>
+## ✨ Das kann MusikBot187
+
+| Bereich | Funktionen |
+| --- | --- |
+| 🔎 **Musik finden** | YouTube, Spotify-Metadaten, Radio-Browser, direkte Streams und lokale Audiodateien |
+| ▶️ **Musik steuern** | Play, Pause, Weiter, Skip, Stop, Lautstärke und Spulen bei einzelnen Titeln |
+| 📋 **Warteschlange** | Titel hinzufügen, entfernen und mit Pfeilen umsortieren; der Player folgt der angezeigten Reihenfolge |
+| 🗂️ **Playlists** | Scrollbare Bibliothek, eigenes Playlist-Fenster, Titelsuche, einzelne Titel abspielen oder löschen, Wiederholung und Zufall |
+| 🎧 **Autoplay** | Ausgewählte Playlists endlos abspielen oder bekannte Favoriten mit neuen Vorschlägen verbinden |
+| 💬 **Discord** | Bis zu zwei Bots mit getrennten Playern oder synchroner Audioausgabe und Slash-Befehlen |
+| 💾 **Eigene Musik** | Audiodateien hochladen, einzelne YouTube-Audiospuren herunterladen und Dateien verwalten |
+| 👥 **Benutzer** | Hauptadmin, Administratoren, einzelne Berechtigungen und geschützter Erstlogin |
+| 🎨 **Dashboard** | 17 Designs, eigene Akzentfarbe, einklappbare Bereiche und mobile Ansicht |
+| 🔔 **Benachrichtigungen** | Fehler- und Updatehinweise, einzelne Einträge oder alle gemeinsam lesen und löschen |
+| 📊 **Betrieb** | Monitoring, Netzwerkverlauf, Ressourcenberater, verschlüsselte Backups und Dashboard-Updates |
+| 🐞 **Support** | Fehler mit Beschreibung, optionalen Bildern/Videos und bereinigter Diagnose melden |
+
+**Spotify liefert Titel- und Playlistdaten.** Für die Audioausgabe sucht der Bot eine passende YouTube-Quelle; er streamt keine Spotify-Audiodateien.
+
+**TeamSpeak 3 ist als ServerQuery-Verwaltung enthalten.** Bis zu zwei Verbindungen lassen sich verwalten und diagnostizieren. Hörbare TS3-Ausgabe benötigt einen zusätzlichen echten TS3-Client-/Audio-Transport. Der lokale Player allein ist ebenfalls keine Lautsprecher- oder Browser-Audioausgabe.
+
+### 🔎 Suche und Playlists
+
+Die automatische Suche beginnt ab zwei Zeichen und sammelt bis zu 150 eindeutige Treffer in einer eigenen Scrollliste. Die gewählte Quelle bleibt gespeichert. Treffer können direkt starten, in die Warteschlange oder in eine Playlist übernommen werden.
+
+Über **Playlist öffnen** erscheint ein eigenes Fenster mit scrollbarer Titelliste und Suchfeld. Neben den einzelnen Titeln stehen Abspielen und Löschen bereit. Ganze Playlists unterstützen gespeicherte Wiederholung und Zufallsreihenfolge; bei jedem vollständigen Zufallsdurchlauf wird neu gemischt.
+
+Lokale Musik und YouTube-Downloads haben eigene Verwaltungsbereiche. Unterstützte Uploadformate sind MP3, WAV, FLAC, OGG, Opus, M4A, AAC und WebM. Der Standard begrenzt Uploads auf 128 MiB pro Datei und den lokalen Musikbestand auf 10 GiB.
+
+<a id="autoplay"></a>
+## 🎧 Automatische Wiedergabe, die zu dir passt
+
+Es gibt zwei Betriebsarten:
+
+| Modus | Verhalten |
+| --- | --- |
+| **Aus Playlists** | Die ausgewählten Playlists laufen in der festgelegten Reihenfolge als Endlosschleife. |
+| **Persönlicher Mix** | Bekannte Favoriten aus deinem Lernprofil und passende Neuentdeckungen bilden gemeinsam die Warteschlange. Standardmäßig werden zehn Titel vorbereitet. |
+
+So richtest du deinen persönlichen Mix ein:
+
+1. Unter **Dein lokales Musikprofil → Aus Playlists lernen** die gewünschten Playlists auswählen und analysieren.
+2. **Gewünschte Musikrichtungen** und **Gewünschte Künstler** bei Bedarf getrennt ergänzen. Die Eingabe bietet geprüfte Vorschläge.
+3. Die erkannten **Stilrichtungen und Künstler** im Profil kontrollieren. Unerwünschte Begriffe lassen sich sperren; einzelne Titel oder ganze Playlists können vom Lernen ausgeschlossen werden.
+4. Mit **Mehr davon**, **Weniger davon** und deinem Hörverhalten den Geschmack weiter anpassen. Bewusst gehörte Titel, ausgewählte Lern-Playlists und deine Bewertungen prägen das Profil. Automatische Vorschläge erzeugen durch bloßes Zu-Ende-Spielen keinen neuen Musikgeschmack.
+
+**Der Mix zielt auf fünf bekannte und fünf neue Titel pro zehn Wartetitel.** Bekannte Songs kommen direkt aus deinem Lernprofil und wechseln sich ab. Neue Songs benötigen passende Künstler- oder Stilbelege; ihre Position in der YouTube-Suche genügt nicht. Falls geprüfte Neuentdeckungen fehlen, ergänzen verfügbare gelernte Favoriten den Mix. Bei zu wenigen passenden Titeln kann die Warteschlange kürzer bleiben.
+
+Das Profil bleibt im eigenen Container und umfasst höchstens **200 Titel**. 40 häufig gehörte Langzeitfavoriten werden geschützt, während 160 Plätze aktuelle Vorlieben aufnehmen.
+
+Für den persönlichen Mix gilt eine **Sechs-Minuten-Grenze**. Er filtert außerdem erkennbare Tutorials, Podcasts, Sammlungen, lange Sets, gesperrte Begriffe und doppelte Songvarianten. Die Erkennung verwendet Titel- und Künstlerdaten; sie ist keine akustische Analyse der Audiodatei.
+
+### 💬 Discord verbinden
+
+1. Unter **Instanzen** Name, Bot-Token und Client-ID/Bot-ID speichern.
+2. **Bot zu Discord hinzufügen** öffnen und den gewünschten Server auswählen.
+3. Die Kanalübersicht mit **↻** aktualisieren.
+4. Server und Voice-Channel auswählen, anschließend **Voice-Channel betreten**.
+
+Der laufende Titel erscheint als „Hört …“-Aktivität. Die Bots können unabhängig spielen oder denselben Player spiegeln. Verbindungsabbrüche werden angezeigt und mit begrenzten automatischen Wiederverbindungsversuchen behandelt.
+
+| Befehl | Aktion |
+| --- | --- |
+| `/play` | Titel suchen und mit auswählbaren YouTube-Treffern hinzufügen |
+| `/pause` · `/resume` | Wiedergabe pausieren oder fortsetzen |
+| `/skip` · `/stop` | Titel überspringen oder Wiedergabe stoppen |
+| `/queue` · `/clear` | Warteschlange anzeigen oder leeren |
+| `/volume` | Lautstärke ändern |
+| `/nowplaying` · `/help` | Laufenden Titel oder Hilfe anzeigen |
+
+### 🟢 Spotify verbinden
+
+Spotify-Suche benötigt eine eigene Spotify-App mit Client-ID und Client-Secret. Für die persönliche Playlistbibliothek wird zusätzlich das Spotify-Konto verbunden.
+
+In der Spotify-App diese Redirect-Adresse hinterlegen:
+
+```text
+https://jonascool19-pixel.github.io/Musikbot187/spotify-callback/
+```
+
+Eine eigene Domain oder ein Tunnel ist dafür nicht nötig. Der Rückweg verarbeitet einen kurzlebigen Autorisierungscode; Client-Secret und Zugriffstokens bleiben im Container.
+
+Unter **Playlists → Spotify-Playlists laden** stehen erreichbare Listen zur Auswahl; ein direkter Playlist-Link ist ebenfalls möglich. Welche Listen zugänglich sind, hängt von den Spotify-Freigaben des verbundenen Kontos ab. Für öffentlich eingebettete Playlists gibt es einen begrenzten Metadaten-Rückfall.
+
+Importierte Listen bleiben verknüpft. Der Abgleich spiegelt hinzugefügte und entfernte Titel automatisch nach **1, 5, 12, 24 oder 48 Stunden** beziehungsweise **wöchentlich** und kann jederzeit manuell gestartet werden.
+
+## 👥 Benutzer und Sicherheit
+
+- **Geschütztes Hauptkonto:** Benutzerrollen und Einzelberechtigungen werden serverseitig geprüft.
+- **Sicherer Erstlogin:** Neue Konten erhalten ein zufällig erzeugtes Einmal-Passwort. Es wird beim Anlegen angezeigt und muss sicher weitergegeben werden. Vor der ersten Dashboard-Nutzung ist ein eigenes Passwort Pflicht.
+- **Übersichtliche Verwaltung:** Jeder Benutzer hat eine einzeln aufklappbare Karte.
+- **Geschützte Zugangsdaten:** Passwörter werden mit Scrypt gehasht; Verbindungs-Secrets sind mit AES-256-GCM verschlüsselt.
+- **Begrenzte Systemrechte:** Der Musikdienst läuft ohne Root-Rechte. Ein getrennter Control-Dienst führt fest definierte Systemaktionen aus.
+- **Schutz im Betrieb:** Ablaufende Sitzungen, Anfrage- und Uploadlimits sowie Prüfungen von Medienzielen und Dateipfaden.
+
+<a id="support"></a>
+## 🐞 Einen Fehler melden
+
+Rechts neben der Benachrichtigungsglocke befindet sich **Bug melden**. Wähle einen Bereich und beschreibe, was passiert ist und wie sich der Fehler auslösen lässt.
+
+- **Mit Medien:** Bis zu drei Bilder oder kurze Videos, jeweils höchstens 8 MiB.
+- **Ohne Medien:** **Keine Bilder oder Videos vorhanden** auswählen.
+- **Mit Diagnose:** Nach Zustimmung werden Version, Dashboard-Bereich und höchstens 20 relevante Logeinträge ergänzt. Zugangsdaten, WebHook-Adressen, E-Mail-Adressen und IPs werden vor dem Versand bereinigt.
+- **Nach dem Versand:** Das Fenster bestätigt den Eingang mit einer Vorgangsnummer.
+
+Die Standardkonfiguration sendet freiwillig abgeschickte Berichte aller Installationen an die zentrale Support-Empfangsstelle des Projekts. Diese leitet sie an den privaten Discord-Supportkanal des Projekteigentümers weiter. Der Discord-WebHook liegt ausschließlich als Secret in der Empfangsstelle.
+
+Bilder und Videos werden nicht automatisch anonymisiert; prüfe vor dem Anhängen, was darauf sichtbar ist. Normale Benutzer dürfen einen Bericht senden, erhalten dadurch aber keinen Zugriff auf die vollständigen Systemprotokolle.
+
+Die technische Einrichtung der zentralen Empfangsstelle ist in [support-relay/README.md](support-relay/README.md) beschrieben.
+
+## 📊 Monitoring und Sicherungen
+
+Das Dashboard zeigt CPU, RAM, Speicherplatz, Netzwerkdurchsatz und Player-Verbindungen live. Die Monitoring-Seite ergänzt Verlauf, Container-Laufzeit und den lokalen 24-Stunden-Ressourcenberater. Netzwerkverbrauch ist nach Tag, Monat und Jahr einsehbar.
+
+**Verschlüsselte Backups** enthalten Einstellungen, Playlists, Musikprofil, lokale Musik, weitere Benutzer, Verbindungen und Messwerte. Hauptadmin und aktive Sitzungen werden nicht exportiert. Das mindestens zehn Zeichen lange Backup-Passwort wird zur Wiederherstellung benötigt.
+
+Ein optionaler täglicher Wartungsneustart speichert Wiedergabe, Position und Warteschlange für den Wiederanlauf. Begrenzte Audiopuffer, die Vorbereitung des nächsten Titels und Wiederverbindungsversuche helfen bei kurzen Unterbrechungen.
+
+<a id="updates"></a>
+## 🔄 Auf dem aktuellen Stand bleiben
+
+Im Dashboard **System → Update** öffnen, nach Updates suchen und das Update starten. Alternativ den Installations-Einzeiler erneut ausführen.
+
+Beide Wege beziehen die Anwendung aus diesem Repository. Die Installation bereitet Abhängigkeiten vor dem Dienstwechsel vor und besitzt einen Rückweg zur vorherigen Installation, falls das Umschalten fehlschlägt. Einstellungen und Musik liegen getrennt von den Anwendungsdateien:
+
+| Pfad | Inhalt |
+| --- | --- |
+| `/opt/musikbot187` | Anwendung |
+| `/var/lib/musikbot187` | Einstellungen, Daten und Musik |
+| `/run/musikbot187` | Lokaler Control-Socket |
+
+Die aktuelle Entwicklung liegt auf [main](https://github.com/jonascool19-pixel/Musikbot187/tree/main). Ob die automatischen Prüfungen erfolgreich waren, zeigt der CI-Status oben.
+
+## 🛠️ Projektstruktur und Entwicklung
+
+| Ordner | Aufgabe |
+| --- | --- |
+| `frontend/` | Dashboard, Gestaltung und Browserbedienung |
+| `backend/` | API, Player, Autoplay, Integrationen und Abhängigkeiten |
+| `control/` · `systemd/` | Systemsteuerung und Linux-Dienste |
+| `tests/` | Automatisierte Funktions- und Sicherheitsprüfungen |
+| `scripts/` | Einrichtungslink und dauerhafter Arbeitsstand |
+| `support-relay/` | Zentrale Empfangsstelle für Fehlerberichte |
+| `docs/` | Spotify-Rückweg und historische Projektdokumentation |
+
+Für die Entwicklung werden **Node.js 22 oder neuer** und **FFmpeg** benötigt:
 
 ```bash
 cd backend
 npm ci
 npm test
-npm run test:first-run
+npx playwright install --with-deps chromium
 npm run test:browser
 npm run benchmark:player
 ```
 
-Die GitHub-Prüfung läuft zusätzlich auf Ubuntu 24.04 und kontrolliert Abhängigkeiten, Backend, Browseroberfläche, Installer, native Opus-Ausgabe und den Zwei-Player-Benchmark.
+Die [GitHub-Prüfung](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml) kontrolliert unter Ubuntu 24.04 Abhängigkeiten, Funktionen, Browseroberfläche, Installer-Syntax und native Opus-Verarbeitung.
 
-## Architektur
-
-```text
-Dashboard
-   ↓
-Fastify-API → Auth, Rechte, verschlüsselte Secrets
-   ↓
-Player-Hub → Autoplay, Warteschlangen, getrennte/spiegelnde Player
-   ↓
-yt-dlp + FFmpeg → Discord / TeamSpeak-Verwaltung
-```
-
-Technische Prüfdetails stehen im [Deep-Audit](docs/deep-audit.md).
-
-## Bekannte Grenze bei TeamSpeak 3
-
-Die TS3-Seite verwaltet und diagnostiziert ServerQuery-Verbindungen. ServerQuery selbst kann keinen rohen PCM-Audiostream übertragen. Für hörbare TeamSpeak-Ausgabe ist deshalb auf dem Zielsystem zusätzlich ein echter TS3-Client-/Audio-Transport erforderlich; das Dashboard kennzeichnet eine reine ServerQuery-Verbindung bewusst nicht fälschlich als hörbare Ausgabe.
+Frühere Ergebnisse bleiben nachvollziehbar: [Auditarchiv 1.8.7](docs/deep-audit.md) · [Release-Archiv 1.8.7](docs/release-v1.8.7.md). Diese Archive beschreiben ihren damaligen Stand; die aktuelle Funktionsübersicht steht auf dieser Seite.

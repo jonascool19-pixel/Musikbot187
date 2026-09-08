@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-07T23:46:05.005Z
-Status: completed
-Base: main at e26210a
+Last updated: 2026-09-08T18:21:31.342Z
+Status: publishing
+Base: GitHub main at 45049d2
 
 ## Currently working on
 
-Kein offener Entwicklungsschritt; die Autoplay-Warteschlange und die sichtbare Einmischung gelernter Favoriten sind korrigiert.
+Version 1.8.8 ist lokal geprüft; Veröffentlichung auf GitHub und Kontrolle der CI laufen.
 
 ## Last completed
 
-Profilbewertungen und Ausschlüsse erhalten die vorbereitete Warteschlange. Gelernte Playlist-Favoriten werden regelmäßig zwischen neuen passenden Titeln abgespielt und im Dashboard eindeutig gekennzeichnet; deaktivierte Lern-Playlists beeinflussen den Mix nicht mehr.
+Autoplay verwendet direkte gelernte Favoriten im 5+5-Mix, prüft neue Titel anhand echter Stil- und Künstlerangaben und verhindert Profilverschiebung durch eigene Vorschläge. README mit Symbolen, Changelog und klar gekennzeichneten Archiven fertig. Installer und Versionsanzeige aktualisiert.
 
 ## Next
 
-Nach dem Update im echten Discord-Betrieb Mehr davon und Weniger davon sowie mehrere Autoplay-Nachfüllungen beobachten; konkrete Ausreißer mit Titel und Zeitpunkt melden.
+GitHub-Stand und Ubuntu-CI bestätigen; im echten Discord-Betrieb das 5+5-Verhältnis nach dem Dashboard-Update beobachten.
 
 ## Verification
 
-155 Backendtests und die vollständige Playwright-Dashboardprüfung erfolgreich; Syntax- und Diff-Prüfung sauber. Zwei bereits vorhandene unversionierte pnpm-Hilfsdateien blieben unberührt.
+160 Backendtests, vollständiger Playwright-Dashboardtest, Shell-Syntax und Diff-Prüfung erfolgreich. Dauertest umfasst 70 Titelwechsel und Neustart. Zwei vorhandene unversionierte pnpm-Dateien bleiben unberührt.
 
 ## Safety note
 

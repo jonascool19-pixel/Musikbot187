@@ -4,3 +4,6 @@ playwright-report/
 *.log
 .env
 .dev.vars
+.wrangler/
+.DS_Store
+Thumbs.db

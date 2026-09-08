@@ -1,4 +1,5 @@
-export const appVersion='1.8.7';
+import {readFileSync} from 'node:fs';
+export const appVersion=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8')).version;
 export const latestPackageUrl='https://raw.githubusercontent.com/jonascool19-pixel/Musikbot187/main/backend/package.json';
 
 export function compareVersions(left,right){
@@ -11,7 +12,7 @@ export function compareVersions(left,right){
 }
 
 export async function updateStatus(fetcher=fetch){
-  const response=await fetcher(latestPackageUrl,{headers:{accept:'application/json','user-agent':`MusikBot187/${appVersion}`},signal:AbortSignal.timeout(8000)});
+  const response=await fetcher(latestPackageUrl,{headers:{accept:'application/json','cache-control':'no-cache','user-agent':`MusikBot187/${appVersion}`},signal:AbortSignal.timeout(8000)});
   if(!response.ok)throw new Error(`Update-Server antwortet mit HTTP ${response.status}.`);
   const body=await response.json(),latest=String(body?.version||'').trim();
   if(!/^\d+\.\d+\.\d+$/.test(latest))throw new Error('Der Update-Server hat keine gültige Versionsnummer geliefert.');

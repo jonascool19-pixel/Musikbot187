@@ -51,7 +51,7 @@ rm -f /usr/local/bin/yt-dlp.new /tmp/yt-dlp.sha256
 getent group musikbot187 >/dev/null || groupadd --system musikbot187
 id musikbot187 >/dev/null 2>&1 || useradd --system --gid musikbot187 --home-dir "$DATA" --shell /usr/sbin/nologin musikbot187
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-curl --retry 3 --retry-all-errors --proto '=https' -fsSL "https://github.com/$REPO/archive/refs/heads/$VERSION.tar.gz" -o "$TMP/app.tar.gz"
+curl --retry 3 --retry-all-errors --proto '=https' -H 'Cache-Control: no-cache' -fsSL "https://github.com/$REPO/archive/refs/heads/$VERSION.tar.gz?install=$(date +%s)" -o "$TMP/app.tar.gz"
 tar -xzf "$TMP/app.tar.gz" -C "$TMP"
 SOURCE="$TMP/$REPO_NAME-$VERSION"
 [[ -d "$SOURCE/backend" && -f "$SOURCE/backend/package-lock.json" ]] || { echo 'Das geladene MusikBot-Archiv ist unvollständig.' >&2; exit 1; }
@@ -80,7 +80,11 @@ usermod -a -G musikbot187 root
 systemctl daemon-reload
 systemctl enable --now musikbot187-control.service musikbot187.service
 sleep 3
-curl -fsS http://127.0.0.1:3000/api/health >/dev/null || { journalctl -u musikbot187 -n 100 --no-pager; exit 1; }
+if ! curl --retry 10 --retry-connrefused --retry-delay 2 -fsS http://127.0.0.1:3000/api/health >/dev/null; then
+  journalctl -u musikbot187 -n 100 --no-pager || true
+  # Trigger ERR so a failed health check also restores the previous installation.
+  false
+fi
 rm -rf "$OLD"
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"; [[ -n "$IP" ]] || IP=SERVER-IP
 echo "Dashboard: http://$IP:3000/"

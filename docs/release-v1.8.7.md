@@ -1,6 +1,6 @@
-# MusikBot187 1.8.7
+# 📁 Release-Archiv – MusikBot187 1.8.7
 
-MusikBot187 1.8.7 ist der abschließend tiefengeprüfte Stand für einen Ubuntu-24.04-CT. Die Versionsnummer bleibt bewusst unverändert bei **1.8.7**.
+> **Historischer Stand:** Diese Notizen dokumentieren die damaligen Änderungen der Version 1.8.7. Sie sind keine aktuelle Installationsanleitung oder Funktionszusage. Neuere Funktionen und korrigierte Autoplay-Regeln stehen in der [aktuellen README](../README.md); der dortige Installations-Einzeiler bezieht den aktuellen `main`-Zweig.
 
 ## Abschlussverbesserungen
 

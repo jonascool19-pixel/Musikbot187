@@ -66,11 +66,11 @@ test('selected playlists seed the local profile once and later listening keeps r
 test('personal mix replaces a full repeating playlist queue without replaying the same search set after reconfiguration',async()=>{
   const player=new FakePlayer(),current={id:'spotify-current',title:'Artist Eins – Playlist Titel Eins',source:'spotify'},learned={key:'spotify-learned',id:'spotify-learned',title:'Artist Zwei – Playlist Titel Zwei',source:'spotify',styles:[],listens:2,lastPlayed:2};
   player.current=current;player.queue=Array.from({length:10},(_,index)=>({id:`playlist-${index}`,title:`Playlist Titel ${index}`,source:'spotify',autoplayMode:'playlists'}));player.playlistPlayback={playlistId:'old-list',repeat:true,items:[current,...player.queue]};
-  const fresh=[{id:'new-one',title:'Neuer Artist – Neuer Song Eins',source:'youtube'},{id:'new-two',title:'Anderer Artist – Neuer Song Zwei',source:'youtube'},{id:'new-three',title:'Dritter Artist – Neuer Song Drei',source:'youtube'}],settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:['old-list'],autoplayQueueTarget:3},queries=[],controller=new AutoplayController({player,settings,profile:{version:1,tracks:[learned]},getPlaylists:()=>[{id:'old-list',items:[current,learned]}],recommend:async(track,{query})=>{queries.push(query);return queries.length%2?[{id:'youtube-copy',title:learned.title,source:'youtube'}]:fresh},save:async()=>{}});
+  const fresh=[{id:'new-one',title:'Artist Zwei – Neuer Song Eins',source:'youtube'},{id:'new-two',title:'Artist Zwei – Neuer Song Zwei',source:'youtube'},{id:'new-three',title:'Artist Zwei – Neuer Song Drei',source:'youtube'}],settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:['old-list'],autoplayQueueTarget:3},queries=[],controller=new AutoplayController({player,settings,profile:{version:1,tracks:[learned]},getPlaylists:()=>[{id:'old-list',items:[current,learned]}],recommend:async(track,{query})=>{queries.push(query);return queries.length%2?[{id:'youtube-copy',title:learned.title,source:'youtube'}]:fresh},save:async()=>{}});
   await controller.setEnabled(true);
   assert.equal(player.current.id,'spotify-current');
   assert.equal(player.playlistPlayback,null);
-  assert.deepEqual(player.queue.map(track=>track.id),['spotify-learned','new-one','new-two']);
+  assert.deepEqual(player.queue.map(track=>track.id),['spotify-learned','new-one','new-three']);
   assert.equal(player.queue[0].autoplayKnownFavorite,true);
   assert.ok(player.queue.every(track=>track.autoplayMode==='similar'));
   assert.equal(player.queue.some(track=>track.id==='youtube-copy'),false);
@@ -79,12 +79,12 @@ test('personal mix replaces a full repeating playlist queue without replaying th
   player.playlistPlayback={playlistId:'old-list',repeat:true,items:[current,...player.queue]};
   await controller.configure({mode:'similar',playlistIds:['old-list'],queueTarget:3});
   assert.equal(player.playlistPlayback,null);
-  assert.equal(player.queue.some(track=>['new-one','new-two'].includes(track.id)),false);
+  assert.equal(player.queue.some(track=>['new-one','new-three'].includes(track.id)),false);
   assert.ok(queries.length>2);
   await controller.setEnabled(false);
   await controller.configure({mode:'similar',playlistIds:['old-list'],queueTarget:3});
   await controller.setEnabled(true);
-  assert.equal(player.queue.some(track=>['new-one','new-two'].includes(track.id)),false);
+  assert.equal(player.queue.some(track=>['new-one','new-three'].includes(track.id)),false);
   assert.equal(controller.state().mode,'similar');
   assert.equal(controller.state().enabled,true);
   controller.close();
@@ -111,7 +111,7 @@ test('preferred modern styles reject unrelated historical and conflicting music 
   assert.equal(autoplayCandidateMatchesPreferences({title:'Jemand, der über mich wacht (GERSHWIN, Oh Kay, 1926)',artist:'Historische Aufnahmen'},preferences),false);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Künstler – Schlager Party',artist:'Künstler'},preferences),false);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Künstler – Rawstyle Nacht',artist:'Künstler'},preferences),true);
-  assert.equal(autoplayCandidateMatchesPreferences({title:'DJ Nova – Bass Attack',artist:'DJ Nova'},preferences),true);
+  assert.equal(autoplayCandidateMatchesPreferences({title:'DJ Nova – Bass Attack',artist:'DJ Nova'},preferences),false);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Neues Lied',artist:'Scooter'},{preferredStyles:['Uptempo'],preferredArtists:['Scooter'],queryArtist:'Scooter'}),true);
 });
 
@@ -146,8 +146,8 @@ test('personal autoplay interleaves manual and learned genres with artists',asyn
   const controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{queries.push(query);const category=Object.keys(titles).find(name=>query.startsWith(name));return (titles[category]||[]).map((title,index)=>({id:`${category}-${index}`,title,artist:category==='Scooter'?'Scooter':'',source:'youtube',duration:200}))},save:async()=>{}});
   await controller.setEnabled(true);
   const firstFour=[player.current,...player.queue].slice(0,4);
-  assert.deepEqual(firstFour.map(track=>track.autoplayCategory),['Hardstyle','Scooter','Techno','Uptempo']);
-  assert.deepEqual(firstFour.map(track=>Boolean(track.autoplayKnownFavorite)),[false,false,true,false]);
+  assert.deepEqual(firstFour.map(track=>track.autoplayCategory),['Uptempo','Hardstyle','Techno','Scooter']);
+  assert.deepEqual(firstFour.map(track=>Boolean(track.autoplayKnownFavorite)),[true,false,true,false]);
   assert.ok(queries.some(query=>query.startsWith('Hardstyle')));
   assert.ok(queries.some(query=>query.startsWith('Uptempo')));
   assert.ok(queries.some(query=>query.startsWith('Techno')));
@@ -184,12 +184,13 @@ test('autoplay keeps music results and rejects tutorials and study videos',()=>{
   assert.match(autoplayNonMusicSearchSuffix,/-playlist/);
 });
 
-test('similar autoplay accepts flat music-search results without optional YouTube metadata',async()=>{
+test('profile autoplay rejects unverifiable flat results instead of accepting their search rank',async()=>{
   const player=new FakePlayer();player.current={id:'turbo',title:'New Kids, Paul Elstak, Satirized, Aalst – Turbo (Satirized & Aalst Turbo Saté Remix)',artist:'Paul Elstak',source:'youtube',duration:193,autoplay:true,autoplayMode:'similar'};
   const settings={autoplayEnabled:true,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo','Techno','Hardstyle'],preferredArtists:[],blockedStyles:[]},recommendations=Array.from({length:5},(_,index)=>({id:`plain-song-${index}`,title:`Turbo Titel ${index}`,source:'youtube'})),controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async()=>recommendations,save:async()=>{}});
   await controller.fill();
-  assert.equal(player.current.id,'turbo');
-  assert.deepEqual(player.queue.map(track=>track.id),['plain-song-0','plain-song-2','plain-song-4']);
+  assert.equal(player.current,null);
+  assert.deepEqual(player.queue,[]);
+  assert.equal(controller.state().status,'waiting');
   controller.close();
 });
 
@@ -199,7 +200,10 @@ test('a learned style profile pulls an unrelated autoplay drift back to the lear
   await controller.fill();
   assert.doesNotMatch(queries[0],/Fremder Pop Song/);
   assert.match(queries[0],/Uptempo/);
-  assert.deepEqual(new Set([player.current,...player.queue].map(track=>track.id)),new Set(recommendations.map(track=>track.id)));
+  assert.equal(player.current.id,'learned-root');
+  assert.ok(player.current.autoplayKnownFavorite);
+  assert.equal(player.queue.length,3);
+  assert.ok(player.queue.every(track=>track.title.includes('Uptempo')));
   assert.match(controller.state().detail,/gelernten Musikprofil/);
   controller.close();
 });
@@ -271,13 +275,13 @@ test('configured styles never fall back to the broad discovery mix',async()=>{
     {id:'right-four',title:'DJ Vier – Bass Attack',source:'youtube'}
   ],controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{queries.push(query);return recommendations},save:async()=>{}});
   await controller.setEnabled(true);
-  assert.deepEqual([player.current,...player.queue].map(track=>track.id),['right-one','right-three','right-two','right-four']);
+  assert.deepEqual([player.current,...player.queue].map(track=>track.id),['right-one','right-three','right-two']);
   assert.match(queries[0],/^Uptempo\b/);
   assert.equal(queries.some(query=>autoplayDiscoveryQueries.some(discovery=>query.includes(discovery))),false);
   controller.close();
 });
 
-test('personal mix keeps manual taste controls, rejects long-form results and never learns its own suggestions',async()=>{const seed={id:'seed-hardstyle',title:'Artist – Hardstyle Anthem',source:'youtube',duration:220},player=new FakePlayer();player.current=seed;const settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo'],preferredArtists:['Scooter'],blockedStyles:['Schlager']},queries=[],recommendations=[{id:'quiz',title:'Das große Musikquiz',source:'youtube',duration:3900},{id:'unknown-mix',title:'Full Album Continuous Mix',source:'youtube'},{id:'schlager',title:'Schlager Party Hit',source:'youtube',duration:190},{id:'valid-one',title:'Künstler Eins – Uptempo Feuer',source:'youtube',duration:210},{id:'valid-two',title:'Künstler Zwei – Rawstyle Nacht',source:'youtube',duration:260},{id:'too-long',title:'Künstler Drei – Hardcore Licht',source:'youtube',duration:599},{id:'valid-three',title:'Künstler Vier – Hardcore Sturm',source:'youtube',duration:300}],controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{queries.push(query);return recommendations},save:async()=>{}});await controller.setEnabled(true);assert.deepEqual(player.queue.map(track=>track.id),['valid-one','valid-two','valid-three']);assert.match(queries[0],/Uptempo/);assert.ok(queries.some(query=>/Scooter/.test(query)));assert.match(queries[0],/-Schlager/);assert.doesNotMatch(queries[0],/Hardstyle Anthem/);assert.match(controller.state().detail,/Musikvorgaben/);await controller.recordListened(player.queue[0],1000);assert.equal(controller.state().profile.learnedTracks,0);await controller.recordListened({id:'manual-schlager',title:'Schlager Party',source:'youtube',duration:180},2000);assert.equal(controller.state().profile.learnedTracks,0);await controller.recordListened({id:'manual-pop',title:'Artist – Pop Song',source:'youtube',duration:200},3000);const learned=controller.state().profile.tracks[0];assert.equal(controller.state().profile.learnedTracks,1);const blocked=await controller.blockProfileTrack(learned.key);assert.deepEqual(blocked.added,['Pop']);assert.deepEqual(blocked.profile.blockedStyles,['Schlager','Pop']);assert.deepEqual(blocked.profile.preferredArtists,['Scooter']);assert.equal(blocked.profile.learnedTracks,0);assert.deepEqual(player.queue,[]);await controller.updateProfileStyles({preferredStyles:['Schlager','Uptempo'],preferredArtists:['Rammstein'],blockedStyles:[]});assert.deepEqual(controller.state().profile.preferredStyles,['Schlager','Uptempo']);assert.deepEqual(controller.state().profile.preferredArtists,['Rammstein']);assert.deepEqual(controller.state().profile.blockedStyles,[]);controller.close()});
+test('personal mix keeps manual taste controls, rejects long-form results and never learns its own suggestions',async()=>{const seed={id:'seed-hardstyle',title:'Artist – Hardstyle Anthem',source:'youtube',duration:220},player=new FakePlayer();player.current=seed;const settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo'],preferredArtists:['Scooter'],blockedStyles:['Schlager']},queries=[],recommendations=[{id:'quiz',title:'Das große Musikquiz',source:'youtube',duration:3900},{id:'unknown-mix',title:'Full Album Continuous Mix',source:'youtube'},{id:'schlager',title:'Schlager Party Hit',source:'youtube',duration:190},{id:'valid-one',title:'Künstler Eins – Uptempo Feuer',source:'youtube',duration:210},{id:'valid-two',title:'Künstler Zwei – Rawstyle Nacht',source:'youtube',duration:260},{id:'too-long',title:'Künstler Drei – Hardcore Licht',source:'youtube',duration:599},{id:'valid-three',title:'Künstler Vier – Hardcore Sturm',source:'youtube',duration:300}],controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{queries.push(query);return recommendations},save:async()=>{}});await controller.setEnabled(true);assert.deepEqual(player.queue.map(track=>track.id),['valid-one']);assert.match(queries[0],/Uptempo/);assert.ok(queries.some(query=>/Scooter/.test(query)));assert.match(queries[0],/-Schlager/);assert.doesNotMatch(queries[0],/Hardstyle Anthem/);assert.match(controller.state().detail,/Musikvorgaben/);await controller.recordListened(player.queue[0],1000);assert.equal(controller.state().profile.learnedTracks,0);await controller.recordListened({id:'manual-schlager',title:'Schlager Party',source:'youtube',duration:180},2000);assert.equal(controller.state().profile.learnedTracks,0);await controller.recordListened({id:'manual-pop',title:'Artist – Pop Song',source:'youtube',duration:200},3000);const learned=controller.state().profile.tracks[0];assert.equal(controller.state().profile.learnedTracks,1);const blocked=await controller.blockProfileTrack(learned.key);assert.deepEqual(blocked.added,['Pop']);assert.deepEqual(blocked.profile.blockedStyles,['Schlager','Pop']);assert.deepEqual(blocked.profile.preferredArtists,['Scooter']);assert.equal(blocked.profile.learnedTracks,0);assert.deepEqual(player.queue,[]);await controller.updateProfileStyles({preferredStyles:['Schlager','Uptempo'],preferredArtists:['Rammstein'],blockedStyles:[]});assert.deepEqual(controller.state().profile.preferredStyles,['Schlager','Uptempo']);assert.deepEqual(controller.state().profile.preferredArtists,['Rammstein']);assert.deepEqual(controller.state().profile.blockedStyles,[]);controller.close()});
 
 test('similar autoplay starts from silence, prepares ten waiting tracks and keeps a balanced bounded profile',async()=>{const player=new FakePlayer(),settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:10},profile={version:1,tracks:[]},queries=[],controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{queries.push(query);return Array.from({length:14},(_,index)=>({id:`discovery-${index}`,title:`Künstler ${index} – Uptempo Titel ${index}`,source:'youtube'}))},save:async()=>{}});await controller.setEnabled(true);assert.equal(player.current.id,'discovery-0');assert.equal(player.queue.length,10);assert.match(queries[0],/verschiedene Künstler/);for(let index=0;index<listeningProfileLimit+7;index++)await controller.recordListened({id:`learn-${index}`,title:`Titel ${index}`,source:'youtube'},index);assert.equal(controller.state().profile.learnedTracks,listeningProfileLimit);const removable=controller.state().profile.tracks[0];await controller.removeProfileTrack(removable.key);assert.equal(controller.state().profile.learnedTracks,listeningProfileLimit-1);controller.close();});
 
@@ -292,7 +296,7 @@ test('completed plays, early skips and explicit feedback produce separate profil
   player.emit('track-end',{track:{id:'failed',title:'Fehler DJ – Rock',source:'youtube'},reason:'failed',positionSeconds:4,duration:200});await tick();await tick();
   player.emit('track-end',{track:{id:'late',title:'Spät DJ – Pop',source:'youtube'},reason:'skipped',positionSeconds:100,duration:200});await tick();await tick();
   let summary=controller.profileSummary(),finished=summary.tracks.find(track=>track.key==='complete'),early=summary.tracks.find(track=>track.key==='skip');
-  assert.equal(finished.completed,1);assert.equal(finished.weight,2);assert.equal(early.earlySkips,1);assert.equal(early.weight,0);assert.equal(summary.tracks.some(track=>track.key==='failed'||track.key==='late'),false);assert.ok(summary.styles.some(style=>style.name==='Techno'));assert.equal(summary.styles.some(style=>style.name==='Schlager'),false);
+  assert.equal(finished.completed,1);assert.equal(finished.weight,0);assert.equal(early.earlySkips,1);assert.equal(early.weight,0);assert.equal(summary.tracks.some(track=>track.key==='failed'||track.key==='late'),false);assert.equal(summary.styles.some(style=>style.name==='Techno'),false);assert.equal(summary.styles.some(style=>style.name==='Schlager'),false);
   player.current=completed;let result=await controller.feedbackCurrent('more');assert.equal(result.rating,1);assert.equal(listeningSignalWeight(profile.tracks.find(track=>track.key==='complete')),6);result=await controller.feedbackCurrent('less');assert.equal(result.rating,0);controller.close();
 });
 
@@ -320,9 +324,9 @@ test('track and playlist exclusions prevent learning until they are restored',as
   summary=await controller.restoreProfileTrack('current');assert.deepEqual(summary.excludedTracks,[]);await controller.recordPlaybackOutcome({track:player.current,reason:'completed',positionSeconds:180,duration:180});assert.equal(controller.profileSummary().tracks.find(track=>track.key==='current').completed,1);await controller.setPlaylistLearning('ignored',true);assert.deepEqual(controller.profileSummary().excludedPlaylistIds,[]);controller.close();
 });
 
-test('personal autoplay interleaves one style-matched discovery after three taste matches',async()=>{
+test('without learned favorites autoplay uses only verified new music',async()=>{
   const player=new FakePlayer(),settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:7},profile={version:2,tracks:[],preferredStyles:['Hardstyle','Uptempo'],preferredArtists:[],blockedStyles:[]},controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{const exploration=query.includes('Geheimtipps'),style=query.startsWith('Hardstyle')?'Hardstyle':'Uptempo';return Array.from({length:8},(_,index)=>({id:`${exploration?'explore':'taste'}-${style}-${index}`,title:`${exploration?'Newcomer':'Favorit'} ${index} – ${style} Titel`,source:'youtube',duration:200}))},save:async()=>{}});
-  await controller.setEnabled(true);const firstFour=[player.current,...player.queue].slice(0,4);assert.deepEqual(firstFour.map(track=>Boolean(track.autoplayExploration)),[false,false,false,true]);assert.ok(firstFour.every(track=>/Hardstyle|Uptempo/.test(track.title)));controller.close();
+  await controller.setEnabled(true);const firstFour=[player.current,...player.queue].slice(0,4);assert.deepEqual(firstFour.map(track=>Boolean(track.autoplayExploration)),[true,true,true,true]);assert.ok(firstFour.every(track=>/Hardstyle|Uptempo/.test(track.title)));controller.close();
 });
 
 test('autoplay API saves configuration, fills the queue and clears it from the dashboard switch',async t=>{

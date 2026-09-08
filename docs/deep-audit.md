@@ -1,4 +1,6 @@
-# Deep-Audit – MusikBot187 1.8.7
+# 📁 Auditarchiv – MusikBot187 1.8.7
+
+> **Historischer Stand:** Dieses Dokument hält Prüfungen und Entscheidungen der Version 1.8.7 fest. Seitdem wurden Funktionen, Grenzwerte und Prüfungen geändert. Insbesondere die damaligen Autoplay-Regeln und Testzahlen beschreiben nicht die aktuelle Version. Für heutige Funktionen siehe [README](../README.md), für aktuelle Prüfergebnisse die [GitHub-CI](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml).
 
 ## Prüfgegenstand
 
