@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-09T13:04:42.873Z
-Status: publishing
-Base: GitHub main 7d2ada877705648d2185b88703165d930f304d71 (1.8.8)
+Last updated: 2026-09-09T19:54:14.349Z
+Status: completed
+Base: GitHub main d6aaa0f143f76db59800f9c98889ea29cc12f2cb; Release v1.8.9
 
 ## Currently working on
 
-Version 1.8.9 mit Slowed-Filter und Künstlerverteilung ist lokal vollständig geprüft und wird auf GitHub veröffentlicht.
+Version 1.8.9 ist auf GitHub main und als neuestes Release veröffentlicht. Die Codearbeit einschließlich aller lokalen und GitHub-Prüfungen ist abgeschlossen; das Update auf dem echten Bot steht noch aus.
 
 ## Last completed
 
-Gemeinsame Künstlerverteilung über laufenden Titel, Warteschlange, Favoriten und Entdeckungen; Kooperationen zählen mit. Slowed-Varianten werden aus dem persönlichen Mix und aus Spotify-Audioersatzquellen einschließlich Cache gefiltert. Suchvorrat diversifiziert und begrenzt; artistlastiger Vorrat blockiert keine Nachsuche. Kleine Profile dürfen nur die Künstlerhäufigkeit lockern, nie Stil-/Slowed-/Längenfilter. README und Changelog aktualisiert.
+Slowed-Varianten im persönlichen Mix und in Spotify-Audioersatzquellen einschließlich Cache ausgeschlossen. Gemeinsame Künstlerverteilung für aktuellen Titel, Warteschlange, gelernte Favoriten und neue Titel; Kooperationen zählen mit. Künstlerlastiger Puffer blockiert keine Nachsuche, spätere passende Suchtreffer bleiben verfügbar. README, Changelog und Version aktualisiert; Release v1.8.9 zeigt auf d6aaa0f.
 
 ## Next
 
-GitHub-CI und Release v1.8.9 bestätigen. Danach Dashboard-Update und persönliche Warteschlange einmal neu aufbauen; Lernprofil behalten. Tatsächliche Auswahl und Audio im Discord beobachten.
+Im Dashboard System → Update wählen; danach Autoplay einmal aus/an für neu zusammengestellte Wartetitel. Gelerntes Musikprofil behalten. Reale Auswahl und Wiedergabe im Discord prüfen. Historische YouTube-Bot-Prüfungen und vorzeitig endende Audioquellen aus dem privaten Anhang sind separate offene Beobachtungen, nicht mit diesem Fix als erledigt behandeln. Lokaler Git-Verlauf enthält ältere parallele Veröffentlichungscommits; vor weiterer Veröffentlichung remote main abrufen und abgleichen.
 
 ## Verification
 
-167 Backendtests und vollständiger Dashboard-Browsertest bestanden. Dauertests: 70 allgemeine Titelwechsel sowie 35 Titelwechsel mit stark überrepräsentiertem Künstler, jeweils mit Neustart. Syntax-/Diff-Prüfung sauber. Private Protokolle nicht veröffentlicht; historische YouTube-Bot-Prüfungen und vorzeitig endende Quellen aus dem Anhang werden nicht als behoben ausgegeben. Vorhandene pnpm-Dateien unberührt.
+167 Backendtests und kompletter Dashboard-Browsertest lokal bestanden. GitHub-CI 34397677157 unter Ubuntu vollständig erfolgreich, einschließlich Abhängigkeitsprüfung, nativem Opus-/Audiotest und Browserprüfung. Dauertests: 70 allgemeine sowie 35 künstlerlastige Titelwechsel plus Neustarts. main liefert Version 1.8.9. Release v1.8.9 bestätigt. Vorhandene unversionierte pnpm-Dateien unberührt; private Protokolle nicht veröffentlicht.
 
 ## Safety note
 
