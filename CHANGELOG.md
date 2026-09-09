@@ -1,5 +1,14 @@
 # 📦 Änderungen
 
+## 1.8.9 · Mehr Künstlerwechsel, keine Slowed-Vorschläge
+
+- **Normales Tempo:** Der persönliche Mix nimmt keine ausdrücklich als „Slowed“, „Super Slowed“, „Slow Version“ oder „verlangsamt“ bezeichneten Varianten auf. Das gilt auch für gelernte Favoriten und wiederhergestellte Autoplay-Titel. Manuelle Auswahl und der reine Playlist-Modus bleiben unverändert.
+- **Auch bei Spotify:** Für persönliche Autoplay-Titel werden verlangsamte YouTube-Ersatzquellen nicht verwendet, auch nicht aus dem Auflösungscache.
+- **Gemeinsame Künstlerverteilung:** Laufender Titel, vorhandene Warteschlange, gelernte Favoriten und Neuentdeckungen werden zusammen berücksichtigt. Ziel sind höchstens zwei Titel je Künstler bei zehn Wartetiteln und keine direkten Künstlerwiederholungen, sofern passende Alternativen vorliegen. Gemeinsame Künstler-Credits zählen mit.
+- **Kein Suchpuffer-Stau:** Ein Vorrat voller bereits häufig vertretener Künstler verhindert neue Suchen nicht mehr. Auch spätere Treffer der begrenzten Suchseite bleiben verfügbar; der Vorrat ist weiterhin begrenzt.
+- **Kleine Profile bleiben nutzbar:** Wenn beide Vorräte keine Künstleralternative bieten, wird nur die Künstlerhäufigkeit gelockert. Stilprüfung, Slowed-Filter und Sechs-Minuten-Grenze bleiben bestehen.
+- **Geprüft:** Zusätzliche Regressionstests für verlangsamte Varianten, Zusammenarbeit mehrerer Künstler, stark einseitige Suchergebnisse, wiederholtes Nachfüllen und Neustart.
+
 ## 1.8.8 · Persönlicher Autoplay-Mix
 
 - **Fünf bekannte + fünf neue:** Die Warteschlange mischt gelernte Songs direkt aus dem eigenen Musikprofil mit neuen passenden Titeln. Bei unzureichenden neuen Treffern werden verfügbare gelernte Favoriten verwendet.

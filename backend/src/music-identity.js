@@ -1,3 +1,9 @@
+const slowedVersionPattern=/\b(?:(?:(?:super|ultra)[\s-]*)?slowed(?:[\s-]*down)?|slow(?:er)?(?:[\s-]*(?:version|edit|remix|mix)|[\s+&-]*reverb)|(?:super|ultra)[\s-]*slow|verlangsam(?:t|te|ter|tes)|zeitlupe)\b/i;
+export function musicSlowedVersion(track){
+  const title=String(track?.title||'').normalize('NFKC'),parts=title.split(/\s+[–—-]\s+/),song=parts.length>1?parts.slice(1).join(' – '):title;
+  return slowedVersionPattern.test(title)||/(?:[\[(]\s*slow\s*[\])]|[–—-]\s*slow\s*$)/i.test(song);
+}
+
 // A music uploader is not necessarily the performing artist. Prefer the song
 // credit in the title, explicit artist metadata, or a YouTube Topic channel.
 export function musicArtist(track){
@@ -10,4 +16,12 @@ export function musicArtist(track){
   if(explicit&&explicit!==clean(track?.channel)&&explicit!==clean(track?.uploader))return explicit;
   const channel=String(track?.channel||track?.uploader||track?.channel_name||'');
   return /\s*-\s*Topic$/i.test(channel)?clean(channel):'';
+}
+
+// Count shared credits too: "A", "A feat. B" and "B & A" must not be
+// treated as three unrelated artists when balancing an autoplay queue.
+export function musicArtistKeys(track){
+  return [...new Set(musicArtist(track).split(/\s*(?:,|&|\b(?:feat\.?|featuring|ft\.?|vs\.?)(?=\s|$)|\s[x×]\s)\s*/i)
+    .map(value=>value.normalize('NFKD').replace(/\p{M}/gu,'').toLocaleLowerCase('de-DE').replace(/[^\p{L}\p{N}]+/gu,' ').trim())
+    .filter(value=>value&&!/^(?:unknown|unbekannt|various artists?|official|music|topic)$/.test(value)))];
 }

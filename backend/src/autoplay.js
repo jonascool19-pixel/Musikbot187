@@ -1,4 +1,4 @@
-import {musicArtist} from './music-identity.js';
+import {musicArtist,musicArtistKeys,musicSlowedVersion} from './music-identity.js';
 export const autoplayModes=Object.freeze(['playlists','similar']);
 export const autoplayQueueBounds=Object.freeze({min:3,max:20,default:10});
 export const autoplayDiscoveryQueries=Object.freeze([
@@ -7,7 +7,7 @@ export const autoplayDiscoveryQueries=Object.freeze([
   'neue Musik entdecken Mix verschiedene Künstler'
 ]);
 export const autoplaySearchVariants=Object.freeze(['neue Releases','Underground Tracks','Festival Tracks','aktuelle Songs','Label Releases']);
-export const autoplayNonMusicSearchSuffix='-tutorial -anleitung -guide -review -reaction -interview -podcast -documentary -trailer -gameplay -playlist -compilation -"top 10" -"top 100"';
+export const autoplayNonMusicSearchSuffix='-tutorial -anleitung -guide -review -reaction -interview -podcast -documentary -trailer -gameplay -playlist -compilation -"top 10" -"top 100" -slowed -"slow version" -"slow edit" -"slow remix" -verlangsamt';
 export const listeningProfileLimit=200;
 export const autoplayMaxDurationSeconds=6*60;
 export const autoplayProfileStyleLimit=20;
@@ -25,6 +25,25 @@ const oldYearPattern=/\b(?:18\d{2}|19[0-7]\d)\b/;
 const definiteNonMusicPattern=/\b(?:how\s+to|so\s+(?:nutzt|nutzen|benutzt|benutzen|verwendet|verwenden)\s+(?:man|sie)|tutorials?|anleitung|einrichtung|setup|guide|erklärt|erklärung|explained|review|reaction|unboxing|interview|podcast|dokumentation|documentary|web\s+player|walkthrough|gameplay|let'?s\s+play|trailer|behind\s+the\s+scenes|making\s+of|nachrichten|news|top\s*\d+|best(?:e|en)?\s*\d+|best\s+of|greatest\s+hits|playlists?|compilations?|zusammenstellung|(?:songs?|lieder|hits)\s+(?:mix|sammlung))\b/i;
 const likelyNonMusicPattern=/\b(?:study|studying|distracting|productivity|konzentrieren|lern(?:en|video)|tipps?|tips?|vergleich|comparison|episode|folge|vlog|shorts?)\b/i;
 const musicMarkerPattern=/\b(?:official\s+(?:music\s+)?(?:video|audio)|lyrics?|lyric\s+video|visuali[sz]er|remix|radio\s+edit|extended\s+mix|music\s+video|official\s+song|feat\.?|ft\.?)\b/i;
+export const autoplaySlowedVersion=musicSlowedVersion;
+
+function artistCounts(tracks){
+  const counts=new Map();
+  for(const track of tracks)for(const key of musicArtistKeys(track))counts.set(key,(counts.get(key)||0)+1);
+  return counts;
+}
+const artistLoad=(track,counts)=>Math.max(0,...musicArtistKeys(track).map(key=>counts.get(key)||0));
+const sharesArtist=(left,right)=>musicArtistKeys(left).some(key=>musicArtistKeys(right).includes(key));
+function diverseTrackIndex(list,references,{limit=Infinity,avoidAdjacent=false}={}){
+  const counts=artistCounts(references);
+  let best=-1,bestLoad=Infinity;
+  for(let index=0;index<list.length;index++){
+    const track=list[index],load=artistLoad(track,counts);
+    if(load>=limit||avoidAdjacent&&sharesArtist(track,references.at(-1)))continue;
+    if(load<bestLoad){best=index;bestLoad=load}
+  }
+  return best;
+}
 
 export function autoplayTrackKey(track){
   if(!track||typeof track!=='object')return '';
@@ -80,7 +99,7 @@ const unknownLongFormPattern=/\b(?:musik\s*quiz|music\s*quiz|megamix|continuous\
 export function normalizeAutoplayStyles(values){const result=[],seen=new Set();for(const value of Array.isArray(values)?values:[]){const style=normalizeStyleValue(value),key=comparable(style);if(style.length<2||seen.has(key))continue;seen.add(key);result.push(style);if(result.length>=autoplayProfileStyleLimit)break}return result;}
 export function autoplayTrackAllowed(track,blockedStyles=[]){const duration=Number(track?.duration)||0;if(duration>autoplayMaxDurationSeconds)return false;if(duration<=0&&unknownLongFormPattern.test(String(track?.title||'')))return false;const text=comparable(`${track?.title||''} ${musicArtist(track)} ${(track?.styles||[]).join(' ')} ${inferTrackStyles(track).join(' ')}`);return !normalizeAutoplayStyles(blockedStyles).some(style=>text.includes(comparable(style)));}
 export function autoplayMusicCandidateAllowed(track,blockedStyles=[]){
-  if(!autoplayTrackAllowed(track,blockedStyles))return false;
+  if(!autoplayTrackAllowed(track,blockedStyles)||autoplaySlowedVersion(track))return false;
   if(track?.source&&track.source!=='youtube')return true;
   const title=String(track?.title||'').trim(),artist=String(track?.artist||track?.channel||track?.uploader||'').trim(),text=`${title} ${artist}`,duration=Number(track?.duration)||0,styleEvidence=stylesIn(`${text} ${(track?.styles||[]).join(' ')}`).length>0,strongMusicEvidence=styleEvidence||musicMarkerPattern.test(text)||/\btopic\b/i.test(artist);
   if(definiteNonMusicPattern.test(text))return false;
@@ -533,8 +552,18 @@ export class AutoplayController{
       .sort((a,b)=>recentPosition(a)-recentPosition(b)||listeningSignalWeight(b)-listeningSignalWeight(a)||Number(b.lastPlayed||0)-Number(a.lastPlayed||0));
     const newAllowed=track=>!used.has(autoplayTrackKey(track))&&!profileKeys.has(autoplayTrackKey(track))&&!positiveProfile.some(item=>sameRecommendationFamily(item,track))&&!this.profileTrackExcluded(track)&&!dislikedKeys.has(autoplayTrackKey(track))&&autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)&&autoplayCandidateMatchesPreferences(track,{preferredStyles,preferredArtists,strictStyle:true});
     this.recommendationBuffer=this.recommendationBuffer.filter(newAllowed);
+    const artistLimit=Math.max(2,Math.ceil(config.queueTarget/5));
+    // A full buffer of one already frequent artist is not a usable reserve.
+    // Check its diverse capacity so it cannot prevent searching for alternatives.
+    const reserve=[...this.recommendationBuffer],reserveReferences=[...queued];
+    let reserveCount=0;
+    while(reserve.length&&reserveCount<needed){
+      const index=diverseTrackIndex(reserve,reserveReferences,{limit:artistLimit});
+      if(index<0)break;
+      reserveReferences.push(reserve.splice(index,1)[0]);reserveCount++;
+    }
     let inspectedCandidates=0;
-    if(this.recommendationBuffer.length<needed&&(hasMusicPreferences||!positiveProfile.length)){
+    if(reserveCount<needed&&(hasMusicPreferences||!positiveProfile.length)){
       const blockedSuffix=this.profile.blockedStyles.map(style=>'-'+(/\s/.test(style)?'"'+style.replaceAll('"','')+'"':style)).join(' '),searchVariant=autoplaySearchVariants[mixIndex%autoplaySearchVariants.length],queryCandidates=[];
       if(hasMusicPreferences){
         const categories=[],categoryLength=Math.max(preferredStyles.length,preferredArtists.length);
@@ -571,23 +600,30 @@ export class AutoplayController{
           :spec.artist
             ?{preferredStyles,preferredArtists:[spec.artist],queryArtist:spec.artist,rank:0,strictStyle:true}
             :{preferredStyles,preferredArtists,rank:0};
-        for(const [rank,track] of (Array.isArray(found)?found:[]).entries()){
+        for(const [rank,track] of (Array.isArray(found)?found:[]).slice(0,24).entries()){
           inspectedCandidates++;
           const key=autoplayTrackKey(track),options={...matchOptions,rank};
-          if(!key||candidateKeys.has(key)||this.profile.excludedTracks.some(item=>item.key===key)||dislikedKeys.has(key)||dislikedProfile.some(item=>sameRecommendationFamily(item,track))||!autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)||!autoplayCandidateMatchesPreferences(track,options)||familyReferences.some(item=>sameRecommendationFamily(item,track))||acceptedReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>sameRecommendationFamily(item,track)))continue;
+          if(!key||candidateKeys.has(key)||this.profile.excludedTracks.some(item=>item.key===key)||dislikedKeys.has(key)||dislikedProfile.some(item=>sameRecommendationFamily(item,track))||!autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)||!autoplayCandidateMatchesPreferences(track,options)||familyReferences.some(item=>sameRecommendationFamily(item,track))||acceptedReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>autoplayTrackKey(item)===key||sameRecommendationFamily(item,track)))continue;
           const tagged={...track,autoplayCategory:spec.style||spec.artist||'',autoplayCategoryKind:spec.style?'genre':spec.artist?'artist':'',autoplayExploration:Boolean(spec.explore)};
           if(profileKeys.has(key)||positiveProfile.some(item=>sameRecommendationFamily(item,track))){candidateKeys.add(key);continue}
-          fresh.push(tagged);acceptedReferences.push(tagged);candidateKeys.add(key);
-          if(fresh.length>=bucketLimit)break;
+          fresh.push(tagged);
         }
-        return fresh;
+        // Inspect the entire bounded result page before taking the bucket:
+        // otherwise ten top hits from one artist hide every later artist.
+        const balanced=[];
+        while(fresh.length){
+          const index=diverseTrackIndex(fresh,[...queued,...acceptedReferences]);
+          const track=fresh.splice(index,1)[0];
+          balanced.push(track);acceptedReferences.push(track);candidateKeys.add(autoplayTrackKey(track));
+        }
+        return balanced;
       };
       const buckets=[],explorationBuckets=[];
       if(hasMusicPreferences){
         const searched=[];
         for(let index=0;index<querySpecs.length;index+=3){
           const batch=await Promise.all(querySpecs.slice(index,index+3).map(async spec=>{
-            try{return {spec,found:await this.recommend(seed,{query:spec.query,limit:Math.max(8,Math.min(24,bucketLimit*4))})}}
+            try{return {spec,found:await this.recommend(seed,{query:spec.query,limit:24})}}
             catch(error){failures.push(String(error?.message||error));return {spec,found:[]}}
           }));
           searched.push(...batch);
@@ -618,22 +654,35 @@ export class AutoplayController{
         if(core.length)this.recommendationBuffer.push(core.shift());
         if(exploration.length)this.recommendationBuffer.push(exploration.shift());
       }
+      // Keep a bounded, artist-balanced reserve, including lower-ranked results
+      // when other query buckets were empty. Do not accumulate one-artist pages.
+      const pending=this.recommendationBuffer,reserve=[];
+      while(pending.length&&reserve.length<config.queueTarget*6){
+        const index=diverseTrackIndex(pending,[...queued,...reserve]);
+        reserve.push(pending.splice(index,1)[0]);
+      }
+      this.recommendationBuffer=reserve;
       if(!this.recommendationBuffer.length&&!familiar.length&&failures.length>=querySpecs.length)throw new Error('YouTube-Suche für den Musikmix fehlgeschlagen: '+failures.at(-1));
     }
     const items=[],selected=[...queued];
     const targetKnown=Math.ceil(config.queueTarget/2)+(!current&&this.player.queue.length===0?1:0);
     let knownNeeded=Math.max(0,targetKnown-this.player.queue.filter(track=>track.autoplayKnownFavorite).length);
-    const take=list=>{
-      while(list.length){
-        const track=list.shift();
-        if(!selected.some(item=>autoplayTrackKey(item)===autoplayTrackKey(track)||sameRecommendationFamily(item,track)))return track;
-      }
-      return null;
+    const take=(list,options)=>{
+      for(let index=list.length-1;index>=0;index--)if(selected.some(item=>autoplayTrackKey(item)===autoplayTrackKey(list[index])||sameRecommendationFamily(item,list[index])))list.splice(index,1);
+      const index=diverseTrackIndex(list,selected,options);
+      return index<0?null:list.splice(index,1)[0];
     };
     while(items.length<needed){
       const preferKnown=knownNeeded>0&&(items.length===0||!items.at(-1).autoplayKnownFavorite||needed-items.length<=knownNeeded);
-      let track=preferKnown?take(familiar):take(this.recommendationBuffer),known=preferKnown;
-      if(!track){known=!preferKnown;track=take(known?familiar:this.recommendationBuffer)}
+      let track=null,known=preferKnown;
+      // Apply one artist budget across favorites, discoveries, current playback
+      // and the existing queue. Relax it only when neither pool has alternatives;
+      // a small personal library must not leave autoplay permanently empty.
+      for(const options of [{limit:artistLimit,avoidAdjacent:true},{limit:artistLimit},{avoidAdjacent:true},{}]){
+        known=preferKnown;track=take(known?familiar:this.recommendationBuffer,options);
+        if(!track){known=!preferKnown;track=take(known?familiar:this.recommendationBuffer,options)}
+        if(track)break;
+      }
       if(!track)break;
       if(known){knownNeeded--;track={...track,autoplayCategory:learnedArtistCandidate(track)||track.styles?.[0]||'Gelernter Favorit',autoplayCategoryKind:'profile'}}
       else track={...track,autoplayExploration:true};

@@ -5,7 +5,7 @@
 Ein selbst gehosteter Musik- und Radiobot für Ubuntu 24.04 mit Discord-Audio, Playlists, lokalen Dateien und einem persönlichen Autoplay-Profil.
 
 [![CI](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml/badge.svg)](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml)
-![Version](https://img.shields.io/badge/Version-1.8.8-blue)
+![Version](https://img.shields.io/badge/Version-1.8.9-blue)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?logo=ubuntu&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white)
 
@@ -103,9 +103,11 @@ So richtest du deinen persönlichen Mix ein:
 
 **Der Mix zielt auf fünf bekannte und fünf neue Titel pro zehn Wartetitel.** Bekannte Songs kommen direkt aus deinem Lernprofil und wechseln sich ab. Neue Songs benötigen passende Künstler- oder Stilbelege; ihre Position in der YouTube-Suche genügt nicht. Falls geprüfte Neuentdeckungen fehlen, ergänzen verfügbare gelernte Favoriten den Mix. Bei zu wenigen passenden Titeln kann die Warteschlange kürzer bleiben.
 
+**Mehr Künstlerwechsel:** Bekannte und neue Songs teilen sich eine gemeinsame Künstlerverteilung. Bei zehn Wartetiteln sind höchstens zwei Titel je Künstler und keine direkten Wiederholungen desselben Künstlers das Ziel. Auch gemeinsame Credits wie „A feat. B“ zählen mit. Nur wenn keine passende Künstleralternative verfügbar ist, wird diese Häufigkeitsgrenze gelockert, damit ein kleines Musikprofil weiter abspielen kann.
+
 Das Profil bleibt im eigenen Container und umfasst höchstens **200 Titel**. 40 häufig gehörte Langzeitfavoriten werden geschützt, während 160 Plätze aktuelle Vorlieben aufnehmen.
 
-Für den persönlichen Mix gilt eine **Sechs-Minuten-Grenze**. Er filtert außerdem erkennbare Tutorials, Podcasts, Sammlungen, lange Sets, gesperrte Begriffe und doppelte Songvarianten. Die Erkennung verwendet Titel- und Künstlerdaten; sie ist keine akustische Analyse der Audiodatei.
+Für den persönlichen Mix gilt eine **Sechs-Minuten-Grenze**. Er filtert außerdem ausdrücklich verlangsamte Varianten („Slowed“, „Super Slowed“, „Slow Version“), erkennbare Tutorials, Podcasts, Sammlungen, lange Sets, gesperrte Begriffe und doppelte Songvarianten. Der Slowed-Filter greift auch bei Spotify-Titeln, deren Audio über YouTube aufgelöst wird. Manuell gewählte Lieder und der reine Playlist-Modus bleiben davon unberührt. Die Erkennung verwendet Titel- und Künstlerdaten; sie ist keine akustische Analyse der Audiodatei.
 
 ### 💬 Discord verbinden
 
