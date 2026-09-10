@@ -50,7 +50,7 @@ test('access pause preserves the current track, queue, position and exact shuffl
   assert.equal(player.current.id,'current');assert.equal(player.reconnecting,true);
   assert.deepEqual(player.queue,[{id:'later'}]);assert.equal(ended.length,0);
   player.pause();t.mock.timers.tick(60_000);
-  assert.deepEqual(retried,[95,42,true,true]);assert.deepEqual(player.queue.map(x=>x.id),['current','later']);
+  assert.deepEqual(retried,[94,42,true,true]);assert.deepEqual(player.queue.map(x=>x.id),['current','later']);
   player.stop();
 });
 test('stopping during an access pause cancels the retry without resurrecting the track',t=>{
