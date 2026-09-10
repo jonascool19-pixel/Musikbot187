@@ -5,7 +5,7 @@
 Ein selbst gehosteter Musik- und Radiobot für Ubuntu 24.04 mit Discord-Audio, Playlists, lokalen Dateien und einem persönlichen Autoplay-Profil.
 
 [![CI](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml/badge.svg)](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml)
-![Version](https://img.shields.io/badge/Version-1.8.9-blue)
+![Version](https://img.shields.io/badge/Version-1.8.10-blue)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?logo=ubuntu&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white)
 

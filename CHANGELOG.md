@@ -1,5 +1,14 @@
 # 📦 Änderungen
 
+## 1.8.10 · YouTube-Schutzpause und zuverlässige Wiederverbindung
+
+- **Warteschlange erhalten:** Bei YouTube-Bot-Prüfung oder Zugriffslimit pausieren Suche, Vorladen und Medienauflösung gemeinsam. Erneute Versuche erfolgen nach einer Minute, bei fortgesetzter Sperre mit steigenden Abständen bis zehn Minuten. Lokale Dateien und Radio bleiben unabhängig nutzbar.
+- **Richtiger Titel:** Wiederverbindung und Spulen setzen auch im Zufallsmodus denselben Titel fort, statt einen anderen Song an dessen Abspielposition zu starten.
+- **403-Fehler:** Bei abgewiesenen Online-Audioadressen löst der Player die Quelle neu auf. Veraltete Vorladedaten werden verworfen; Radios behalten ihre bisherige Wiederverbindung.
+- **Ehrliche Meldungen:** „Wiederhergestellt“ erscheint erst, wenn tatsächlich Audiodaten ausgegeben werden. Nicht jeder Auflösungsfehler wird als 60-Sekunden-Zeitüberschreitung bezeichnet.
+- **Datenschutz:** Vollständige Medienadressen werden aus Player-Diagnosen entfernt, damit Signaturen und Adressparameter nicht in neuen Protokolleinträgen landen.
+- **Grenze:** Eine externe YouTube-Sperre wird dadurch nicht aufgehoben. Der Bot wartet schonend und verliert dabei keine Wartetitel; Zugangsdaten oder Cookies werden nicht automatisch übernommen.
+
 ## 1.8.9 · Mehr Künstlerwechsel, keine Slowed-Vorschläge
 
 - **Normales Tempo:** Der persönliche Mix nimmt keine ausdrücklich als „Slowed“, „Super Slowed“, „Slow Version“ oder „verlangsamt“ bezeichneten Varianten auf. Das gilt auch für gelernte Favoriten und wiederhergestellte Autoplay-Titel. Manuelle Auswahl und der reine Playlist-Modus bleiben unverändert.
