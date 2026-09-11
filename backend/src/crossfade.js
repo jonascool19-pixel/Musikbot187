@@ -17,20 +17,25 @@ export function chooseCrossfadeMs(remainingMs,bufferedBytes,{targetMs=defaultCro
 
 export class EqualPowerCrossfade{
   constructor(durationMs=defaultCrossfadeMs,{sampleRate=pcmSampleRate,channels=pcmChannels}={}){
-    this.totalSamples=Math.max(1,Math.round(Math.max(1,Number(durationMs)||1)*sampleRate*channels/1000));
-    this.processedSamples=0;
+    this.channels=Math.max(1,Math.floor(Number(channels)||1));
+    this.frameBytes=this.channels*2;
+    this.totalFrames=Math.max(1,Math.round(Math.max(1,Number(durationMs)||1)*sampleRate/1000));
+    this.processedFrames=0;
   }
-  get done(){return this.processedSamples>=this.totalSamples;}
-  get progress(){return Math.min(1,this.processedSamples/this.totalSamples);}
+  get done(){return this.processedFrames>=this.totalFrames;}
+  get progress(){return Math.min(1,this.processedFrames/this.totalFrames);}
   process(outgoing,incoming){
     if(!Buffer.isBuffer(outgoing)||!Buffer.isBuffer(incoming))return outgoing;
-    const length=Math.min(outgoing.length,incoming.length)&~1;
-    if(length<=0)return outgoing.subarray(0,0);
-    for(let offset=0;offset<length;offset+=2){
-      const denominator=Math.max(1,this.totalSamples-1),progress=Math.min(1,this.processedSamples/denominator),gains=equalPowerGains(progress),mixed=Math.round(outgoing.readInt16LE(offset)*gains.outgoing+incoming.readInt16LE(offset)*gains.incoming);
-      outgoing.writeInt16LE(Math.max(-32768,Math.min(32767,mixed)),offset);
-      this.processedSamples++;
+    const length=Math.min(outgoing.length,incoming.length),aligned=length-length%this.frameBytes;
+    if(aligned<=0)return outgoing.subarray(0,0);
+    for(let frameOffset=0;frameOffset<aligned;frameOffset+=this.frameBytes){
+      const denominator=Math.max(1,this.totalFrames-1),progress=Math.min(1,this.processedFrames/denominator),gains=equalPowerGains(progress);
+      for(let channel=0;channel<this.channels;channel++){
+        const offset=frameOffset+channel*2,mixed=Math.round(outgoing.readInt16LE(offset)*gains.outgoing+incoming.readInt16LE(offset)*gains.incoming);
+        outgoing.writeInt16LE(Math.max(-32768,Math.min(32767,mixed)),offset);
+      }
+      this.processedFrames++;
     }
-    return outgoing.subarray(0,length);
+    return outgoing.subarray(0,aligned);
   }
 }
