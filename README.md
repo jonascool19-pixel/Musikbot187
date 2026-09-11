@@ -5,7 +5,7 @@
 Ein selbst gehosteter Musik- und Radiobot für Ubuntu 24.04 mit Discord-Audio, Playlists, lokalen Dateien und einem persönlichen Autoplay-Profil.
 
 [![CI](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml/badge.svg)](https://github.com/jonascool19-pixel/Musikbot187/actions/workflows/ci.yml)
-![Version](https://img.shields.io/badge/Version-1.8.10-blue)
+![Version](https://img.shields.io/badge/Version-1.8.11-blue)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?logo=ubuntu&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white)
 
@@ -60,7 +60,7 @@ Eine Grafikkarte ist nicht nötig. Der integrierte Ressourcenberater ermittelt n
 | Bereich | Funktionen |
 | --- | --- |
 | 🔎 **Musik finden** | YouTube, Spotify-Metadaten, Radio-Browser, direkte Streams und lokale Audiodateien |
-| ▶️ **Musik steuern** | Play, Pause, Weiter, Skip, Stop, Lautstärke und Spulen bei einzelnen Titeln |
+| ▶️ **Musik steuern** | Play, Pause, Weiter, Skip, Stop, Lautstärke, Spulen und sanfte Crossfades zwischen Titeln |
 | 📋 **Warteschlange** | Titel hinzufügen, entfernen und mit Pfeilen umsortieren; der Player folgt der angezeigten Reihenfolge |
 | 🗂️ **Playlists** | Scrollbare Bibliothek, eigenes Playlist-Fenster, Titelsuche, einzelne Titel abspielen oder löschen, Wiederholung und Zufall |
 | 🎧 **Autoplay** | Ausgewählte Playlists endlos abspielen oder bekannte Favoriten mit neuen Vorschlägen verbinden |
@@ -174,7 +174,7 @@ Das Dashboard zeigt CPU, RAM, Speicherplatz, Netzwerkdurchsatz und Player-Verbin
 
 **Verschlüsselte Backups** enthalten Einstellungen, Playlists, Musikprofil, lokale Musik, weitere Benutzer, Verbindungen und Messwerte. Hauptadmin und aktive Sitzungen werden nicht exportiert. Das mindestens zehn Zeichen lange Backup-Passwort wird zur Wiederherstellung benötigt.
 
-Ein optionaler täglicher Wartungsneustart speichert Wiedergabe, Position und Warteschlange für den Wiederanlauf. Begrenzte Audiopuffer, die Vorbereitung des nächsten Titels und Wiederverbindungsversuche helfen bei kurzen Unterbrechungen.
+Ein optionaler täglicher Wartungsneustart speichert Wiedergabe, Position und Warteschlange für den Wiederanlauf. Begrenzte Audiopuffer, vorbereitete Folgetitel, sanfte Übergänge und Wiederverbindungsversuche helfen bei kurzen Unterbrechungen und Titelwechseln.
 
 <a id="updates"></a>
 ## 🔄 Auf dem aktuellen Stand bleiben
