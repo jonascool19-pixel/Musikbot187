@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-10T12:37:14.241Z
+Last updated: 2026-09-11T21:10:00.000Z
 Status: publishing
-Base: GitHub main 1816a7b; Release 1.8.10 noch nicht angelegt
+Base: GitHub main 49efb22; Crossfade PR #31 merged
 
 ## Currently working on
 
-Version 1.8.10 veröffentlicht; abschließende Absicherung trennt YouTube-Schutzpausen vom normalen Wiederholungsbudget. GitHub-Prüfungen stehen noch aus.
+Version 1.8.11 als normales Dashboard-Update veröffentlichen. Der neue Player besitzt einen gepufferten zweiten Audio-Deck für sanfte Equal-Power-Crossfades; Versionsanzeige, Updateerkennung und Dokumentation werden auf den neuen Stand gebracht.
 
 ## Last completed
 
-176 Backendtests und Dashboard-Prüfung bestanden; Schutzpause und exakter Wiederanlauf umgesetzt. Warteversuche verbrauchen keine regulären Verbindungsversuche.
+PR #31 mit 3-Sekunden-Crossfade, 800-ms-Übergang bei Skip/Play-now, sicherem Fallback bei nicht vorbereitetem Folgetitel und unverändertem 403-/Netzwerk-Reconnect wurde nach vollständig erfolgreicher GitHub-CI in main gemergt.
 
 ## Next
 
-Letzte Absicherung veröffentlichen; GitHub-CI und Release 1.8.10 abschließen. Echtes Bot-Update anschließend prüfen.
+Release-Metadaten 1.8.11 veröffentlichen, GitHub-CI bestätigen und danach das echte Bot-Update über System → Update ausführen. Anschließend Crossfade im Discord-Livebetrieb hören und 403-Wiederaufnahme weiter beobachten.
 
 ## Verification
 
-176 Gesamttests plus Dashboard lokal bestanden; 36 gezielte Wiedergabetests nach letzter Absicherung bestanden. Keine Live-Prüfung am Benutzer-Server.
+Crossfade-PR: Backendtests, npm audit, Player-Performance-/native-Opus-Smoke-Test, First-Run-Test, Installer-Syntax und Dashboard-Browsertest in GitHub Actions erfolgreich. Noch keine Live-Prüfung des Crossfades auf dem Benutzer-Server.
 
 ## Safety note
 
