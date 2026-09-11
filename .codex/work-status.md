@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-11T21:10:00.000Z
-Status: publishing
-Base: GitHub main 49efb22; Crossfade PR #31 merged
+Last updated: 2026-09-11T21:21:49.000Z
+Status: published
+Base: GitHub main 2e42118; Version 1.8.11
 
 ## Currently working on
 
-Version 1.8.11 als normales Dashboard-Update veröffentlichen. Der neue Player besitzt einen gepufferten zweiten Audio-Deck für sanfte Equal-Power-Crossfades; Versionsanzeige, Updateerkennung und Dokumentation werden auf den neuen Stand gebracht.
+Version 1.8.11 ist über den normalen Dashboard-Updatepfad veröffentlicht. Der Player besitzt einen gepufferten zweiten Audio-Deck für sanfte Equal-Power-Crossfades und einen kurzen Übergang bei Skip/Play-now.
 
 ## Last completed
 
-PR #31 mit 3-Sekunden-Crossfade, 800-ms-Übergang bei Skip/Play-now, sicherem Fallback bei nicht vorbereitetem Folgetitel und unverändertem 403-/Netzwerk-Reconnect wurde nach vollständig erfolgreicher GitHub-CI in main gemergt.
+PR #32 wurde nach vollständig erfolgreicher GitHub-CI in main gemergt. `backend/package.json` steht auf 1.8.11, sodass bestehende 1.8.10-Installationen die neue Version über **System → Update** erkennen. Die Update-Regressionstests prüfen zusätzlich, dass 1.8.10 < 1.8.11 und ein bereits aktueller 1.8.11-Server kein Phantom-Update erhält.
 
 ## Next
 
-Release-Metadaten 1.8.11 veröffentlichen, GitHub-CI bestätigen und danach das echte Bot-Update über System → Update ausführen. Anschließend Crossfade im Discord-Livebetrieb hören und 403-Wiederaufnahme weiter beobachten.
+Das echte Bot-Update auf dem Benutzer-Server über **System → Update** ausführen. Anschließend Crossfade im Discord-Livebetrieb hören und die 403-Wiederaufnahme weiter beobachten.
 
 ## Verification
 
-Crossfade-PR: Backendtests, npm audit, Player-Performance-/native-Opus-Smoke-Test, First-Run-Test, Installer-Syntax und Dashboard-Browsertest in GitHub Actions erfolgreich. Noch keine Live-Prüfung des Crossfades auf dem Benutzer-Server.
+Release 1.8.11: npm ci, npm audit, 185 Backendtests, Player-Performance-/native-Opus-Smoke-Test, First-Run-Test, Installer-Syntax und Dashboard-Browsertest in GitHub Actions erfolgreich. Noch keine Live-Prüfung des Crossfades auf dem Benutzer-Server.
 
 ## Safety note
 
