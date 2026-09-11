@@ -1,5 +1,15 @@
 # 📦 Änderungen
 
+## 1.8.11 · Sanfte Übergänge zwischen Titeln
+
+- **Echter Crossfade:** Normale Titelwechsel blenden über drei Sekunden mit einer Equal-Power-Kurve ineinander, statt den laufenden Song hart abzuschneiden.
+- **Zweiter Audio-Deck:** Der Folgetitel wird parallel aufgelöst und als PCM gepuffert. Der Übergang startet erst, wenn genügend Audiodaten bereitstehen.
+- **Sicherer Rückfall:** Ist der nächste Titel nicht rechtzeitig bereit, läuft der aktuelle Titel vollständig aus und der Player wechselt anschließend normal weiter.
+- **Manuelles Weiter:** Skip und „jetzt abspielen“ verwenden einen kurzen Übergang von rund 800 Millisekunden, damit Bedienung direkt bleibt, aber nicht mehr abrupt klingt.
+- **Reconnect bleibt getrennt:** Seek, Pause/Resume und technische YouTube-/Netzwerk-Wiederverbindungen desselben Titels lösen keinen Song-Crossfade aus. Die 403-Schutzpause und positionsgenaue Wiederaufnahme bleiben erhalten.
+- **Updatefähig:** Versionsanzeige und Updateerkennung stehen auf 1.8.11, sodass bestehende 1.8.10-Installationen das Update über **System → Update** erkennen.
+- **Geprüft:** Backendtests, Player-Performance-/Opus-Smoke-Test, First-Run-Prüfung, Installer-Syntax und vollständiger Dashboard-Browsertest liefen in GitHub CI erfolgreich.
+
 ## 1.8.10 · YouTube-Schutzpause und zuverlässige Wiederverbindung
 
 - **Warteschlange erhalten:** Bei YouTube-Bot-Prüfung oder Zugriffslimit pausieren Suche, Vorladen und Medienauflösung gemeinsam. Erneute Versuche erfolgen nach einer Minute, bei fortgesetzter Sperre mit steigenden Abständen bis zehn Minuten. Lokale Dateien und Radio bleiben unabhängig nutzbar.
