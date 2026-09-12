@@ -1,11 +1,11 @@
 import {pcmBytesPerSecond,pcmChannels,pcmSampleRate} from './pcm-buffer.js';
 
-export const defaultCrossfadeMs=3_000;
-export const manualTransitionMs=800;
-export const minimumCrossfadeMs=600;
-export const crossfadePrepareLeadMs=9_000;
-export const crossfadeReserveMs=6_000;
-export const fallbackFadeInMs=250;
+export const defaultCrossfadeMs=4_500;
+export const manualTransitionMs=1_000;
+export const minimumCrossfadeMs=750;
+export const crossfadePrepareLeadMs=12_000;
+export const crossfadeReserveMs=8_000;
+export const fallbackFadeInMs=900;
 
 const clamp=value=>Math.max(0,Math.min(1,Number(value)||0));
 export function equalPowerGains(progress){const phase=clamp(progress)*Math.PI/2;return {outgoing:Math.cos(phase),incoming:Math.sin(phase)};}
