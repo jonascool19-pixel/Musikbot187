@@ -23,11 +23,11 @@ test('equal-power PCM mixer starts with the old deck and ends with the new deck'
 });
 
 test('crossfade duration is only selected when enough next-track PCM is already buffered',()=>{
-  assert.equal(defaultCrossfadeMs,3_000);
-  assert.equal(chooseCrossfadeMs(3_060,pcmBytesForMs(3_000)),3_000);
+  assert.equal(defaultCrossfadeMs,4_500);
+  assert.equal(chooseCrossfadeMs(4_560,pcmBytesForMs(4_500)),4_500);
   assert.equal(chooseCrossfadeMs(2_000,pcmBytesForMs(1_400)),1_400);
-  assert.equal(chooseCrossfadeMs(3_000,pcmBytesForMs(500)),0);
-  assert.equal(chooseCrossfadeMs(500,pcmBytesForMs(3_000)),0);
+  assert.equal(chooseCrossfadeMs(4_500,pcmBytesForMs(500)),0);
+  assert.equal(chooseCrossfadeMs(500,pcmBytesForMs(4_500)),0);
 });
 
 test('an unready next deck leaves the queue untouched instead of cutting the current song short',()=>{
@@ -41,9 +41,9 @@ test('an unready next deck leaves the queue untouched instead of cutting the cur
 });
 
 test('starting and aborting a crossfade consumes then safely restores exactly one next title',()=>{
-  const player=new Player({musicDir:'.',diagnostic(){}}),current={id:'current',title:'Aktiv',source:'youtube',duration:100},next={id:'next',title:'Danach',source:'youtube',duration:100},store={bufferedBytes:pcmBytesForMs(3_000),destroy(){this.destroyed=true}};
+  const player=new Player({musicDir:'.',diagnostic(){}}),current={id:'current',title:'Aktiv',source:'youtube',duration:100},next={id:'next',title:'Danach',source:'youtube',duration:100},store={bufferedBytes:pcmBytesForMs(4_500),destroy(){this.destroyed=true}};
   player.current=current;player.queue=[next];player.generation=4;const deck={key:'next',item:next,store};player.crossfadeDeck=deck;
-  assert.equal(player.beginCrossfade(deck,3_000),true);
+  assert.equal(player.beginCrossfade(deck,4_500),true);
   assert.deepEqual(player.queue,[]);
   assert.equal(player.state().crossfading,true);
   player.abortCrossfade(true);
@@ -53,7 +53,7 @@ test('starting and aborting a crossfade consumes then safely restores exactly on
 
 test('manual skip requests a short fade before replacing an actively playing process',()=>{
   const player=new Player({musicDir:'.',diagnostic(){}}),events=[];player.current={id:'current',title:'Aktiv',source:'youtube',duration:180};player.queue=[{id:'next',title:'Danach',source:'youtube'}];player.process={kill(){}};player.on('track-end',event=>events.push(event));player.skip();
-  assert.equal(manualTransitionMs,800);
+  assert.equal(manualTransitionMs,1_000);
   assert.equal(events[0].reason,'skipped');
   assert.equal(player.current.id,'current');
   assert.ok(player.skipTimer);
