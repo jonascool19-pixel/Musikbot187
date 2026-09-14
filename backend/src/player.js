@@ -13,6 +13,10 @@ export const playbackPcmRebufferBytes=Object.freeze({local:pcmBytesPerSecond*4,y
 export const playbackPcmMaxBytes=pcmBytesPerSecond*20;
 export const playbackPcmResumeBytes=pcmBytesPerSecond*15;
 export const onlinePrefetchDelayMs=3_000;
+export const playbackLoudnessTargetLufs=-16;
+export const playbackLoudnessRangeLu=11;
+export const playbackTruePeakDb=-1.5;
+export const playbackLoudnessFilter=`loudnorm=I=${playbackLoudnessTargetLufs}:LRA=${playbackLoudnessRangeLu}:TP=${playbackTruePeakDb}`;
 export const safePlaybackMessage=value=>String(value?.message||value||'').replace(/https?:\/\/[^\s<>"']+/gi,'[Medienadresse ausgeblendet]');
 export function scalePcm16le(buffer,volume){const level=Math.max(0,Math.min(100,Number(volume)))/100;if(level===1)return buffer;const output=Buffer.allocUnsafe(buffer.length);let i=0;for(;i+1<buffer.length;i+=2){const sample=Math.round(buffer.readInt16LE(i)*level);output.writeInt16LE(Math.max(-32768,Math.min(32767,sample)),i);}if(i<buffer.length)output[i]=buffer[i];return output;}
 function scalePcm16leInPlace(buffer,level){for(let offset=0;offset+1<buffer.length;offset+=2){const sample=Math.round(buffer.readInt16LE(offset)*level);buffer.writeInt16LE(Math.max(-32768,Math.min(32767,sample)),offset)}return buffer;}
@@ -26,7 +30,7 @@ export class PcmVolumeScaler{
 export function isTransientPlaybackError(error){return /(?:network|timed?\s*out|timeout|connection|connect|econn|enotfound|eai_again|temporary|temporarily|name resolution|remote end closed|end of file|input\/output error|http error (?:403|408|425|429|5\d\d)|server returned (?:403|408|425|429|5\d\d))/i.test(String(error||''));}
 export function isPersistentNetworkLoss(error){return /(?:econn(?:reset|refused|aborted)|enotfound|eai_again|temporary failure in name resolution|network is unreachable|no route to host)/i.test(String(error||''));}
 export function isUnexplainedOnlineFfmpegExit(track,code,error){return Number(code)===255&&!String(error||'').trim()&&['youtube','spotify','radio'].includes(track?.source);}
-export function ffmpegArgs(input,resumeSeconds=0,live=false){const args=['-nostdin','-hide_banner','-loglevel','warning'],network=/^https?:/.test(input);if(network){args.push('-reconnect','1','-reconnect_streamed','1','-reconnect_on_network_error','1','-reconnect_on_http_error',live?'403,408,425,429,5xx':'408,425,429,5xx','-reconnect_delay_max','5','-rw_timeout','10000000','-thread_queue_size','8192');if(live)args.push('-reconnect_at_eof','1','-fflags','+genpts+discardcorrupt');}if(resumeSeconds>=1)args.push('-ss',String(Math.floor(resumeSeconds)));args.push('-i',input,'-vn','-ar','48000','-ac','2','-f','s16le','pipe:1');return args;}
+export function ffmpegArgs(input,resumeSeconds=0,live=false){const args=['-nostdin','-hide_banner','-loglevel','warning'],network=/^https?:/.test(input);if(network){args.push('-reconnect','1','-reconnect_streamed','1','-reconnect_on_network_error','1','-reconnect_on_http_error',live?'403,408,425,429,5xx':'408,425,429,5xx','-reconnect_delay_max','5','-rw_timeout','10000000','-thread_queue_size','8192');if(live)args.push('-reconnect_at_eof','1','-fflags','+genpts+discardcorrupt');}if(resumeSeconds>=1)args.push('-ss',String(Math.floor(resumeSeconds)));args.push('-i',input,'-vn');if(!live)args.push('-af',playbackLoudnessFilter);args.push('-ar','48000','-ac','2','-f','s16le','pipe:1');return args;}
 const resolutionKey=item=>String(item?.id||item?.url||item?.path||`${item?.source||''}:${item?.title||''}`);
 function shuffledPlaylist(items,avoidFirst=''){
   const list=items.map(item=>structuredClone(item));
