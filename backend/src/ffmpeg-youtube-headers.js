@@ -3,7 +3,8 @@ import {syncBuiltinESMExports} from 'node:module';
 
 export const youtubeFfmpegUserAgent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
 export const youtubeFfmpegHeaders='Referer: https://www.youtube.com/\r\nOrigin: https://www.youtube.com\r\n';
-export const youtubePlaybackClient='android_vr';
+export const youtubePlaybackClient='web_safari';
+export const youtubePlaybackFormat='bestaudio[protocol^=m3u8]/bestaudio[protocol=https]/bestaudio[protocol=http]/bestaudio/best';
 
 export function isYouTubeMediaUrl(value){
   try{
@@ -25,9 +26,11 @@ export function withYouTubeFfmpegHeaders(args=[]){
 
 export function withYouTubePlaybackClient(args=[]){
   if(!Array.isArray(args)||!args.includes('--get-url'))return args;
-  const alreadyConfigured=args.some((value,index)=>value==='--extractor-args'&&String(args[index+1]||'').includes('youtube:player_client='));
-  if(alreadyConfigured)return args;
-  return ['--extractor-args',`youtube:player_client=${youtubePlaybackClient}`,...args];
+  const patched=[...args],configured=patched.some((value,index)=>value==='--extractor-args'&&String(patched[index+1]||'').includes('youtube:player_client='));
+  if(!configured)patched.unshift('--extractor-args',`youtube:player_client=${youtubePlaybackClient}`);
+  const formatIndex=patched.indexOf('-f');
+  if(formatIndex>=0&&formatIndex+1<patched.length)patched[formatIndex+1]=youtubePlaybackFormat;
+  return patched;
 }
 
 const originalSpawn=childProcess.spawn;
