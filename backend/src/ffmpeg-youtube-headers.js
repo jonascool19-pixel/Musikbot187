@@ -3,6 +3,7 @@ import {syncBuiltinESMExports} from 'node:module';
 
 export const youtubeFfmpegUserAgent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
 export const youtubeFfmpegHeaders='Referer: https://www.youtube.com/\r\nOrigin: https://www.youtube.com\r\n';
+export const youtubePlaybackClient='android_vr';
 
 export function isYouTubeMediaUrl(value){
   try{
@@ -22,12 +23,19 @@ export function withYouTubeFfmpegHeaders(args=[]){
   return [...before,...after];
 }
 
+export function withYouTubePlaybackClient(args=[]){
+  if(!Array.isArray(args)||!args.includes('--get-url'))return args;
+  const alreadyConfigured=args.some((value,index)=>value==='--extractor-args'&&String(args[index+1]||'').includes('youtube:player_client='));
+  if(alreadyConfigured)return args;
+  return ['--extractor-args',`youtube:player_client=${youtubePlaybackClient}`,...args];
+}
+
 const originalSpawn=childProcess.spawn;
 if(!childProcess.__musikbot187YoutubeHeadersInstalled){
   Object.defineProperty(childProcess,'__musikbot187YoutubeHeadersInstalled',{value:true,configurable:false,enumerable:false,writable:false});
   childProcess.spawn=function(command,args,options){
     const executable=String(command||'').split(/[\\/]/).at(-1)?.toLowerCase();
-    const patched=executable==='ffmpeg'?withYouTubeFfmpegHeaders(args):args;
+    const patched=executable==='ffmpeg'?withYouTubeFfmpegHeaders(args):executable==='yt-dlp'?withYouTubePlaybackClient(args):args;
     return originalSpawn.call(this,command,patched,options);
   };
   syncBuiltinESMExports();
