@@ -8,6 +8,6 @@ test('update version comparison is numeric and bounded to the official repositor
   assert.equal(compareVersions('4.9.9','5.0.0'),-1);
   let requested='';const result=await updateStatus(async url=>{requested=url;return {ok:true,status:200,json:async()=>({version:'1.8.15'})}});
   assert.equal(requested,latestPackageUrl);
-  assert.deepEqual(result,{current:appVersion,latest:'1.8.15',available:true,source:'GitHub main'});
+  assert.deepEqual(result,{current:appVersion,latest:'1.8.15',available:false,source:'GitHub main'});
   await assert.rejects(updateStatus(async()=>({ok:true,status:200,json:async()=>({version:'main; reboot'})})),/gültige Versionsnummer/);
 });
