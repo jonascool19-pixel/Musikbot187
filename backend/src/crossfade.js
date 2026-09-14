@@ -1,14 +1,15 @@
 import {pcmBytesPerSecond,pcmChannels,pcmSampleRate} from './pcm-buffer.js';
 
-export const defaultCrossfadeMs=4_500;
+export const defaultCrossfadeMs=6_500;
 export const manualTransitionMs=1_000;
 export const minimumCrossfadeMs=750;
 export const crossfadePrepareLeadMs=12_000;
 export const crossfadeReserveMs=8_000;
 export const fallbackFadeInMs=900;
+export const crossfadeCurveExponent=1.65;
 
 const clamp=value=>Math.max(0,Math.min(1,Number(value)||0));
-export function equalPowerGains(progress){const phase=clamp(progress)*Math.PI/2;return {outgoing:Math.cos(phase),incoming:Math.sin(phase)};}
+export function equalPowerGains(progress){const shaped=clamp(progress)**crossfadeCurveExponent,phase=shaped*Math.PI/2;return {outgoing:Math.cos(phase),incoming:Math.sin(phase)};}
 export function pcmBytesForMs(milliseconds){return Math.max(0,Math.ceil(pcmBytesPerSecond*Math.max(0,Number(milliseconds)||0)/1000));}
 export function chooseCrossfadeMs(remainingMs,bufferedBytes,{targetMs=defaultCrossfadeMs,minimumMs=minimumCrossfadeMs,safetyMs=60}={}){
   const remaining=Math.max(0,Number(remainingMs)||0),availableMs=Math.max(0,Number(bufferedBytes)||0)/pcmBytesPerSecond*1000,duration=Math.min(Math.max(0,Number(targetMs)||0),Math.max(0,remaining-Math.max(0,Number(safetyMs)||0)),availableMs);
