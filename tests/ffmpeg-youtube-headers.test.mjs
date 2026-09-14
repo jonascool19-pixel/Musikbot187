@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {isYouTubeMediaUrl,withYouTubeFfmpegHeaders,withYouTubePlaybackClient,youtubeFfmpegHeaders,youtubeFfmpegUserAgent,youtubePlaybackClient} from '../backend/src/ffmpeg-youtube-headers.js';
+import {isYouTubeMediaUrl,withYouTubeFfmpegHeaders,withYouTubePlaybackClient,youtubeFfmpegHeaders,youtubeFfmpegUserAgent,youtubePlaybackClient,youtubePlaybackFormat} from '../backend/src/ffmpeg-youtube-headers.js';
 
 test('YouTube/googlevideo FFmpeg inputs receive browser-compatible headers',()=>{
   const input='https://rr1---sn-test.googlevideo.com/videoplayback?id=test';
@@ -24,17 +24,21 @@ test('existing FFmpeg HTTP header options are not duplicated',()=>{
   assert.equal(args[args.indexOf('-user_agent')+1],'custom-agent');
 });
 
-test('first yt-dlp playback resolution prefers a client without current GVS PO-token enforcement',()=>{
+test('first yt-dlp playback resolution prefers web_safari HLS instead of android_vr HTTPS',()=>{
   const input=['--ignore-config','--no-playlist','--get-url','-f','bestaudio','https://www.youtube.com/watch?v=abcdefghijk'];
   const args=withYouTubePlaybackClient(input);
   assert.deepEqual(args.slice(0,2),['--extractor-args',`youtube:player_client=${youtubePlaybackClient}`]);
-  assert.equal(youtubePlaybackClient,'android_vr');
-  assert.deepEqual(args.slice(2),input);
+  assert.equal(youtubePlaybackClient,'web_safari');
+  assert.equal(args[args.indexOf('-f')+1],youtubePlaybackFormat);
+  assert.match(youtubePlaybackFormat,/m3u8/);
+  assert.doesNotMatch(args.join(' '),/android_vr/);
 });
 
-test('explicit yt-dlp playback fallback clients are preserved',()=>{
-  const input=['--extractor-args','youtube:player_client=web_safari','--get-url','https://www.youtube.com/watch?v=abcdefghijk'];
-  assert.deepEqual(withYouTubePlaybackClient(input),input);
+test('explicit yt-dlp fallback clients are preserved while playback still prefers HLS formats',()=>{
+  const input=['--extractor-args','youtube:player_client=web_embedded','--get-url','-f','bestaudio','https://www.youtube.com/watch?v=abcdefghijk'];
+  const args=withYouTubePlaybackClient(input);
+  assert.equal(args[args.indexOf('--extractor-args')+1],'youtube:player_client=web_embedded');
+  assert.equal(args[args.indexOf('-f')+1],youtubePlaybackFormat);
   const search=['--dump-single-json','--flat-playlist','https://www.youtube.com/results?search_query=test'];
   assert.deepEqual(withYouTubePlaybackClient(search),search);
 });
