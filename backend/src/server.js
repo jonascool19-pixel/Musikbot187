@@ -17,7 +17,7 @@ import {SecretBox,RateLimiter,hashPassword,verifyPassword,timingEqual,validUsern
 import {youtubeSearch,radioSearch,spotifySearch,importSpotifyPlaylist,listSpotifyUserPlaylists,exchangeSpotifyAuthorizationCode,refreshSpotifyUserToken,spotifyUserScopes,validSpotifyRedirectUri,verifySpotifyAppCredentials,listMusic,listDownloads,musicBytes,downloadYouTubeAudio,cleanupDownloadTemps,validateAudioFile,audioExtensions} from './media.js';
 import {metrics} from './monitoring.js';
 import {networkHistoryView,recordNetworkSample} from './network-history.js';
-import {recordResourceSample,resourceAdvisor} from './resource-advisor.js';
+import {recordResourceSample,resetResourceMeasurement,resourceAdvisor} from './resource-advisor.js';
 import {control} from './control-client.js';
 import {cleanupStaleUploads,maintenanceDue,maintenanceTimePattern} from './maintenance.js';
 import {appVersion,updateStatus} from './update.js';
@@ -148,6 +148,7 @@ export async function buildServer(options={}){
   app.get('/api/system/maintenance',{preHandler:auth('system.manage')},async()=>maintenanceStatus());app.put('/api/system/maintenance',{preHandler:auth('system.manage')},async(req,reply)=>{const enabled=Boolean(req.body?.enabled),time=String(req.body?.time||'');if(time.length!==5||!maintenanceTimePattern.test(time))return reply.code(400).send({error:'Bitte eine gültige Uhrzeit zwischen 00:00 und 23:59 wählen.'});store.data.settings.maintenanceEnabled=enabled;store.data.settings.maintenanceTime=time;store.data.settings.maintenanceTimezone='Europe/Berlin';await store.save();return maintenanceStatus();});
   app.get('/api/system/network-history',{preHandler:auth('system.manage')},async()=>networkHistoryView(store.data));
   app.get('/api/monitoring/advisor',{preHandler:auth()},async()=>resourceAdvisor(store.data));
+  app.post('/api/monitoring/advisor/reset',{preHandler:auth('system.manage')},async()=>{resetResourceMeasurement(store.data);await store.save();return resourceAdvisor(store.data);});
   app.get('/api/system/update',{preHandler:auth('system.manage')},async(req,reply)=>{try{return await checkUpdateNotification({force:true})}catch(error){await store.diagnostic('warn','update',`Updatesuche fehlgeschlagen: ${error.message}`);return reply.code(502).send({error:`Updatesuche fehlgeschlagen: ${error.message}`})}});
   app.post('/api/system/update',{preHandler:auth('system.manage')},async()=>{store.data.playbackResume=player.snapshot();await store.save();const result=await controlExecutor('update');await store.diagnostic('info','update','Update wurde über das Dashboard gestartet. Wiedergabe und Warteschlange sind für den Wiederanlauf gespeichert.');return {...result,current:appVersion,instanceId,message:'Update gestartet. Der MusikBot startet anschließend automatisch wieder.'};});
   app.post('/api/system/:action',{preHandler:auth('system.manage')},async(req,reply)=>{if(!['restart','stop','reboot','poweroff'].includes(req.params.action))return reply.code(400).send({error:'Aktion nicht erlaubt'});return req.params.action==='restart'?restartWithResume():controlExecutor(req.params.action);});
