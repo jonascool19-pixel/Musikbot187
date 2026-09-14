@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
 import {parseResolvedYouTubeOutput,rankSpotifyPlaybackCandidates,spotifyPlaybackDurationCompatible,spotifyPlaybackDurationToleranceSeconds,youtubePlaybackPrintTemplate} from '../backend/src/media.js';
 
 test('yt-dlp playback output keeps the selected URL and its exact source duration together',()=>{
@@ -28,4 +29,13 @@ test('Spotify candidate ranking keeps using the catalog duration after playback 
   ];
   const ranked=rankSpotifyPlaybackCandidates(track,candidates);
   assert.equal(ranked[0].id,'lmnopqrstuv');
+});
+
+test('online playback writes the verified source duration back before the player can schedule a crossfade',async()=>{
+  const source=await fs.readFile(new URL('../backend/src/media.js',import.meta.url),'utf8');
+  assert.match(source,/--print',youtubePlaybackPrintTemplate/);
+  assert.match(source,/applyResolvedPlayback\(item,resolved\);return resolved\.url/);
+  assert.match(source,/item\.catalogDuration=original/);
+  assert.match(source,/item\.duration=duration/);
+  assert.match(source,/spotifyPlaybackDurationCompatible\(catalogDuration,resolved\.duration\)/);
 });
