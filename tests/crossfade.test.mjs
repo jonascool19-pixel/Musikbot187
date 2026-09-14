@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chooseCrossfadeMs,crossfadeCurveExponent,defaultCrossfadeMs,EqualPowerCrossfade,equalPowerGains,manualTransitionMs,pcmBytesForMs} from '../backend/src/crossfade.js';
+import {chooseCrossfadeMs,crossfadeCurveExponent,defaultCrossfadeMs,EqualPowerCrossfade,equalPowerGains,fallbackFadeInMs,manualTransitionMs,pcmBytesForMs} from '../backend/src/crossfade.js';
 import {Player} from '../backend/src/player.js';
 
 test('equal-power gains keep constant summed power across the transition',()=>{
@@ -19,6 +19,10 @@ test('automatic crossfade holds the incoming deck back for a gentler first half'
   assert.ok(equalPowerGains(0.5).incoming>0.45&&equalPowerGains(0.5).incoming<0.5);
   assert.ok(equalPowerGains(0.5).outgoing>0.85);
   assert.ok(equalPowerGains(0.75).incoming>0.8);
+});
+
+test('fallback starts are audibly faded in when a true crossfade is unavailable',()=>{
+  assert.equal(fallbackFadeInMs,4_000);
 });
 
 test('equal-power PCM mixer starts with the old deck and ends with the new deck',()=>{
