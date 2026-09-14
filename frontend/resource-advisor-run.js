@@ -6,6 +6,7 @@ const number=(input,digits=1)=>Number(input||0).toLocaleString('de-DE',{minimumF
 const memory=(bytes,percent)=>`${Math.round(Number(bytes||0)/1048576)} MB (${number(percent)} %)`;
 const rate=bytes=>{if(bytes==null)return '–';if(bytes<1024)return `${Math.round(bytes)} B/s`;if(bytes<1048576)return `${(bytes/1024).toFixed(1)} KiB/s`;return `${(bytes/1048576).toFixed(1)} MiB/s`};
 const set=(id,text)=>{const target=node(id);if(target)target.textContent=text};
+let advisorEpoch=0,resetting=false;
 
 function clearAdvisor(){
   const progress=node('advisorProgress');if(progress)progress.style.width='0%';
@@ -42,10 +43,12 @@ async function enhanceAdvisor(){
   let button=card.querySelector('.resource-advisor-reset');
   if(!button&&await canReset()){
     button=document.createElement('button');button.type='button';button.className='ghost resource-advisor-reset collapse-keep';button.textContent='Messung neu starten';button.title='Nur den 24-Stunden-Systemtest zurücksetzen und einen neuen Durchlauf beginnen';button.setAttribute('aria-label','24-Stunden-Messung neu starten');
-    button.addEventListener('click',async()=>{button.disabled=true;clearAdvisor();try{const result=await request('/api/monitoring/advisor/reset',{method:'POST'});renderAdvisor(result);button.textContent='Messung neu gestartet';setTimeout(()=>{if(button.isConnected)button.textContent='Messung neu starten'},1800)}catch(error){set('advisorDetail',`Messung konnte nicht neu gestartet werden: ${error.message}`)}finally{button.disabled=false}});
+    button.addEventListener('click',async()=>{const resetEpoch=++advisorEpoch;resetting=true;button.disabled=true;clearAdvisor();try{const result=await request('/api/monitoring/advisor/reset',{method:'POST'});if(resetEpoch===advisorEpoch)renderAdvisor(result);button.textContent='Messung neu gestartet';setTimeout(()=>{if(button.isConnected)button.textContent='Messung neu starten'},1800)}catch(error){if(resetEpoch===advisorEpoch)set('advisorDetail',`Messung konnte nicht neu gestartet werden: ${error.message}`)}finally{if(resetEpoch===advisorEpoch)resetting=false;button.disabled=false}});
     const collapse=card.querySelector(':scope > .panel-collapse');if(collapse)card.insertBefore(button,collapse);else card.append(button);
   }
-  try{renderAdvisor(await request('/api/monitoring/advisor'))}catch{}
+  if(resetting)return;
+  const epoch=advisorEpoch;
+  try{const result=await request('/api/monitoring/advisor');if(!resetting&&epoch===advisorEpoch)renderAdvisor(result)}catch{}
 }
 
 let scheduled=false;const schedule=()=>{if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;void enhanceAdvisor()})};
