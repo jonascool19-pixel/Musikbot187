@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chooseCrossfadeMs,defaultCrossfadeMs,EqualPowerCrossfade,equalPowerGains,manualTransitionMs,pcmBytesForMs} from '../backend/src/crossfade.js';
+import {chooseCrossfadeMs,crossfadeCurveExponent,defaultCrossfadeMs,EqualPowerCrossfade,equalPowerGains,manualTransitionMs,pcmBytesForMs} from '../backend/src/crossfade.js';
 import {Player} from '../backend/src/player.js';
 
 test('equal-power gains keep constant summed power across the transition',()=>{
@@ -13,6 +13,14 @@ test('equal-power gains keep constant summed power across the transition',()=>{
   assert.equal(equalPowerGains(1).incoming,1);
 });
 
+test('automatic crossfade holds the incoming deck back for a gentler first half',()=>{
+  assert.equal(crossfadeCurveExponent,1.65);
+  assert.ok(equalPowerGains(0.25).incoming<0.2);
+  assert.ok(equalPowerGains(0.5).incoming>0.45&&equalPowerGains(0.5).incoming<0.5);
+  assert.ok(equalPowerGains(0.5).outgoing>0.85);
+  assert.ok(equalPowerGains(0.75).incoming>0.8);
+});
+
 test('equal-power PCM mixer starts with the old deck and ends with the new deck',()=>{
   const mixer=new EqualPowerCrossfade(1_000,{sampleRate:10,channels:1}),outgoing=Buffer.alloc(20),incoming=Buffer.alloc(20);
   for(let offset=0;offset<20;offset+=2){outgoing.writeInt16LE(10_000,offset);incoming.writeInt16LE(20_000,offset)}
@@ -23,11 +31,11 @@ test('equal-power PCM mixer starts with the old deck and ends with the new deck'
 });
 
 test('crossfade duration is only selected when enough next-track PCM is already buffered',()=>{
-  assert.equal(defaultCrossfadeMs,4_500);
-  assert.equal(chooseCrossfadeMs(4_560,pcmBytesForMs(4_500)),4_500);
+  assert.equal(defaultCrossfadeMs,6_500);
+  assert.equal(chooseCrossfadeMs(6_560,pcmBytesForMs(6_500)),6_500);
   assert.equal(chooseCrossfadeMs(2_000,pcmBytesForMs(1_400)),1_400);
-  assert.equal(chooseCrossfadeMs(4_500,pcmBytesForMs(500)),0);
-  assert.equal(chooseCrossfadeMs(500,pcmBytesForMs(4_500)),0);
+  assert.equal(chooseCrossfadeMs(6_500,pcmBytesForMs(500)),0);
+  assert.equal(chooseCrossfadeMs(500,pcmBytesForMs(6_500)),0);
 });
 
 test('an unready next deck leaves the queue untouched instead of cutting the current song short',()=>{
@@ -41,9 +49,9 @@ test('an unready next deck leaves the queue untouched instead of cutting the cur
 });
 
 test('starting and aborting a crossfade consumes then safely restores exactly one next title',()=>{
-  const player=new Player({musicDir:'.',diagnostic(){}}),current={id:'current',title:'Aktiv',source:'youtube',duration:100},next={id:'next',title:'Danach',source:'youtube',duration:100},store={bufferedBytes:pcmBytesForMs(4_500),destroy(){this.destroyed=true}};
+  const player=new Player({musicDir:'.',diagnostic(){}}),current={id:'current',title:'Aktiv',source:'youtube',duration:100},next={id:'next',title:'Danach',source:'youtube',duration:100},store={bufferedBytes:pcmBytesForMs(6_500),destroy(){this.destroyed=true}};
   player.current=current;player.queue=[next];player.generation=4;const deck={key:'next',item:next,store};player.crossfadeDeck=deck;
-  assert.equal(player.beginCrossfade(deck,4_500),true);
+  assert.equal(player.beginCrossfade(deck,6_500),true);
   assert.deepEqual(player.queue,[]);
   assert.equal(player.state().crossfading,true);
   player.abortCrossfade(true);
