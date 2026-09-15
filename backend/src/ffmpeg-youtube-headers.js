@@ -24,8 +24,19 @@ export function withYouTubeFfmpegHeaders(args=[]){
   return [...before,...after];
 }
 
+export function isYouTubePlaybackResolutionArgs(args=[]){
+  if(!Array.isArray(args))return false;
+  if(args.includes('--get-url'))return true;
+  return args.some((value,index)=>{
+    const option=String(value||'');
+    if(option.startsWith('--print='))return option.slice('--print='.length).includes('%(url)s');
+    if(option!=='--print'&&option!=='-O')return false;
+    return String(args[index+1]||'').includes('%(url)s');
+  });
+}
+
 export function withYouTubePlaybackClient(args=[]){
-  if(!Array.isArray(args)||!args.includes('--get-url'))return args;
+  if(!isYouTubePlaybackResolutionArgs(args))return args;
   const patched=[...args],configured=patched.some((value,index)=>value==='--extractor-args'&&String(patched[index+1]||'').includes('youtube:player_client='));
   if(!configured)patched.unshift('--extractor-args',`youtube:player_client=${youtubePlaybackClient}`);
   const formatIndex=patched.indexOf('-f');
