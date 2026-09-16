@@ -7,6 +7,13 @@ DATA=/var/lib/musikbot187
 REPO=jonascool19-pixel/Musikbot187
 REPO_NAME=${REPO##*/}
 VERSION=main
+BGUTIL_VERSION=2.0.0
+BGUTIL_COMMIT=37169ee2656e08c5c2e5dc9df4c598c0cb4c88a8
+BGUTIL_ROOT=/opt/musikbot187-bgutil
+BGUTIL_VERSION_ROOT="${BGUTIL_ROOT}-${BGUTIL_VERSION}"
+BGUTIL_PLUGIN_DIR=/etc/yt-dlp/plugins
+BGUTIL_PLUGIN="$BGUTIL_PLUGIN_DIR/bgutil-ytdlp-pot-provider.zip"
+BGUTIL_PLUGIN_SHA256=bce874dfa25896c2798e0f4f8147b7b22e785479eb1e459ab232bf2506c95016
 OLD="${APP}.previous"
 ROLLOUT_STARTED=0
 rollback_on_error(){
@@ -35,7 +42,7 @@ rollback_on_error(){
 }
 trap 'rollback_on_error "$LINENO"' ERR
 apt-get update
-apt-get install -y ca-certificates curl ffmpeg openssl xz-utils build-essential python3 pkg-config libopus-dev
+apt-get install -y ca-certificates curl ffmpeg openssl xz-utils build-essential python3 pkg-config libopus-dev libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
 if ! command -v node >/dev/null || [[ $(node --version | tr -d v | cut -d. -f1) -lt 22 ]]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
@@ -51,6 +58,33 @@ rm -f /usr/local/bin/yt-dlp.new /tmp/yt-dlp.sha256
 getent group musikbot187 >/dev/null || groupadd --system musikbot187
 id musikbot187 >/dev/null 2>&1 || useradd --system --gid musikbot187 --home-dir "$DATA" --shell /usr/sbin/nologin musikbot187
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+
+# YouTube requires Proof-of-Origin tokens for increasingly many playback clients.
+# Install the upstream-recommended bgutil provider as a local script provider.
+# The plugin release is checksum-pinned and the provider source is commit-pinned.
+curl --retry 3 --retry-all-errors -fsSL "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/$BGUTIL_VERSION/bgutil-ytdlp-pot-provider.zip" -o "$TMP/bgutil-ytdlp-pot-provider.zip"
+echo "$BGUTIL_PLUGIN_SHA256  $TMP/bgutil-ytdlp-pot-provider.zip" | sha256sum -c - >/dev/null
+install -d -m 0755 "$BGUTIL_PLUGIN_DIR"
+install -m 0644 "$TMP/bgutil-ytdlp-pot-provider.zip" "$BGUTIL_PLUGIN"
+if [[ ! -f "$BGUTIL_VERSION_ROOT/server/build/generate_once.js" ]]; then
+  curl --retry 3 --retry-all-errors -fsSL "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/archive/$BGUTIL_COMMIT.tar.gz" -o "$TMP/bgutil-source.tar.gz"
+  tar -xzf "$TMP/bgutil-source.tar.gz" -C "$TMP"
+  BGUTIL_SOURCE="$TMP/bgutil-ytdlp-pot-provider-$BGUTIL_COMMIT"
+  [[ -f "$BGUTIL_SOURCE/server/package-lock.json" ]] || { echo 'PO-Token-Provider-Archiv ist unvollständig.' >&2; exit 1; }
+  cd "$BGUTIL_SOURCE/server"
+  npm ci --no-audit --no-fund
+  npx tsc
+  [[ -f "$BGUTIL_SOURCE/server/build/generate_once.js" ]] || { echo 'PO-Token-Provider konnte nicht gebaut werden.' >&2; exit 1; }
+  rm -rf "${BGUTIL_VERSION_ROOT}.new"
+  install -d -m 0755 "${BGUTIL_VERSION_ROOT}.new/server"
+  cp -a "$BGUTIL_SOURCE/server/." "${BGUTIL_VERSION_ROOT}.new/server/"
+  chown -R root:root "${BGUTIL_VERSION_ROOT}.new"
+  chmod -R a+rX "${BGUTIL_VERSION_ROOT}.new"
+  rm -rf "$BGUTIL_VERSION_ROOT"
+  mv "${BGUTIL_VERSION_ROOT}.new" "$BGUTIL_VERSION_ROOT"
+fi
+ln -sfn "$BGUTIL_VERSION_ROOT" "$BGUTIL_ROOT"
+
 curl --retry 3 --retry-all-errors --proto '=https' -H 'Cache-Control: no-cache' -fsSL "https://github.com/$REPO/archive/refs/heads/$VERSION.tar.gz?install=$(date +%s)" -o "$TMP/app.tar.gz"
 tar -xzf "$TMP/app.tar.gz" -C "$TMP"
 SOURCE="$TMP/$REPO_NAME-$VERSION"
