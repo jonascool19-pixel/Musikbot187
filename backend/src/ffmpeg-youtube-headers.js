@@ -3,8 +3,10 @@ import {syncBuiltinESMExports} from 'node:module';
 
 export const youtubeFfmpegUserAgent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
 export const youtubeFfmpegHeaders='Referer: https://www.youtube.com/\r\nOrigin: https://www.youtube.com\r\n';
-export const youtubePlaybackClient='web_safari';
-export const youtubePlaybackFormat='bestaudio[protocol^=m3u8]/bestaudio[protocol=https]/bestaudio[protocol=http]/bestaudio/best';
+export const youtubePlaybackClient='mweb';
+export const youtubePotProviderHome='/opt/musikbot187-bgutil/server';
+export const youtubePotProviderArgs=`youtubepot-bgutilscript:server_home=${youtubePotProviderHome}`;
+export const youtubePlaybackFormat='bestaudio[protocol=https]/bestaudio[protocol^=m3u8]/bestaudio[protocol=http]/bestaudio/best';
 
 export function isYouTubeMediaUrl(value){
   try{
@@ -37,8 +39,16 @@ export function isYouTubePlaybackResolutionArgs(args=[]){
 
 export function withYouTubePlaybackClient(args=[]){
   if(!isYouTubePlaybackResolutionArgs(args))return args;
-  const patched=[...args],configured=patched.some((value,index)=>value==='--extractor-args'&&String(patched[index+1]||'').includes('youtube:player_client='));
-  if(!configured)patched.unshift('--extractor-args',`youtube:player_client=${youtubePlaybackClient}`);
+  const patched=[...args];
+  const extractorArgs=()=>patched.flatMap((value,index)=>value==='--extractor-args'?[String(patched[index+1]||'')]:[]);
+  let configured=extractorArgs().some(value=>value.includes('youtube:player_client='));
+  if(!configured){
+    patched.unshift('--extractor-args',`youtube:player_client=${youtubePlaybackClient}`);
+    configured=true;
+  }
+  const usesMweb=extractorArgs().some(value=>/(?:^|[;,])youtube:player_client=mweb(?:$|[;,])/i.test(value));
+  const hasPotProvider=extractorArgs().some(value=>value.includes('youtubepot-bgutil'));
+  if(usesMweb&&!hasPotProvider)patched.unshift('--extractor-args',youtubePotProviderArgs);
   const formatIndex=patched.indexOf('-f');
   if(formatIndex>=0&&formatIndex+1<patched.length)patched[formatIndex+1]=youtubePlaybackFormat;
   return patched;
