@@ -107,7 +107,7 @@ export function sanitizeYouTubeHttpHeaders(raw){
   for(const [name,value] of Object.entries(raw)){
     if(count>=32||!/^[A-Za-z0-9-]{1,64}$/.test(name))continue;
     const text=String(value??'');if(!text||text.length>4096||/[\r\n\0]/.test(text))continue;
-    if(/^(?:host|content-length|transfer-encoding|connection)$/i.test(name))continue;
+    if(/^(?:host|content-length|transfer-encoding|connection|range)$/i.test(name))continue;
     out[name]=text;count++;
   }
   return out;
@@ -130,21 +130,20 @@ export function withYouTubeFfmpegHeaders(args=[],headers=null){
   if(!Array.isArray(args))return args;
   const inputIndex=args.indexOf('-i'),input=inputIndex>=0?args[inputIndex+1]:'';
   if(inputIndex<0||!isYouTubeMediaUrl(input))return args;
-  const exact=sanitizeYouTubeHttpHeaders(headers||resolutionMetadata.get(String(input))?.headers),before=args.slice(0,inputIndex),after=args.slice(inputIndex);
+  const exact=sanitizeYouTubeHttpHeaders(headers||resolutionMetadata.get(String(input))?.headers),hasExact=Object.keys(exact).length>0,before=args.slice(0,inputIndex),after=args.slice(inputIndex);
   const userAgent=Object.entries(exact).find(([name])=>/^user-agent$/i.test(name))?.[1]||youtubeFfmpegUserAgent;
-  const headerLines=Object.entries(exact).filter(([name])=>!/^user-agent$/i.test(name)).map(([name,value])=>`${name}: ${value}\r\n`).join('')||youtubeFfmpegHeaders;
+  const headerLines=Object.entries(exact).filter(([name])=>!/^user-agent$/i.test(name)).map(([name,value])=>`${name}: ${value}\r\n`).join('');
   if(!before.includes('-user_agent'))before.push('-user_agent',userAgent);
-  if(!before.includes('-headers'))before.push('-headers',headerLines);
+  if(!before.includes('-headers')&&(headerLines||!hasExact))before.push('-headers',headerLines||youtubeFfmpegHeaders);
   return [...before,...after];
 }
 
 function observeYtDlpResolution(child,context){
-  if(!child?.stdout||!context)return;let captured='';
-  const onData=chunk=>{
-    if(captured.length>32*1024)return;captured+=chunk.toString();
-    const metadata=parseYouTubeResolutionMetadata(captured,context);if(metadata){rememberResolution(metadata);child.stdout.off?.('data',onData)}
-  };
+  if(!child?.stdout||!context)return;let captured='',done=false;
+  const save=()=>{if(done)return;const metadata=parseYouTubeResolutionMetadata(captured,context);if(!metadata)return;done=true;rememberResolution(metadata);child.stdout.off?.('data',onData)};
+  const onData=chunk=>{if(captured.length<=32*1024)captured+=chunk.toString();if(/[\r\n]/.test(captured))save()};
   child.stdout.on('data',onData);
+  child.once('close',save);
 }
 
 function observeFfmpeg403(child,input,metadata){
