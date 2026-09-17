@@ -47,7 +47,9 @@ if ! command -v node >/dev/null || [[ $(node --version | tr -d v | cut -d. -f1) 
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 fi
-YT_BASE=https://github.com/yt-dlp/yt-dlp/releases/latest/download
+# yt-dlp recommends its nightly channel for normal users because stable can lag
+# behind fast external changes such as YouTube playback/client updates.
+YT_BASE=https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download
 curl --retry 3 --retry-all-errors -fsSL "$YT_BASE/yt-dlp" -o /usr/local/bin/yt-dlp.new
 curl --retry 3 --retry-all-errors -fsSL "$YT_BASE/SHA2-256SUMS" -o /tmp/yt-dlp.sha256
 EXPECTED="$(awk '$2=="yt-dlp" || $2=="*yt-dlp" {print $1; exit}' /tmp/yt-dlp.sha256)"
