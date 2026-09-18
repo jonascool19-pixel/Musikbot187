@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import {musicArtist,musicSlowedVersion} from './music-identity.js';
-import {YouTubeAccessGuard,isYouTubeAccessBlocked} from './youtube-access.js';
+import {isYouTubeAccessBlocked,sharedYouTubeAccess} from './youtube-access.js';
 import {spawn} from 'node:child_process';
 import path from 'node:path';
 import {assertSafeExternalUrl,safeMusicPath,safeMusicRelativePath} from './security.js';
@@ -13,7 +13,7 @@ export const searchResultLimit=50;
 export const bestAudioFormat='bestaudio[protocol=https]/bestaudio[protocol=http]/bestaudio/best';
 export const youtubePlaybackPrintTemplate='%(url)s\t%(duration)s\t%(protocol)s\t%(id)s';
 const externalRequestTimeoutMs=15_000,youtubeResolveTimeoutMs=60_000,youtubeAttemptTimeoutMs=20_000,spotifyPublicEmbedMaxBytes=2*1024*1024,spotifyAppTokenCaches=new WeakMap(),spotifyPlaybackCache=new Map(),youtubeVideoIdPattern=/^[A-Za-z0-9_-]{11}$/;
-const youtubeAccess=new YouTubeAccessGuard();
+const youtubeAccess=sharedYouTubeAccess;
 function run(command,args,options={}){return command==='yt-dlp'?youtubeAccess.run(()=>runProcess(command,args,options),{signal:options.signal,recoverOnSuccess:!args.includes('--flat-playlist')}):runProcess(command,args,options);}
 const headers=[Buffer.from('ID3'),Buffer.from('RIFF'),Buffer.from('fLaC'),Buffer.from('OggS'),Buffer.from([0xff,0xfb]),Buffer.from([0xff,0xf3]),Buffer.from([0xff,0xf2]),Buffer.from([0x1a,0x45,0xdf,0xa3])];
 export async function validateAudioFile(file){const h=Buffer.alloc(16);const fd=await fs.open(file,'r');try{await fd.read(h,0,h.length,0);}finally{await fd.close();}if(!headers.some(x=>h.subarray(0,x.length).equals(x))&&!h.subarray(4,8).equals(Buffer.from('ftyp')))throw new Error('Dateiheader ist kein unterstütztes Audioformat');}
