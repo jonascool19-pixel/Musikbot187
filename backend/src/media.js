@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import {musicArtist,musicSlowedVersion} from './music-identity.js';
-import {YouTubeAccessGuard,isYouTubeAccessBlocked} from './youtube-access.js';
+import {isYouTubeAccessBlocked,sharedYouTubeAccess} from './youtube-access.js';
 import {spawn} from 'node:child_process';
 import path from 'node:path';
 import {assertSafeExternalUrl,safeMusicPath,safeMusicRelativePath} from './security.js';
@@ -13,7 +13,7 @@ export const searchResultLimit=50;
 export const bestAudioFormat='bestaudio[protocol=https]/bestaudio[protocol=http]/bestaudio/best';
 export const youtubePlaybackPrintTemplate='%(url)s\t%(duration)s\t%(protocol)s\t%(id)s';
 const externalRequestTimeoutMs=15_000,youtubeResolveTimeoutMs=60_000,youtubeAttemptTimeoutMs=20_000,spotifyPublicEmbedMaxBytes=2*1024*1024,spotifyAppTokenCaches=new WeakMap(),spotifyPlaybackCache=new Map(),youtubeVideoIdPattern=/^[A-Za-z0-9_-]{11}$/;
-const youtubeAccess=new YouTubeAccessGuard();
+const youtubeAccess=sharedYouTubeAccess;
 function run(command,args,options={}){return command==='yt-dlp'?youtubeAccess.run(()=>runProcess(command,args,options),{signal:options.signal,recoverOnSuccess:!args.includes('--flat-playlist')}):runProcess(command,args,options);}
 const headers=[Buffer.from('ID3'),Buffer.from('RIFF'),Buffer.from('fLaC'),Buffer.from('OggS'),Buffer.from([0xff,0xfb]),Buffer.from([0xff,0xf3]),Buffer.from([0xff,0xf2]),Buffer.from([0x1a,0x45,0xdf,0xa3])];
 export async function validateAudioFile(file){const h=Buffer.alloc(16);const fd=await fs.open(file,'r');try{await fd.read(h,0,h.length,0);}finally{await fd.close();}if(!headers.some(x=>h.subarray(0,x.length).equals(x))&&!h.subarray(4,8).equals(Buffer.from('ftyp')))throw new Error('Dateiheader ist kein unterstütztes Audioformat');}
@@ -29,6 +29,16 @@ export function normalizeDownloadedFilename(raw){const original=path.basename(St
 export async function downloadYouTubeAudio(raw,downloadsDir,{maxBytes=128*1024*1024}={}){const url=parseYouTubeDownloadUrl(raw);await fs.mkdir(downloadsDir,{recursive:true});const temp=await fs.mkdtemp(path.join(downloadsDir,'.incoming-'));try{const template=path.join(temp,'%(title).100B_[%(id)s].%(ext)s');await run('yt-dlp',youtubeDownloadArgs(url,template,maxBytes),{timeout:10*60_000,max:64*1024});const candidates=(await fs.readdir(temp,{withFileTypes:true})).filter(entry=>entry.isFile()&&audioExtensions.has(path.extname(entry.name).toLowerCase()));if(candidates.length!==1)throw new Error(candidates.length?'YouTube hat mehrere unerwartete Audiodateien geliefert.':'YouTube hat keine herunterladbare Audiodatei geliefert.');const originalName=candidates[0].name,name=normalizeDownloadedFilename(originalName),resolved=path.join(temp,originalName),stat=await fs.stat(resolved);if(stat.size<=0||stat.size>maxBytes)throw new Error('Der YouTube-Download überschreitet die erlaubte Dateigröße.');await validateAudioFile(resolved);const target=safeMusicPath(downloadsDir,name);try{await fs.link(resolved,target)}catch(error){if(error.code!=='EEXIST')throw error}const finalStat=await fs.stat(target);return {id:`local:Downloads/${name}`,title:name,source:'local',path:`Downloads/${name}`,size:finalStat.size,downloaded:true};}finally{await fs.rm(temp,{recursive:true,force:true});}}
 export function youtubeSearchUrl(query){const value=String(query||'').trim().slice(0,300);if(!value)throw new Error('YouTube-Suchbegriff fehlt.');return `https://www.youtube.com/results?search_query=${encodeURIComponent(value)}`;}
 export function canonicalYouTubeVideoUrl(id,raw=''){const direct=String(id||'').replace(/^yt:/i,'');if(youtubeVideoIdPattern.test(direct))return `https://www.youtube.com/watch?v=${direct}`;try{const url=new URL(String(raw||'')),host=url.hostname.toLowerCase(),candidate=host==='youtu.be'?url.pathname.split('/').filter(Boolean)[0]:['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com'].includes(host)?url.pathname==='/watch'?url.searchParams.get('v'):url.pathname.match(/^\/(?:shorts|live|embed)\/([A-Za-z0-9_-]{11})(?:\/|$)/)?.[1]:'';return youtubeVideoIdPattern.test(String(candidate||''))?`https://www.youtube.com/watch?v=${candidate}`:''}catch{return''}}
+export function playbackYouTubePageUrl(item){
+  if(item?.source==='youtube')return canonicalYouTubeVideoUrl(item.id,item.url);
+  if(item?.source==='spotify')return canonicalYouTubeVideoUrl(item.playbackVideoId||item.playbackMatch?.id);
+  return '';
+}
+export function youtubePlaybackPipeArgs(url){
+  const page=canonicalYouTubeVideoUrl('',url);
+  if(!page)throw new Error('Für die YouTube-Wiedergabe fehlt eine gültige Video-ID.');
+  return [...youtubeRuntimeArgs,'--no-playlist','--force-ipv4','--no-progress','--retries','3','--fragment-retries','3','--retry-sleep','http:0.25','--retry-sleep','fragment:0.25','--abort-on-unavailable-fragments','-f',bestAudioFormat,'-o','-',page];
+}
 export function youtubeSearchArtist(entry){return musicArtist(entry);}
 async function youtubeSearchData(query,limit,timeout,signal){const deadline=Date.now()+Math.max(1000,Number(timeout)||30_000),failures=[];for(const strategy of youtubeSearchStrategies){const remaining=deadline-Date.now();if(remaining<=0)break;try{const raw=await run('yt-dlp',[...youtubeRuntimeArgs,'--dump-single-json','--flat-playlist','--playlist-end',String(limit),'--force-ipv4',...strategy,youtubeSearchUrl(query)],{timeout:Math.min(youtubeAttemptTimeoutMs,remaining),signal});return JSON.parse(raw)}catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;failures.push(error.message)}}throw new Error(`YouTube-Suche konnte nicht abgeschlossen werden. ${failures.at(-1)||'Zeitüberschreitung'}`);}
 export async function youtubeSearch(query,{limit=searchResultLimit,timeout=30_000,signal}={}){limit=Math.max(1,Math.min(searchResultLimit,Number(limit)||searchResultLimit));const json=await youtubeSearchData(query,limit,timeout,signal);return (json.entries||[]).map(x=>{const url=canonicalYouTubeVideoUrl(x.id,x.url);return url?{id:new URL(url).searchParams.get('v'),title:x.title,artist:youtubeSearchArtist(x),url,source:'youtube',duration:x.duration,thumbnail:x.thumbnail,quality:'Beste verfügbare Audioqualität'}:null}).filter(Boolean).slice(0,limit);}

@@ -14,22 +14,36 @@ export class YouTubeAccessGuard{
     const error=new Error(`YouTube verlangt eine Bot-Bestätigung oder begrenzt die Zugriffe. Schutzpause: neuer Versuch in ${Math.ceil(retryAfterMs/1000)} Sekunden.`);
     error.code='YOUTUBE_ACCESS_BLOCKED';error.retryAfterMs=retryAfterMs;return error;
   }
-  async run(operation,{signal,recoverOnSuccess=true}={}){
+  beginRequest({signal}={}){
     if(signal?.aborted){const error=new Error('Medienauflösung abgebrochen');error.name='AbortError';throw error;}
     if(this.until>this.now())throw this.error();
-    const generation=this.generation;
+    return this.generation;
+  }
+  recoverRequest(generation){
+    if(generation===this.generation){this.until=0;this.failures=0;return true}
+    return false;
+  }
+  blockFromError(error){
+    if(error?.name==='AbortError'||!isYouTubeAccessBlocked(error))return null;
+    if(this.until<=this.now()){
+      this.failures=Math.min(5,this.failures+1);this.generation++;
+      this.until=this.now()+Math.min(youtubeAccessMaxPauseMs,youtubeAccessPauseMs*2**(this.failures-1));
+    }
+    return this.error();
+  }
+  async run(operation,{signal,recoverOnSuccess=true}={}){
+    const generation=this.beginRequest({signal});
     try{
       const result=await operation();
       // A late successful request from before a block cannot cancel the pause.
-      if(recoverOnSuccess&&generation===this.generation){this.until=0;this.failures=0;}
+      if(recoverOnSuccess)this.recoverRequest(generation);
       return result;
     }catch(error){
-      if(error.name==='AbortError'||!isYouTubeAccessBlocked(error))throw error;
-      if(this.until<=this.now()){
-        this.failures=Math.min(5,this.failures+1);this.generation++;
-        this.until=this.now()+Math.min(youtubeAccessMaxPauseMs,youtubeAccessPauseMs*2**(this.failures-1));
-      }
-      throw this.error();
+      const blocked=this.blockFromError(error);
+      if(blocked)throw blocked;
+      throw error;
     }
   }
 }
+
+export const sharedYouTubeAccess=new YouTubeAccessGuard();
