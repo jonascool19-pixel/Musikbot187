@@ -73,6 +73,20 @@ export function isYouTubePlaybackResolutionArgs(args=[]){
   });
 }
 
+export function isYouTubePlaybackStreamingArgs(args=[]){
+  if(!Array.isArray(args)||!youtubeSourceKey(args))return false;
+  return args.some((value,index)=>{
+    const option=String(value||'');
+    if(option==='-o'||option==='--output')return String(args[index+1]||'')==='-';
+    if(option.startsWith('--output='))return option.slice('--output='.length)==='-';
+    return false;
+  });
+}
+
+export function isYouTubePlaybackArgs(args=[]){
+  return isYouTubePlaybackResolutionArgs(args)||isYouTubePlaybackStreamingArgs(args);
+}
+
 export function withYouTubeResolutionHeaders(args=[]){
   if(!isYouTubePlaybackResolutionArgs(args))return args;
   const patched=[...args];
@@ -89,7 +103,7 @@ export function withYouTubeResolutionHeaders(args=[]){
 }
 
 export function withYouTubePlaybackClient(args=[],now=Date.now()){
-  if(!isYouTubePlaybackResolutionArgs(args))return args;
+  if(!isYouTubePlaybackArgs(args))return args;
   let patched=withYouTubeResolutionHeaders(args),client=configuredYouTubeClient(patched),strategyIndex=-1;
   if(!client){const strategy=youtubePlaybackStrategy(youtubeSourceKey(patched),now);client=strategy.client;strategyIndex=strategy.index;patched.unshift('--extractor-args',`youtube:player_client=${client}`)}
   else strategyIndex=Math.max(0,youtubePlaybackStrategies.findIndex(strategy=>strategy.client===client));
@@ -146,6 +160,15 @@ function observeYtDlpResolution(child,context){
   child.once('close',save);
 }
 
+function observeYtDlpStreaming(child,context){
+  if(!child?.stderr||!context?.sourceKey)return;let errors='';
+  child.stderr.on('data',chunk=>{errors=(errors+chunk.toString()).slice(-8192)});
+  child.once('close',code=>{
+    if(Number(code)!==0&&/(?:http error 403|server returned 403|403 forbidden)/i.test(errors))markYouTubePlayback403(context.sourceKey,context.strategyIndex);
+    else if(Number(code)===0)resetYouTubePlaybackFailover(context.sourceKey);
+  });
+}
+
 function observeFfmpeg403(child,input,metadata){
   if(!child?.stderr||!metadata?.sourceKey)return;let errors='';
   child.stderr.on('data',chunk=>{errors=(errors+chunk.toString()).slice(-8192)});
@@ -164,6 +187,7 @@ if(!childProcess.__musikbot187YoutubeHeadersInstalled){
     if(executable==='yt-dlp'){
       const patched=withYouTubePlaybackClient(args),context=patched?.youtubePlaybackContext,child=originalSpawn.call(this,command,patched,options);
       if(isYouTubePlaybackResolutionArgs(args))observeYtDlpResolution(child,context);
+      if(isYouTubePlaybackStreamingArgs(args))observeYtDlpStreaming(child,context);
       return child;
     }
     if(executable==='ffmpeg'){
