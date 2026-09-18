@@ -48,10 +48,11 @@ test('yt-dlp stdout is physically piped into FFmpeg stdin and downloader failure
   let errors='';
   pipeline.stderr.on('data',chunk=>errors+=chunk.toString());
   children[0].stderr.write('ERROR: HTTP Error 403: Forbidden\n');
+  const closed=new Promise(resolve=>pipeline.once('close',resolve));
   children[0].stdout.end();
   children[0].emit('close',1);
   children[1].emit('close',0);
-  const closeCode=await new Promise(resolve=>pipeline.once('close',resolve));
+  const closeCode=await closed;
   assert.equal(closeCode,1);
   assert.match(errors,/403/);
 });
