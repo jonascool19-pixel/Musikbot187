@@ -104,7 +104,7 @@ export function withYouTubeResolutionHeaders(args=[]){
 
 export function withYouTubePlaybackClient(args=[],now=Date.now()){
   if(!isYouTubePlaybackArgs(args))return args;
-  let patched=withYouTubeResolutionHeaders(args),client=configuredYouTubeClient(patched),strategyIndex=-1;
+  let patched=withYouTubeResolutionHeaders([...args]),client=configuredYouTubeClient(patched),strategyIndex=-1;
   if(!client){const strategy=youtubePlaybackStrategy(youtubeSourceKey(patched),now);client=strategy.client;strategyIndex=strategy.index;patched.unshift('--extractor-args',`youtube:player_client=${client}`)}
   else strategyIndex=Math.max(0,youtubePlaybackStrategies.findIndex(strategy=>strategy.client===client));
   const usesMweb=/(?:^|,)mweb(?:$|,)/i.test(client),hasPotProvider=extractorArgValues(patched).some(value=>value.includes('youtubepot-bgutil'));
