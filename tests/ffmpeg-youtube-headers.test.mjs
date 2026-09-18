@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {isYouTubeMediaUrl,isYouTubePlaybackResolutionArgs,markYouTubePlayback403,parseYouTubeResolutionMetadata,resetYouTubePlaybackFailover,sanitizeYouTubeHttpHeaders,withYouTubeFfmpegHeaders,withYouTubePlaybackClient,youtubeFfmpegHeaders,youtubeFfmpegUserAgent,youtubePlaybackClient,youtubePlaybackFormat,youtubePlaybackHeaderTemplate,youtubePlaybackStrategies,youtubePotProviderArgs,youtubePotProviderHome} from '../backend/src/ffmpeg-youtube-headers.js';
+import {isYouTubeMediaUrl,isYouTubePlaybackArgs,isYouTubePlaybackResolutionArgs,isYouTubePlaybackStreamingArgs,markYouTubePlayback403,parseYouTubeResolutionMetadata,resetYouTubePlaybackFailover,sanitizeYouTubeHttpHeaders,withYouTubeFfmpegHeaders,withYouTubePlaybackClient,youtubeFfmpegHeaders,youtubeFfmpegUserAgent,youtubePlaybackClient,youtubePlaybackFormat,youtubePlaybackHeaderTemplate,youtubePlaybackStrategies,youtubePotProviderArgs,youtubePotProviderHome} from '../backend/src/ffmpeg-youtube-headers.js';
 
 test('YouTube/googlevideo FFmpeg inputs receive browser-compatible fallback headers',()=>{
   const input='https://rr1---sn-test.googlevideo.com/videoplayback?id=test';
@@ -81,6 +81,22 @@ test('real 403 failover rotates only the default client and resets cleanly',()=>
   assert.deepEqual(youtubePlaybackStrategies.map(value=>value.client),['mweb','web_safari','web_embedded','tv']);
   resetYouTubePlaybackFailover(source);
   assert.match(withYouTubePlaybackClient(base,1_007).join(' '),/youtube:player_client=mweb/);
+});
+
+test('yt-dlp stdout playback is treated as a protected playback request',()=>{
+  resetYouTubePlaybackFailover();
+  const source='https://www.youtube.com/watch?v=abcdefghijk',input=['--ignore-config','--no-playlist','-f','bestaudio','-o','-',source];
+  assert.equal(isYouTubePlaybackResolutionArgs(input),false);
+  assert.equal(isYouTubePlaybackStreamingArgs(input),true);
+  assert.equal(isYouTubePlaybackArgs(input),true);
+  const args=withYouTubePlaybackClient(input),joined=args.join(' ');
+  assert.match(joined,/youtube:player_client=mweb/);
+  assert.ok(args.includes(youtubePotProviderArgs));
+  assert.equal(args[args.indexOf('-f')+1],youtubePlaybackFormat);
+  assert.equal(args[args.indexOf('-o')+1],'-');
+  assert.equal(args.some(value=>String(value).includes('%(http_headers)')),false);
+  markYouTubePlayback403(source,0,10);
+  assert.match(withYouTubePlaybackClient(input,11).join(' '),/youtube:player_client=web_safari/);
 });
 
 test('legacy --get-url playback resolution remains protected',()=>{
