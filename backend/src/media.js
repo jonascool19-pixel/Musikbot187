@@ -91,8 +91,39 @@ export function rejectSpotifyPlaybackMatch(item){
   delete item.playbackMatch;delete item.playbackVideoId;delete item.playbackProtocol;delete item.playbackDuration;
   return true;
 }
-const matchingWords=value=>new Set(String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/[^a-z0-9äöüß]+/g,' ').split(/\s+/).filter(word=>word.length>1&&!['official','video','audio','lyrics','lyric','topic','musik','music'].includes(word)));
-export function rankSpotifyPlaybackCandidates(track,candidates){const rejected=spotifyRejectedPlaybackIds(track),available=(Array.isArray(candidates)?candidates:[]).filter(candidate=>{const url=canonicalYouTubeVideoUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';return url&&candidate?.title&&!rejected.has(String(id||''))&&!(track?.autoplayMode==='similar'&&musicSlowedVersion(candidate))});if(!available.length)return[];const wanted=matchingWords(track?.title),targetDuration=Math.max(0,Number(track?.catalogDuration??track?.duration)||0),variants=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|edit|version)\b)/i;return [...available].sort((left,right)=>{const score=candidate=>{const words=matchingWords(candidate.title),matched=[...wanted].filter(word=>words.has(word)).length,coverage=wanted.size?matched/wanted.size:0,duration=Math.max(0,Number(candidate.duration)||0),durationPenalty=targetDuration&&duration?Math.abs(duration-targetDuration)/targetDuration*100:25,variantPenalty=variants.test(candidate.title)&&!variants.test(track?.title||'')?45:0;return durationPenalty+(1-coverage)*80+variantPenalty};return score(left)-score(right)})}
+const matchingWords=value=>new Set(String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/\p{M}/gu,'').replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,' ').split(/\s+/).filter(word=>word.length>1&&!['official','video','audio','lyrics','lyric','topic','musik','music'].includes(word)));
+export function spotifyPlaybackWordEquivalent(expected,actual){
+  if(expected===actual)return true;
+  if(expected.length<6||actual.length<6||Math.abs(expected.length-actual.length)>1||expected.slice(0,3)!==actual.slice(0,3))return false;
+  let i=0,j=0,edits=0;
+  while(i<expected.length&&j<actual.length){
+    if(expected[i]===actual[j]){i++;j++;continue}
+    if(++edits>1)return false;
+    if(expected.length>actual.length)i++;
+    else if(actual.length>expected.length)j++;
+    else{i++;j++}
+  }
+  return edits+(expected.length-i)+(actual.length-j)<=1;
+}
+const spotifyWordCoverage=(expected,actual)=>{const words=[...expected],available=[...actual];let matches=0;for(const word of words){const index=available.findIndex(candidate=>spotifyPlaybackWordEquivalent(word,candidate));if(index>=0){matches++;available.splice(index,1)}}return matches};
+const spotifyArtistCredit=(track)=>{const title=String(track?.title||''),parts=title.split(/\s+[–—-]\s+/);return parts.length>1?parts[0].trim():String(track?.artist||'').trim()};
+const spotifyCandidateCredit=candidate=>{
+  const title=String(candidate?.title||''),parts=title.split(/\s+[–—-]\s+/);
+  if(parts.length>1)return parts[0].trim();
+  const artist=String(candidate?.artist||'').replace(/\s*-\s*Topic$/i,'').trim();
+  return artist;
+};
+export function spotifyPlaybackArtistCompatible(track,candidate){
+  const expected=matchingWords(spotifyArtistCredit(track)),credit=spotifyCandidateCredit(candidate);
+  if(!expected.size)return true;
+  if(!credit)return false;
+  const offered=matchingWords(credit);
+  if(!offered.size)return false;
+  // Shared artist credits may be abbreviated, but an unrelated credited artist never qualifies.
+  const matching=spotifyWordCoverage(expected,offered);
+  return matching>=Math.max(1,Math.ceil(expected.size*0.6));
+}
+export function rankSpotifyPlaybackCandidates(track,candidates){const rejected=spotifyRejectedPlaybackIds(track),available=(Array.isArray(candidates)?candidates:[]).filter(candidate=>{const url=canonicalYouTubeVideoUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';return url&&candidate?.title&&!rejected.has(String(id||''))&&spotifyPlaybackTitleCompatible(track,candidate)&&!(track?.autoplayMode==='similar'&&musicSlowedVersion(candidate))});if(!available.length)return[];const wanted=matchingWords(track?.title),targetDuration=Math.max(0,Number(track?.catalogDuration??track?.duration)||0),variants=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|edit|version)\b)/i;return [...available].sort((left,right)=>{const score=candidate=>{const words=matchingWords(candidate.title),matched=spotifyWordCoverage(wanted,words),coverage=wanted.size?matched/wanted.size:0,duration=Math.max(0,Number(candidate.duration)||0),durationPenalty=targetDuration&&duration?Math.abs(duration-targetDuration)/targetDuration*100:25,variantPenalty=variants.test(candidate.title)&&!variants.test(track?.title||'')?45:0;return durationPenalty+(1-coverage)*80+variantPenalty};return score(left)-score(right)})}
 export function selectSpotifyPlaybackCandidate(track,candidates){return rankSpotifyPlaybackCandidates(track,candidates)[0]||null;}
 export const spotifyMatchSearchLimit=24;
 export const spotifyMatchResolveLimit=12;
@@ -106,8 +137,9 @@ export function spotifyPlaybackSearchQueries(item){
   return [...new Set([full?`${full} audio`:'',artist&&song?`"${song}" "${artist}" official audio`:'',artist&&song?`${primaryArtist} ${song} topic`:'',artist&&song?`${song} ${artist}`:'',full].map(value=>value.trim()).filter(Boolean))].slice(0,5);
 }
 export function spotifyPlaybackTitleCompatible(track,candidate){
-  const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/),song=parts.length>1?parts.slice(1).join(' – '):full,wanted=matchingWords(song),seen=matchingWords(candidate?.title);
-  if(wanted.size&&!([...wanted].filter(word=>seen.has(word)).length>=Math.max(1,Math.ceil(wanted.size*0.6))))return false;
+  const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/),song=parts.length>1?parts.slice(1).join(' – '):full,candidateTitle=String(candidate?.title||''),candidateParts=candidateTitle.split(/\s+[–—-]\s+/),candidateSong=candidateParts.length>1?candidateParts.slice(1).join(' – '):candidateTitle,wanted=matchingWords(song),seen=matchingWords(candidateSong);
+  if(!spotifyPlaybackArtistCompatible(track,candidate))return false;
+  if(wanted.size&&spotifyWordCoverage(wanted,seen)<Math.max(1,Math.ceil(wanted.size*0.8)))return false;
   const variant=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|extended|mix)\b)/gi;
   const requested=new Set((song.match(variant)||[]).map(x=>x.toLowerCase())),offered=(String(candidate?.title||'').match(variant)||[]).map(x=>x.toLowerCase());
   return offered.every(value=>requested.has(value));
