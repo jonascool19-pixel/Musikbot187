@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Player} from '../backend/src/player.js';
-import {resolveSpotify,SpotifyMatchUnavailableError,spotifyMatchResolveLimit,spotifyPlaybackSearchQueries,spotifyPlaybackTitleCompatible} from '../backend/src/media.js';
+import {rankSpotifyPlaybackCandidates,resolveSpotify,SpotifyMatchUnavailableError,spotifyMatchResolveLimit,spotifyPlaybackArtistCompatible,spotifyPlaybackSearchQueries,spotifyPlaybackTitleCompatible,spotifyPlaybackWordEquivalent} from '../backend/src/media.js';
 
 const yt=(id,title,duration)=>({id,title,duration,url:`https://www.youtube.com/watch?v=${id}`});
 const resolved=(id,duration)=>({id,duration,protocol:'https',url:`https://example.test/audio/${id}`});
@@ -79,4 +79,67 @@ test('A Spotify catalog duration must not be overwritten by a YouTube source wit
   await assert.rejects(resolveSpotify(song,null,{search,resolve}),SpotifyMatchUnavailableError);
   assert.equal(song.duration,126);
   assert.equal(song.catalogDuration,undefined);
+});
+
+
+test('minor final-letter differences match only long title words',()=>{
+  assert.equal(spotifyPlaybackWordEquivalent('collaps','collapse'),true);
+  assert.equal(spotifyPlaybackWordEquivalent('till','till'),true);
+  assert.equal(spotifyPlaybackWordEquivalent('till','tile'),false);
+  assert.equal(spotifyPlaybackWordEquivalent('breaking','breathing'),false);
+  assert.equal(spotifyPlaybackWordEquivalent('collaps','collaborate'),false);
+});
+
+test('Till I Collaps finds a credited Till I Collapse candidate via corrected query',async()=>{
+  const song={id:'spotify:till-i-collaps-regression',source:'spotify',title:'Musikerziehung – Till I Collaps',duration:183},queries=[],calls=[];
+  const search=async query=>{
+    queries.push(query);
+    return /\bcollapse\b/i.test(query)?[yt('abcdefghijk','Musikerziehung – Till I Collapse',183)]:[];
+  };
+  const resolve=async url=>{calls.push(url);return resolved('abcdefghijk',184)};
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Musikerziehung – Till I Collapse'}),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Eminem – Till I Collapse'}),false);
+  const url=await resolveSpotify(song,null,{search,resolve});
+  assert.equal(url,'https://example.test/audio/abcdefghijk');
+  assert.ok(queries.some(query=>/\bcollapse\b/i.test(query)),'at least one query must use the spelling alternative');
+  assert.equal(calls.length,1);
+  assert.equal(song.catalogDuration,183);
+  assert.equal(song.playbackDuration,184);
+  assert.equal(song.playbackVideoId,'abcdefghijk');
+});
+
+test('artist credit, cover/remix and source duration remain independent guards',async()=>{
+  const song={id:'spotify:till-i-collaps-guards',source:'spotify',title:'Musikerziehung – Till I Collaps',duration:183};
+  const wrongArtist=yt('abcdefghijk','Eminem – Till I Collapse',183);
+  const wrongVersion=yt('lmnopqrstuv','Musikerziehung – Till I Collapse (Extended Remix)',183);
+  const wrongDuration=yt('wxyz1234567','Musikerziehung – Till I Collapse',295);
+  const matching=yt('vwxyz123456','Musikerziehung – Till I Collapse',183);
+  assert.equal(spotifyPlaybackArtistCompatible(song,wrongArtist),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,wrongArtist),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,wrongVersion),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Till I Collapse'}),false,'an unknown uploader does not establish the requested performer');
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Till I Collapse',channel:'Musikerziehung'}),true);
+  assert.deepEqual(rankSpotifyPlaybackCandidates(song,[wrongArtist,wrongVersion,wrongDuration,matching].filter(candidate=>spotifyPlaybackTitleCompatible(song,candidate))).map(x=>x.id),[matching.id,wrongDuration.id]);
+  const tried=[],search=async()=>[wrongArtist,wrongVersion,wrongDuration,matching],resolve=async url=>{tried.push(url);return resolved('vwxyz123456',183)};
+  await resolveSpotify(song,null,{search,resolve});
+  assert.equal(tried.length,1);
+  assert.equal(song.playbackVideoId,'vwxyz123456');
+});
+
+
+test('A credited Topic-channel video keeps its artist evidence when cached for later playback',async()=>{
+  const identity='spotify:till-i-collaps-topic-cache-regression',song={id:identity,source:'spotify',title:'Musikerziehung – Till I Collaps',duration:183};
+  const candidate={id:'qwerty12345',title:'Till I Collapse – Official Audio',channel:'Musikerziehung - Topic',duration:183,url:'https://www.youtube.com/watch?v=qwerty12345'};
+  assert.equal(spotifyPlaybackTitleCompatible(song,candidate),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...candidate,channel:'Eminem - Topic'}),false);
+  let searches=0,resolutions=0;
+  const search=async()=>{searches++;return [candidate]};
+  const resolve=async()=>{resolutions++;return resolved(candidate.id,183)};
+  await resolveSpotify(song,null,{search,resolve});
+  assert.equal(searches,1);
+  const replay={id:identity,source:'spotify',title:'Musikerziehung – Till I Collaps',duration:183};
+  await resolveSpotify(replay,null,{search,resolve});
+  assert.equal(searches,1,'cached matching-channel evidence must avoid another full search');
+  assert.equal(resolutions,2,'the cached video is freshly resolved before every playback');
+  assert.equal(replay.playbackVideoId,candidate.id);
 });

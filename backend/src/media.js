@@ -41,7 +41,7 @@ export function youtubePlaybackPipeArgs(url){
 }
 export function youtubeSearchArtist(entry){return musicArtist(entry);}
 async function youtubeSearchData(query,limit,timeout,signal){const deadline=Date.now()+Math.max(1000,Number(timeout)||30_000),failures=[];for(const strategy of youtubeSearchStrategies){const remaining=deadline-Date.now();if(remaining<=0)break;try{const raw=await run('yt-dlp',[...youtubeRuntimeArgs,'--dump-single-json','--flat-playlist','--playlist-end',String(limit),'--force-ipv4',...strategy,youtubeSearchUrl(query)],{timeout:Math.min(youtubeAttemptTimeoutMs,remaining),signal});return JSON.parse(raw)}catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;failures.push(error.message)}}throw new Error(`YouTube-Suche konnte nicht abgeschlossen werden. ${failures.at(-1)||'Zeitüberschreitung'}`);}
-export async function youtubeSearch(query,{limit=searchResultLimit,timeout=30_000,signal}={}){limit=Math.max(1,Math.min(searchResultLimit,Number(limit)||searchResultLimit));const json=await youtubeSearchData(query,limit,timeout,signal);return (json.entries||[]).map(x=>{const url=canonicalYouTubeVideoUrl(x.id,x.url);return url?{id:new URL(url).searchParams.get('v'),title:x.title,artist:youtubeSearchArtist(x),url,source:'youtube',duration:x.duration,thumbnail:x.thumbnail,quality:'Beste verfügbare Audioqualität'}:null}).filter(Boolean).slice(0,limit);}
+export async function youtubeSearch(query,{limit=searchResultLimit,timeout=30_000,signal}={}){limit=Math.max(1,Math.min(searchResultLimit,Number(limit)||searchResultLimit));const json=await youtubeSearchData(query,limit,timeout,signal);return (json.entries||[]).map(x=>{const url=canonicalYouTubeVideoUrl(x.id,x.url);return url?{id:new URL(url).searchParams.get('v'),title:x.title,artist:youtubeSearchArtist(x),channel:String(x.channel||x.uploader||''),url,source:'youtube',duration:x.duration,thumbnail:x.thumbnail,quality:'Beste verfügbare Audioqualität'}:null}).filter(Boolean).slice(0,limit);}
 export function selectHighestQualityStations(stations,limit=searchResultLimit){const seen=new Set(),selected=[];for(const station of [...stations].sort((a,b)=>Number(b.bitrate||0)-Number(a.bitrate||0))){const identity=[station.name,station.countrycode,station.state].map(value=>String(value||'').trim().toLocaleLowerCase('de-DE')).join('|'),key=identity==='||'?String(station.stationuuid||station.url_resolved||station.url):identity;if(seen.has(key))continue;seen.add(key);selected.push(station);if(selected.length>=limit)break}return selected;}
 export async function radioSearch(query){const candidateLimit=searchResultLimit*4,url=await assertSafeExternalUrl(`https://de1.api.radio-browser.info/json/stations/search?name=${encodeURIComponent(query)}&order=bitrate&reverse=true&limit=${candidateLimit}&hidebroken=true`);const res=await fetch(url,{headers:{'user-agent':'MusikBot187/1.8.7'},signal:AbortSignal.timeout(externalRequestTimeoutMs)});if(!res.ok)throw new Error('Radio-Browser nicht erreichbar');return selectHighestQualityStations(await res.json()).map(x=>({id:x.stationuuid,title:x.name,url:x.url_resolved||x.url,source:'radio',thumbnail:x.favicon,bitrate:Number(x.bitrate||0),codec:String(x.codec||''),quality:[x.codec,Number(x.bitrate)>0?`${Number(x.bitrate)} kbit/s`:null].filter(Boolean).join(' · ')||'Beste verfügbare Streamvariante'}));}
 async function spotifyToken(id,secret,fetcher=fetch,{force=false}={}){if(!id||!secret)throw new Error('Spotify Client-ID und Client-Secret fehlen. Bitte zuerst auf der Spotify-Seite speichern.');let cache=spotifyAppTokenCaches.get(fetcher);if(!cache){cache=new Map();spotifyAppTokenCaches.set(fetcher,cache)}const key=`${id}\0${secret}`,cached=cache.get(key);if(!force&&cached?.expires>Date.now()+30_000)return cached.token;const tokenRes=await fetcher('https://accounts.spotify.com/api/token',{method:'POST',headers:{authorization:`Basic ${Buffer.from(`${id}:${secret}`).toString('base64')}`,'content-type':'application/x-www-form-urlencoded'},body:'grant_type=client_credentials',signal:AbortSignal.timeout(externalRequestTimeoutMs)});if(!tokenRes.ok)throw new Error('Spotify-Anmeldung fehlgeschlagen. Bitte Client-ID und Client-Secret prüfen.');const body=await tokenRes.json(),token=body.access_token;if(!token)throw new Error('Spotify hat kein App-Zugriffstoken geliefert.');cache.set(key,{token,expires:Date.now()+Math.max(60,Number(body.expires_in)||3600)*1000});return token;}
@@ -91,8 +91,45 @@ export function rejectSpotifyPlaybackMatch(item){
   delete item.playbackMatch;delete item.playbackVideoId;delete item.playbackProtocol;delete item.playbackDuration;
   return true;
 }
-const matchingWords=value=>new Set(String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/[^a-z0-9äöüß]+/g,' ').split(/\s+/).filter(word=>word.length>1&&!['official','video','audio','lyrics','lyric','topic','musik','music'].includes(word)));
-export function rankSpotifyPlaybackCandidates(track,candidates){const rejected=spotifyRejectedPlaybackIds(track),available=(Array.isArray(candidates)?candidates:[]).filter(candidate=>{const url=canonicalYouTubeVideoUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';return url&&candidate?.title&&!rejected.has(String(id||''))&&!(track?.autoplayMode==='similar'&&musicSlowedVersion(candidate))});if(!available.length)return[];const wanted=matchingWords(track?.title),targetDuration=Math.max(0,Number(track?.catalogDuration??track?.duration)||0),variants=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|edit|version)\b)/i;return [...available].sort((left,right)=>{const score=candidate=>{const words=matchingWords(candidate.title),matched=[...wanted].filter(word=>words.has(word)).length,coverage=wanted.size?matched/wanted.size:0,duration=Math.max(0,Number(candidate.duration)||0),durationPenalty=targetDuration&&duration?Math.abs(duration-targetDuration)/targetDuration*100:25,variantPenalty=variants.test(candidate.title)&&!variants.test(track?.title||'')?45:0;return durationPenalty+(1-coverage)*80+variantPenalty};return score(left)-score(right)})}
+const matchingWords=value=>new Set(String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/\p{M}/gu,'').replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,' ').split(/\s+/).filter(word=>word.length>1&&!['official','video','audio','lyrics','lyric','topic','musik','music'].includes(word)));
+export function spotifyPlaybackWordEquivalent(expected,actual){
+  if(expected===actual)return true;
+  if(expected.length<6||actual.length<6||Math.abs(expected.length-actual.length)>1||expected.slice(0,3)!==actual.slice(0,3))return false;
+  let i=0,j=0,edits=0;
+  while(i<expected.length&&j<actual.length){
+    if(expected[i]===actual[j]){i++;j++;continue}
+    if(++edits>1)return false;
+    if(expected.length>actual.length)i++;
+    else if(actual.length>expected.length)j++;
+    else{i++;j++}
+  }
+  return edits+(expected.length-i)+(actual.length-j)<=1;
+}
+const spotifyWordCoverage=(expected,actual)=>{const words=[...expected],available=[...actual];let matches=0;for(const word of words){const index=available.findIndex(candidate=>spotifyPlaybackWordEquivalent(word,candidate));if(index>=0){matches++;available.splice(index,1)}}return matches};
+const spotifyArtistCredit=(track)=>{const title=String(track?.title||''),parts=title.split(/\s+[–—-]\s+/);return parts.length>1?parts[0].trim():String(track?.artist||'').trim()};
+const spotifyCandidateTitleParts=candidate=>{
+  const parts=String(candidate?.title||'').split(/\s+[–—-]\s+/);
+  // A suffix such as "Till I Collapse – Official Audio" is not an artist credit.
+  if(parts.length>1&&/^(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)$/i.test(parts.at(-1).trim()))parts.pop();
+  return parts;
+};
+const spotifyCandidateCredit=candidate=>{
+  const parts=spotifyCandidateTitleParts(candidate);
+  if(parts.length>1)return parts[0].trim();
+  const artist=String(candidate?.artist||candidate?.channel||candidate?.uploader||'').replace(/\s*-\s*Topic$/i,'').trim();
+  return artist;
+};
+export function spotifyPlaybackArtistCompatible(track,candidate){
+  const expected=matchingWords(spotifyArtistCredit(track)),credit=spotifyCandidateCredit(candidate);
+  if(!expected.size)return true;
+  if(!credit)return false;
+  const offered=matchingWords(credit);
+  if(!offered.size)return false;
+  // Shared artist credits may be abbreviated, but an unrelated credited artist never qualifies.
+  const matching=spotifyWordCoverage(expected,offered);
+  return matching>=Math.max(1,Math.ceil(expected.size*0.6));
+}
+export function rankSpotifyPlaybackCandidates(track,candidates){const rejected=spotifyRejectedPlaybackIds(track),available=(Array.isArray(candidates)?candidates:[]).filter(candidate=>{const url=canonicalYouTubeVideoUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';return url&&candidate?.title&&!rejected.has(String(id||''))&&!(track?.autoplayMode==='similar'&&musicSlowedVersion(candidate))});if(!available.length)return[];const wanted=matchingWords(track?.title),targetDuration=Math.max(0,Number(track?.catalogDuration??track?.duration)||0),variants=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|edit|version)\b)/i;return [...available].sort((left,right)=>{const score=candidate=>{const words=matchingWords(candidate.title),matched=spotifyWordCoverage(wanted,words),coverage=wanted.size?matched/wanted.size:0,duration=Math.max(0,Number(candidate.duration)||0),durationPenalty=targetDuration&&duration?Math.abs(duration-targetDuration)/targetDuration*100:25,variantPenalty=variants.test(candidate.title)&&!variants.test(track?.title||'')?45:0;return durationPenalty+(1-coverage)*80+variantPenalty};return score(left)-score(right)})}
 export function selectSpotifyPlaybackCandidate(track,candidates){return rankSpotifyPlaybackCandidates(track,candidates)[0]||null;}
 export const spotifyMatchSearchLimit=24;
 export const spotifyMatchResolveLimit=12;
@@ -103,11 +140,15 @@ export class SpotifyMatchUnavailableError extends Error{
 export const isSpotifyMatchUnavailableError=error=>error?.code==='SPOTIFY_MATCH_UNAVAILABLE';
 export function spotifyPlaybackSearchQueries(item){
   const full=String(item?.title||'').trim().slice(0,180),parts=full.split(/\s+[–—-]\s+/),artist=String(parts.length>1?parts.shift():'').trim(),song=parts.join(' – ').trim(),primaryArtist=artist.split(/[,;&]/)[0]?.trim()||'';
-  return [...new Set([full?`${full} audio`:'',artist&&song?`"${song}" "${artist}" official audio`:'',artist&&song?`${primaryArtist} ${song} topic`:'',artist&&song?`${song} ${artist}`:'',full].map(value=>value.trim()).filter(Boolean))].slice(0,5);
+  // A missing last letter such as Collaps/Collapse should trigger an alternative
+  // search query, but cannot bypass artist, title or verified duration checks.
+  const finalWord=song.match(/([\p{L}]{6,}s)$/iu)?.[1]||'',alternateSong=finalWord?`${song.slice(0,-finalWord.length)}${finalWord}e`:'';
+  return [...new Set([full?`${full} audio`:'',artist&&alternateSong?`${primaryArtist} ${alternateSong} audio`:'',artist&&song?`"${song}" "${artist}" official audio`:'',artist&&song?`${primaryArtist} ${song} topic`:'',artist&&song?`${song} ${artist}`:'',full].map(value=>value.trim()).filter(Boolean))].slice(0,6);
 }
 export function spotifyPlaybackTitleCompatible(track,candidate){
-  const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/),song=parts.length>1?parts.slice(1).join(' – '):full,wanted=matchingWords(song),seen=matchingWords(candidate?.title);
-  if(wanted.size&&!([...wanted].filter(word=>seen.has(word)).length>=Math.max(1,Math.ceil(wanted.size*0.6))))return false;
+  const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/),song=parts.length>1?parts.slice(1).join(' – '):full,candidateTitle=String(candidate?.title||''),candidateParts=spotifyCandidateTitleParts(candidate),candidateSong=candidateParts.length>1?candidateParts.slice(1).join(' – '):candidateParts[0]||'',wanted=matchingWords(song),seen=matchingWords(candidateSong);
+  if(!spotifyPlaybackArtistCompatible(track,candidate))return false;
+  if(wanted.size&&spotifyWordCoverage(wanted,seen)<Math.max(1,Math.ceil(wanted.size*0.8)))return false;
   const variant=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|extended|mix)\b)/gi;
   const requested=new Set((song.match(variant)||[]).map(x=>x.toLowerCase())),offered=(String(candidate?.title||'').match(variant)||[]).map(x=>x.toLowerCase());
   return offered.every(value=>requested.has(value));
@@ -117,7 +158,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
   const apply=(resolved,selected)=>{
     if(catalogDuration&&(!Number(resolved.duration)||!spotifyPlaybackDurationCompatible(catalogDuration,resolved.duration)))throw new Error('YouTube-Treffer hat eine unpassende Länge oder keine verifizierte Dauer.');
     applyResolvedPlayback(item,resolved);
-    const match={id:resolved.id||selected.id,title:selected.title,duration:Number(resolved.duration)||0,protocol:resolved.protocol||''};
+    const match={id:resolved.id||selected.id,title:selected.title,artist:selected.artist||'',channel:selected.channel||'',duration:Number(resolved.duration)||0,protocol:resolved.protocol||''};
     item.playbackMatch=match;spotifyPlaybackCache.set(cacheKey,{...match,expires:Date.now()+12*60*60_000});
     while(spotifyPlaybackCache.size>500)spotifyPlaybackCache.delete(spotifyPlaybackCache.keys().next().value);
     return resolved.url;
