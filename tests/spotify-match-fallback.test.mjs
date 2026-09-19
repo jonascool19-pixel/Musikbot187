@@ -125,3 +125,21 @@ test('artist credit, cover/remix and source duration remain independent guards',
   assert.equal(tried.length,1);
   assert.equal(song.playbackVideoId,'vwxyz123456');
 });
+
+
+test('A credited Topic-channel video keeps its artist evidence when cached for later playback',async()=>{
+  const identity='spotify:till-i-collaps-topic-cache-regression',song={id:identity,source:'spotify',title:'Musikerziehung – Till I Collaps',duration:183};
+  const candidate={id:'qwerty12345',title:'Till I Collapse – Official Audio',channel:'Musikerziehung - Topic',duration:183,url:'https://www.youtube.com/watch?v=qwerty12345'};
+  assert.equal(spotifyPlaybackTitleCompatible(song,candidate),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...candidate,channel:'Eminem - Topic'}),false);
+  let searches=0,resolutions=0;
+  const search=async()=>{searches++;return [candidate]};
+  const resolve=async()=>{resolutions++;return resolved(candidate.id,183)};
+  await resolveSpotify(song,null,{search,resolve});
+  assert.equal(searches,1);
+  const replay={id:identity,source:'spotify',title:'Musikerziehung – Till I Collaps',duration:183};
+  await resolveSpotify(replay,null,{search,resolve});
+  assert.equal(searches,1,'cached matching-channel evidence must avoid another full search');
+  assert.equal(resolutions,2,'the cached video is freshly resolved before every playback');
+  assert.equal(replay.playbackVideoId,candidate.id);
+});
