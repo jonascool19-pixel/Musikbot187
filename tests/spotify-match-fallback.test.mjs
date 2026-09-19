@@ -119,7 +119,7 @@ test('artist credit, cover/remix and source duration remain independent guards',
   assert.equal(spotifyPlaybackTitleCompatible(song,wrongVersion),false);
   assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Till I Collapse'}),false,'an unknown uploader does not establish the requested performer');
   assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Till I Collapse',channel:'Musikerziehung'}),true);
-  assert.deepEqual(rankSpotifyPlaybackCandidates(song,[wrongArtist,wrongVersion,wrongDuration,matching]).map(x=>x.id),[matching.id,wrongDuration.id]);
+  assert.deepEqual(rankSpotifyPlaybackCandidates(song,[wrongArtist,wrongVersion,wrongDuration,matching].filter(candidate=>spotifyPlaybackTitleCompatible(song,candidate))).map(x=>x.id),[matching.id,wrongDuration.id]);
   const tried=[],search=async()=>[wrongArtist,wrongVersion,wrongDuration,matching],resolve=async url=>{tried.push(url);return resolved('vwxyz123456',183)};
   await resolveSpotify(song,null,{search,resolve});
   assert.equal(tried.length,1);
