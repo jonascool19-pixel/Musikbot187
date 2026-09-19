@@ -107,8 +107,14 @@ export function spotifyPlaybackWordEquivalent(expected,actual){
 }
 const spotifyWordCoverage=(expected,actual)=>{const words=[...expected],available=[...actual];let matches=0;for(const word of words){const index=available.findIndex(candidate=>spotifyPlaybackWordEquivalent(word,candidate));if(index>=0){matches++;available.splice(index,1)}}return matches};
 const spotifyArtistCredit=(track)=>{const title=String(track?.title||''),parts=title.split(/\s+[–—-]\s+/);return parts.length>1?parts[0].trim():String(track?.artist||'').trim()};
+const spotifyCandidateTitleParts=candidate=>{
+  const parts=String(candidate?.title||'').split(/\s+[–—-]\s+/);
+  // A suffix such as "Till I Collapse – Official Audio" is not an artist credit.
+  if(parts.length>1&&/^(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)$/i.test(parts.at(-1).trim()))parts.pop();
+  return parts;
+};
 const spotifyCandidateCredit=candidate=>{
-  const title=String(candidate?.title||''),parts=title.split(/\s+[–—-]\s+/);
+  const parts=spotifyCandidateTitleParts(candidate);
   if(parts.length>1)return parts[0].trim();
   const artist=String(candidate?.artist||candidate?.channel||candidate?.uploader||'').replace(/\s*-\s*Topic$/i,'').trim();
   return artist;
@@ -140,7 +146,7 @@ export function spotifyPlaybackSearchQueries(item){
   return [...new Set([full?`${full} audio`:'',artist&&alternateSong?`${primaryArtist} ${alternateSong} audio`:'',artist&&song?`"${song}" "${artist}" official audio`:'',artist&&song?`${primaryArtist} ${song} topic`:'',artist&&song?`${song} ${artist}`:'',full].map(value=>value.trim()).filter(Boolean))].slice(0,6);
 }
 export function spotifyPlaybackTitleCompatible(track,candidate){
-  const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/),song=parts.length>1?parts.slice(1).join(' – '):full,candidateTitle=String(candidate?.title||''),candidateParts=candidateTitle.split(/\s+[–—-]\s+/),candidateSong=candidateParts.length>1?candidateParts.slice(1).join(' – '):candidateTitle,wanted=matchingWords(song),seen=matchingWords(candidateSong);
+  const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/),song=parts.length>1?parts.slice(1).join(' – '):full,candidateTitle=String(candidate?.title||''),candidateParts=spotifyCandidateTitleParts(candidate),candidateSong=candidateParts.length>1?candidateParts.slice(1).join(' – '):candidateParts[0]||'',wanted=matchingWords(song),seen=matchingWords(candidateSong);
   if(!spotifyPlaybackArtistCompatible(track,candidate))return false;
   if(wanted.size&&spotifyWordCoverage(wanted,seen)<Math.max(1,Math.ceil(wanted.size*0.8)))return false;
   const variant=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|extended|mix)\b)/gi;
@@ -152,7 +158,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
   const apply=(resolved,selected)=>{
     if(catalogDuration&&(!Number(resolved.duration)||!spotifyPlaybackDurationCompatible(catalogDuration,resolved.duration)))throw new Error('YouTube-Treffer hat eine unpassende Länge oder keine verifizierte Dauer.');
     applyResolvedPlayback(item,resolved);
-    const match={id:resolved.id||selected.id,title:selected.title,duration:Number(resolved.duration)||0,protocol:resolved.protocol||''};
+    const match={id:resolved.id||selected.id,title:selected.title,artist:selected.artist||'',channel:selected.channel||'',duration:Number(resolved.duration)||0,protocol:resolved.protocol||''};
     item.playbackMatch=match;spotifyPlaybackCache.set(cacheKey,{...match,expires:Date.now()+12*60*60_000});
     while(spotifyPlaybackCache.size>500)spotifyPlaybackCache.delete(spotifyPlaybackCache.keys().next().value);
     return resolved.url;
