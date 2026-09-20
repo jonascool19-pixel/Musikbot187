@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Player} from '../backend/src/player.js';
-import {rankSpotifyPlaybackCandidates,resolveSpotify,SpotifyMatchUnavailableError,spotifyMatchResolveLimit,spotifyPlaybackArtistCompatible,spotifyPlaybackMatchRejection,spotifyPlaybackSearchQueries,spotifyPlaybackTitleCompatible,spotifyPlaybackWordEquivalent} from '../backend/src/media.js';
+import {rankSpotifyPlaybackCandidates,resolveSpotify,SpotifyMatchUnavailableError,spotifyMatchResolveLimit,spotifyPlaybackArtistCompatible,spotifyPlaybackMatchRejection,spotifyPlaybackSearchQueries,spotifyPlaybackTitleCompatible,spotifyOfficialMusicVideoFallbackCandidate,spotifyPlaybackWordEquivalent} from '../backend/src/media.js';
 
 const yt=(id,title,duration)=>({id,title,duration,url:`https://www.youtube.com/watch?v=${id}`});
 const resolved=(id,duration)=>({id,duration,protocol:'https',url:`https://example.test/audio/${id}`});
@@ -445,3 +445,94 @@ test('search-duration hints cannot approve a mismatched resolved official video'
   assert.equal(song.duration,240);
   assert.equal(song.playbackVideoId,undefined);
 });
+
+
+test('I Need A Face first searches exact artist/Topic audio before considering a longer official music video',async()=>{
+  const originalTitle='Alligatoah – I Need A Face',song={id:'spotify:alligatoah-audio-priority',title:originalTitle,source:'spotify',duration:241};
+  const musicVideo={...yt('abcdefghijk','Alligatoah - I Need A Face (Official Video)',282),channel:'Alligatoah'};
+  const audio={...yt('lmnopqrstuv','I Need A Face',241),channel:'Alligatoah - Topic'};
+  const searches=[],resolutions=[];
+  assert.equal(spotifyOfficialMusicVideoFallbackCandidate(song,musicVideo),true);
+  const search=async query=>{searches.push(query);return searches.length===1?[musicVideo]:[audio]};
+  const resolve=async url=>{
+    const id=new URL(url).searchParams.get('v');resolutions.push(id);
+    return resolved(id,id===audio.id?241:282);
+  };
+  await resolveSpotify(song,null,{search,resolve});
+  assert.ok(searches[0].includes('Alligatoah')&&searches[0].includes('I Need A Face')&&/audio/i.test(searches[0]));
+  assert.deepEqual(resolutions,[audio.id],'a viable album/Topic audio version must win even when the music video was discovered first');
+  assert.equal(song.title,originalTitle);
+  assert.equal(song.catalogDuration,241);
+  assert.equal(song.duration,241);
+  assert.equal(song.playbackMatch.title,audio.title);
+  assert.equal(song.playbackMatch.version,'audio');
+  assert.equal(song.playbackVideoId,audio.id);
+});
+
+test('I Need A Face may use only its own original artist-channel music video as a visible final fallback',async()=>{
+  const originalTitle='Alligatoah – I Need A Face',song={id:'spotify:alligatoah-official-music-video',title:originalTitle,source:'spotify',duration:241};
+  const video={...yt('abcdefghijk','Alligatoah - I Need A Face (Official Video)',282),channel:'Alligatoah'};
+  let searches=0,resolutions=0;
+  const first=await resolveSpotify(song,null,{search:async()=>{searches++;return [video]},resolve:async()=>{resolutions++;return resolved(video.id,282)}});
+  assert.equal(first,'https://example.test/audio/abcdefghijk');
+  assert.ok(searches>=2,'several audio searches should be attempted before choosing an official music video');
+  assert.equal(resolutions,1,'duplicate video IDs must be resolved only once');
+  assert.equal(song.title,originalTitle,'the Spotify title must never be replaced by the YouTube video title');
+  assert.equal(song.catalogDuration,241);
+  assert.equal(song.playbackDuration,282);
+  assert.equal(song.duration,282,'the player must display and seek using the actual music-video length');
+  assert.equal(song.playbackVideoId,video.id);
+  assert.equal(song.playbackMatch.title,video.title);
+  assert.equal(song.playbackMatch.version,'official-video-fallback');
+  const replay={id:song.id,title:originalTitle,source:'spotify',duration:241};
+  await resolveSpotify(replay,null,{search:async()=>{assert.fail('a valid cached video should be re-resolved rather than re-searched')},resolve:async()=>resolved(video.id,282)});
+  assert.equal(replay.playbackMatch.version,'official-video-fallback');
+  assert.equal(replay.title,originalTitle);
+  assert.equal(replay.catalogDuration,241);
+});
+
+test('a longer unrelated, impersonated, non-original or wrongly timed video cannot pass the fallback',async()=>{
+  const song={id:'spotify:alligatoah-negative-video',title:'Alligatoah – I Need A Face',source:'spotify',duration:241};
+  const candidate={...yt('abcdefghijk','Alligatoah - I Need A Face (Official Video)',282),channel:'Alligatoah'};
+  for(const alternative of [
+    {...candidate,channel:'Alligatoah Fan'},
+    {...candidate,channel:'Unknown uploader'},
+    {...candidate,title:'Alligatoah - I Need A Face (Official Audio)'},
+    {...candidate,title:'Alligatoah - I Need A Face (Instrumental) (Official Video)'},
+    {...candidate,title:'Alligatoah - I Need A Face (Other DJ Remix) (Official Video)'},
+    {...candidate,title:'Alligatoah - I Need A Face (Live Performance) (Official Video)'},
+    {...candidate,title:'Other Artist - I Need A Face (Official Video)'},
+    {...candidate,title:'Alligatoah - I Need A Face And More (Official Video)'},
+    {...candidate,title:'Alligatoah - I Need Another Face (Official Video)'},
+    {...candidate,duration:310},
+    {...candidate,duration:0}
+  ])assert.equal(spotifyOfficialMusicVideoFallbackCandidate(song,alternative),false,alternative.title+'; '+alternative.channel+'; '+alternative.duration);
+  const collaboration={title:'Alligatoah, Other Artist – I Need A Face',source:'spotify',duration:241};
+  assert.equal(spotifyOfficialMusicVideoFallbackCandidate(collaboration,candidate),false,'a solo music-video title cannot establish an omitted Spotify collaborator');
+  const far={...yt('lmnopqrstuv','Alligatoah - Alli-Alligatoah (Official Video)',306),channel:'Alligatoah'};
+  assert.equal(spotifyOfficialMusicVideoFallbackCandidate({title:'Alligatoah – Alli-Alligatoah',duration:240,source:'spotify'},far),false);
+});
+
+test('actual stream length must match the verified official video and cannot silently use a different recording',async()=>{
+  const song={id:'spotify:alligatoah-video-duration-mismatch',title:'Alligatoah – I Need A Face',source:'spotify',duration:241};
+  const candidate={...yt('abcdefghijk','Alligatoah - I Need A Face (Official Video)',282),channel:'Alligatoah'};
+  let calls=0;
+  const error=await resolveSpotify(song,null,{search:async()=>[candidate],resolve:async()=>{calls++;return resolved(candidate.id,230)}}).catch(value=>value);
+  assert.ok(error instanceof SpotifyMatchUnavailableError);
+  assert.ok(error.diagnostics.duration>=1);
+  assert.equal(calls,1);
+  assert.equal(song.title,'Alligatoah – I Need A Face');
+  assert.equal(song.duration,241);
+  assert.equal(song.playbackVideoId,undefined);
+});
+
+test('an ordinary 231-second candidate cannot replace the original 126-second audio as a video fallback',async()=>{
+  const song={...track(),id:'spotify:no-generic-video-bypass',duration:126};
+  const candidate={...yt('abcdefghijk','Cy_He, EW – Breaking My Heart (Official Video)',231),channel:'Cy_He'};
+  assert.equal(spotifyOfficialMusicVideoFallbackCandidate(song,candidate),false);
+  let resolutions=0;
+  await assert.rejects(resolveSpotify(song,null,{search:async()=>[candidate],resolve:async()=>{resolutions++;return resolved(candidate.id,231)}}),SpotifyMatchUnavailableError);
+  assert.equal(resolutions,0);
+  assert.equal(song.duration,126);
+});
+
