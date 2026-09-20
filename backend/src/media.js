@@ -113,6 +113,11 @@ const spotifyCandidateTitleParts=candidate=>{
   const parts=String(candidate?.title||'').split(/\s+[–—✖×-]\uFE0F?\s+/u);
   // Decorative segments never supply artist evidence or a different recording.
   while(parts.length>1&&/^(?:[\[(]\s*)?(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)(?:\s*[\])])?(?:\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_ -]+)?$/iu.test(parts.at(-1).trim()))parts.pop();
+  // Some official videos list production credits after the second separator:
+  // "KC Rebell ✖ PAPER ✖ [official Video] GEE..., Nikki ...".
+  // A separate artist and song segment must precede these production credits.
+  if(parts.length>2&&/^[\[(]\s*(?:official\s+)?(?:video|audio|music\s+video|visuali[sz]er)\s*[\])]\s+[\p{L}\p{N}][\p{L}\p{N}\s,;&.+-]{0,100}$/iu.test(parts.at(-1).trim())&&
+    !/\b(?:remix|edit|live|slowed|extended|instrumental|cover|karaoke)\b/iu.test(parts.at(-1)))parts.pop();
   return parts;
 };
 const spotifyBylineCredit=candidate=>{
@@ -259,11 +264,19 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   // remain independent mandatory guards.
   const candidateSong=spotifyPlainSong(spotifyCandidateSong(candidate));
   const requestedSong=spotifyPlainSong(sourceSong);
-  if(evidence.topic&&evidence.channelArtist===primary&&!evidence.prefix&&
+  const genreMarkedArtistUpload=!evidence.topic&&expected.length>1&&!evidence.prefix&&
+    !String(candidate?.artist||'').trim()&&evidence.channelArtist===primary&&
+    /[\[(]\s*(?:uptempo|hardstyle|hardtekk|rawstyle|frenchcore|hardcore|techno|trance)\s*[\])]\s*$/iu.test(sourceSong)&&
+    !/[\[(]\s*(?:feat(?:uring)?\.?|ft\.?)\b/iu.test(sourceSong);
+  // A song on its primary artist's own channel can omit catalog collaborators,
+  // but only accept a complete, distinct genre-marked title and known duration.
+  if((evidence.topic&&evidence.channelArtist===primary&&!evidence.prefix||
+    genreMarkedArtistUpload)&&
     !/[\[(]\s*(?:feat(?:uring)?\.?|ft\.?)\b/iu.test(candidateSong)){
     const wanted=spotifySongWords(requestedSong),seen=spotifySongWords(candidateSong);
     const coverage=spotifySongCoverage(wanted,seen);
-    return wanted.size>0&&coverage.matches===wanted.size&&coverage.extra.length===0;
+    return wanted.size>0&&coverage.matches===wanted.size&&coverage.extra.length===0&&
+      (!genreMarkedArtistUpload||Number(candidate?.duration)>0);
   }
   return false;
 }
@@ -316,8 +329,10 @@ const spotifyMatchReasonLabels=Object.freeze({artist:'falscher Künstler',versio
 export class SpotifyMatchUnavailableError extends Error{
   constructor(item,diagnostics={}){
     const counts=Object.entries(spotifyMatchReasonLabels).filter(([key])=>diagnostics[key]>0).map(([key,label])=>label+': '+diagnostics[key]);
+    const catalogSeconds=Math.max(0,Number(item?.catalogDuration??item?.duration)||0);
+    const durationHint=catalogSeconds?' Katalogdauer: '+Math.round(catalogSeconds)+' s (Toleranz ±'+Math.round(spotifyPlaybackDurationToleranceSeconds(catalogSeconds))+' s).':'';
     const examples=(diagnostics.examples||[]).slice(0,4).join(' | ');
-    super('Spotify-Titel „'+String(item?.title||'Unbekannt').slice(0,160)+'“ übersprungen: keine passende YouTube-Version gefunden. Diagnose: '+(counts.join(', ')||'keine geeigneten Suchtreffer')+(examples?'; Beispiele: '+examples:'')+'.');
+    super('Spotify-Titel „'+String(item?.title||'Unbekannt').slice(0,160)+'“ übersprungen: keine passende YouTube-Version gefunden. Diagnose: '+(counts.join(', ')||'keine geeigneten Suchtreffer')+(examples?'; Beispiele: '+examples:'')+'.'+durationHint);
     this.name='SpotifyMatchUnavailableError';this.code='SPOTIFY_MATCH_UNAVAILABLE';this.diagnostics=diagnostics;
   }
 }
@@ -335,6 +350,7 @@ export function spotifyPlaybackSearchQueries(item){
     remixQuery,
     multipleArtists&&baseSong?'"'+baseSong+'" '+multipleArtists+' audio':'',
     primaryArtist&&baseSong?primaryArtist+' "'+baseSong+'" official audio':'',
+    primaryArtist&&/[\p{L}]-[\p{L}]/u.test(baseSong)?primaryArtist+' "'+baseSong.replace(/([\p{L}])-([\p{L}])/gu,'$1 $2')+'" audio':'',
     artist&&alternateSong?primaryArtist+' '+alternateSong+' audio':'',
     artist&&song?primaryArtist+' '+song+' topic':'',
     artist&&song?song+' '+artist:'',

@@ -385,3 +385,63 @@ test('Spotify diagnostics prioritize relevant rejected results and disclose arti
   assert.ok(error.diagnostics.examples.some(example=>example.includes('MagneticMark')&&example.includes('Kanal/Künstler: MagneticMark - Topic')&&example.includes('310 s')));
   assert.equal(song.playbackVideoId,undefined);
 });
+
+test('a genre-tagged song on its primary artist channel can establish a multi-artist catalog match',async()=>{
+  const song={id:'spotify:nidzo-eichbaumkartell-naar-de-klote',source:'spotify',title:'nidžo, Eichbaumkartell – NAAR DE KLOTE (Uptempo)',duration:200};
+  const matching={...yt('abcdefghijk','NAAR DE KLOTE (Uptempo)',200),channel:'nidžo',artist:''};
+  assert.equal(spotifyPlaybackArtistCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,channel:'Unknown uploader'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,title:'ALLES NAAR DE KLOTE (Uptempo)'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,title:'NAAR DE KLOTE (Slowed) (Uptempo)'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,title:'NAAR DE KLOTE (Other DJ Remix) (Uptempo)'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,duration:0}),false);
+  assert.equal(spotifyPlaybackTitleCompatible({...song,title:'nidžo, Eichbaumkartell – NAAR DE KLOTE'},{
+    ...matching,title:'NAAR DE KLOTE'}),false,'a genre-free uncredited song on the primary channel is not enough to establish all Spotify collaborators');
+  let resolutions=0;
+  await resolveSpotify(song,null,{search:async()=>[matching],resolve:async()=>{resolutions++;return resolved(matching.id,201)}});
+  assert.equal(resolutions,1);
+  assert.equal(song.playbackVideoId,matching.id);
+  assert.equal(song.catalogDuration,200);
+  assert.equal(song.playbackDuration,201);
+});
+
+test('official-video production credits after a visual separator are not a second song',async()=>{
+  const song={id:'spotify:kc-rebell-paper',source:'spotify',title:'KC Rebell – Paper',duration:222};
+  const matching={...yt('abcdefghijk','KC Rebell ✖️ PAPER ✖️ [ official Video ] GEE Futuristic, Nikki 3k & Joshimixu',222),channel:'KC Rebell'};
+  assert.equal(spotifyPlaybackArtistCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,title:'KC Rebell ✖️ PAPER // ABSTAND ✖️ [ official Video ] GEE Futuristic',duration:102}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,title:'KC Rebell ✖️ PAPER ✖️ [ official Video ] Other DJ Remix'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,title:'Another Artist ✖️ PAPER ✖️ [ official Video ] GEE Futuristic'}),false);
+  await resolveSpotify(song,null,{search:async()=>[matching],resolve:async()=>resolved(matching.id,222)});
+  assert.equal(song.playbackVideoId,matching.id);
+});
+
+test('duration remains strict for Alli-Alligatoah, and skip diagnostics include the actual catalog baseline',async()=>{
+  const song={id:'spotify:alligatoah-alli-duration',source:'spotify',title:'Alligatoah – Alli-Alligatoah',duration:240};
+  const official={...yt('abcdefghijk','Alligatoah - Alli-Alligatoah (Official Video)',306),channel:'Alligatoah'};
+  const extended={...yt('lmnopqrstuv','Alligatoah - Alli Alligatoah (Extended Version)',298),channel:'Alligatoah'};
+  assert.equal(spotifyPlaybackTitleCompatible(song,official),true);
+  assert.equal(spotifyPlaybackMatchRejection(song,extended),'version');
+  const queries=spotifyPlaybackSearchQueries(song);
+  assert.ok(queries.some(value=>value.includes('"Alli Alligatoah"')&&value.includes('Alligatoah')));
+  let attempts=0;
+  const error=await resolveSpotify(song,null,{search:async()=>[official,extended],resolve:async()=>{attempts++;return resolved(official.id,306)}}).catch(value=>value);
+  assert.ok(error instanceof SpotifyMatchUnavailableError);
+  assert.equal(attempts,0,'a known 306-second upload must not consume a stream resolution for a 240-second recording');
+  assert.ok(error.diagnostics.duration>=1);
+  assert.match(error.message,/Katalogdauer: 240 s/);
+  assert.match(error.message,/Toleranz ±19 s/);
+  assert.equal(song.playbackVideoId,undefined);
+});
+
+test('search-duration hints cannot approve a mismatched resolved official video',async()=>{
+  const song={id:'spotify:alligatoah-resolved-duration',source:'spotify',title:'Alligatoah – Alli-Alligatoah',duration:240};
+  const candidate={...yt('abcdefghijk','Alligatoah - Alli-Alligatoah (Official Video)',239),channel:'Alligatoah'};
+  const error=await resolveSpotify(song,null,{search:async()=>[candidate],resolve:async()=>resolved(candidate.id,306)}).catch(value=>value);
+  assert.ok(error instanceof SpotifyMatchUnavailableError);
+  assert.ok(error.diagnostics.duration>=1);
+  assert.equal(song.duration,240);
+  assert.equal(song.playbackVideoId,undefined);
+});
