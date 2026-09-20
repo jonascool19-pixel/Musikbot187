@@ -261,7 +261,7 @@ test('NEWKID3 generic Spotify remix recognizes separately credited collaborator 
   const wrongArtist=yt('wxyz1234567','Another Singer – NEWKID3 (KICKARTZ Remix)',158);
   const correct=yt('vwxyz123456','FEDX – NEWKID3 (KICKARTZ Remix)',158);
   assert.equal(spotifyPlaybackMatchRejection(song,original),'version');
-  assert.equal(spotifyPlaybackMatchRejection(song,unrelated),'artist');
+  assert.equal(spotifyPlaybackMatchRejection(song,unrelated),'version');
   assert.equal(spotifyPlaybackTitleCompatible(song,wrongArtist),false);
   assert.equal(spotifyPlaybackTitleCompatible(song,correct),true);
   assert.equal(spotifyPlaybackTitleCompatible(song,{title:'NEWKID3 (REMIX)',channel:'FEDX, KICKARTZ - Topic'}),true);
@@ -282,5 +282,106 @@ test('ALORS ON FUCK with no verified search results stays unavailable instead of
     return true;
   });
   assert.ok(queries.some(query=>query.includes('GPF')&&query.includes('ALORS ON FUCK')));
+  assert.equal(song.playbackVideoId,undefined);
+});
+
+
+test('artist bylines are credited but an unrequested official remix and slowed version are rejected',()=>{
+  const song={title:'Crxptic, Halo King – MISERY HARDTEKK',duration:185,source:'spotify'};
+  const original={title:'MISERY HARDTEKK by Crxptic & Halo King | Official Audio',duration:185};
+  assert.equal(spotifyPlaybackTitleCompatible(song,original),true);
+  assert.equal(spotifyPlaybackMatchRejection(song,{...original,title:'MISERY HARDTEKK by Crxptic & Halo King | Official Remix'}),'version');
+  assert.equal(spotifyPlaybackMatchRejection(song,{...original,title:'MISERY HARDTEKK (Slowed) by Crxptic & Halo King | Official Remix'}),'version');
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...original,title:'MISERY HARDTEKK by Other Artist | Official Audio'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...original,title:'MISERY HARDTEKK',channel:'Random upload channel'}),false);
+});
+test('featured artist in song metadata and official Topic channel satisfy multi-artist credits',()=>{
+  const kc={title:'KC Rebell, 18 Karat – Das bist alles nicht Du (feat. 18Karat)',source:'spotify'};
+  const topic={title:'Das bist alles nicht Du (feat. 18Karat)',channel:'KC Rebell - Topic'};
+  assert.equal(spotifyPlaybackTitleCompatible(kc,topic),true);
+  assert.equal(spotifyPlaybackTitleCompatible(kc,{...topic,channel:'Other Singer - Topic'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(kc,{...topic,title:'Das bist alles nicht Du (feat. 18Karat) [Instrumental]'}),false);
+  const phone={title:'KC Rebell, Moe Phoenix – iPhone 17 (feat. Moé)',source:'spotify'};
+  assert.equal(spotifyPlaybackTitleCompatible(phone,{title:'KC Rebell feat. Moé [Moe Phoenix] ✖️ iPHONE 17 ✖️ [ official Video ] prod. by Joshimixu'}),true);
+  assert.equal(spotifyPlaybackTitleCompatible(phone,{title:'KC Rebell feat. Different Singer ✖️ iPHONE 17 ✖️ [ official Video ]'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(phone,{title:'KC Rebell feat. Moé [Moe Phoenix] ✖️ iPHONE 18 ✖️ [ official Video ]'}),false);
+});
+test('x collaborations and masked profanity recognize the intended title, not another remix',()=>{
+  const schillah={title:'Schillah, ArniTheSavage – Fick dein Berghain',source:'spotify'};
+  const original={title:'Schillah x ArniTheSavage - F*** dein Berghain [prod. by StuBeatZ]'};
+  assert.equal(spotifyPlaybackTitleCompatible(schillah,original),true);
+  assert.equal(spotifyPlaybackTitleCompatible(schillah,{...original,title:'Schillah x ArniTheSavage - F*** die Welt [prod. by StuBeatZ]'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(schillah,{...original,title:'Schillah x ArniTheSavage - Fick dein Berghain [CZNZ REMIX]'}),false);
+  const magnetic={title:"MagneticMark – I Don't Give a Fuck",source:'spotify'};
+  assert.equal(spotifyPlaybackTitleCompatible(magnetic,{title:"MagneticMark - I Don't Give a F*ck (Official Audio)"}),true);
+  assert.equal(spotifyPlaybackTitleCompatible(magnetic,{title:"Another Artist - I Don't Give a F*ck (Official Audio)"}),false);
+  const party={title:"Sh1nigami, KIOR – Let's F#cking Party",source:'spotify'};
+  assert.equal(spotifyPlaybackTitleCompatible(party,{title:"Sh1nigami x KIOR – Let's F#cking Party"}),true);
+  assert.equal(spotifyPlaybackTitleCompatible(party,{title:"Sh1nigami x KIOR – Let's F#cking Hard"}),false);
+});
+test('Unicode alias and exact artists reject wrong rawstyle remix despite matching song name',()=>{
+  const song={title:'Flymeon, VICØ – Dance with the Devil',source:'spotify'};
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Flymeon, VICO - Dance With The Devil'}),true);
+  assert.equal(spotifyPlaybackMatchRejection(song,{title:'Flymeon, VICO - Dance With The Devil (RAWPVCK Remix)'}),'version');
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'D-Devils - Dance With The Devil'}),false);
+});
+test('named edit must retain its exact editor; song title Live does not imply a live recording',()=>{
+  const song={title:'Ferran Canales – Live The Night - Canales Edit',source:'spotify'};
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Ferran Canales – Live The Night (Canales Edit)'}),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Ferran Canales – Live The Night'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Ferran Canales – Live The Night (Other DJ Edit)'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Ferran Canales – Live The Night (Canales Edit) (Live)'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'Ferran – Live The Night (Canales Edit)'}),false);
+});
+test('Topic metadata can establish primary artist of title-only releases; foreign upload channels cannot',()=>{
+  const cases=[
+    {track:'ZEVXR, GARIX, TISHKIN – MORTALTEKK',title:'MORTALTEKK | Official Visualizer',topic:'ZEVXR - Topic'},
+    {track:'POSEIDON, ZYZZMODE – NEW RELIGION - HARDSTYLE',title:'NEW RELIGION (HARDSTYLE)',topic:'POSEIDON - Topic'},
+    {track:'ReCombined – Hammer Down',title:'Hammer Down',topic:'ReCombined - Topic'},
+    {track:'The Boy The G, MilleniumKid, JBS – Adrenalin - Remix',title:'Adrenalin (Remix)',topic:'The Boy The G - Topic'},
+    {track:'FEDX, KICKARTZ – Mach die Beat an Jungö - Remix',title:'Mach die Beat an Jungö (Remix)',topic:'FEDX - Topic'}
+  ];
+  for(const item of cases){
+    const track={title:item.track,source:'spotify'};
+    assert.equal(spotifyPlaybackTitleCompatible(track,{title:item.title,channel:item.topic}),true,item.track);
+    assert.equal(spotifyPlaybackTitleCompatible(track,{title:item.title,channel:'Someone Else - Topic'}),false,item.track);
+    assert.equal(spotifyPlaybackTitleCompatible(track,{title:item.title,channel:'Random uploader'}),false,item.track);
+  }
+  const original={title:'The Boy The G, MilleniumKid, JBS – Adrenalin - Remix',source:'spotify'};
+  assert.equal(spotifyPlaybackTitleCompatible(original,{title:'Adrenalin',channel:'The Boy The G - Topic'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(original,{title:'Adrenalin (Another DJ Remix)',channel:'The Boy The G - Topic'}),false);
+});
+test('strict duration verification still skips plausible Topic song when stream duration differs',async()=>{
+  const song={id:'spotify:duration-topic-adrenalin',source:'spotify',title:'The Boy The G, MilleniumKid, JBS – Adrenalin - Remix',duration:155};
+  const candidate=yt('abcdefghijk','Adrenalin (Remix)',155);candidate.channel='The Boy The G - Topic';
+  const attempts=[];
+  await assert.rejects(resolveSpotify(song,null,{search:async()=>[candidate],resolve:async url=>{attempts.push(url);return resolved(candidate.id,240)}}),SpotifyMatchUnavailableError);
+  assert.equal(attempts.length,1);
+  assert.equal(song.playbackVideoId,undefined);
+  assert.equal(song.duration,155);
+});
+test('an actually reachable matching censored song is retried after a permanent source error',async()=>{
+  const song={id:'spotify:masked-fallback',source:'spotify',title:"MagneticMark – I Don't Give a Fuck",duration:192};
+  const a=yt('abcdefghijk',"MagneticMark - I Don't Give a F*ck (Official Audio)",192);
+  const b=yt('lmnopqrstuv',"MagneticMark - I Don't Give a Fuck (Official Audio)",192);
+  const called=[];let searches=0;
+  await resolveSpotify(song,null,{search:async()=>++searches===1?[a]:[b],resolve:async url=>{
+    const id=new URL(url).searchParams.get('v');called.push(id);
+    if(id===a.id)throw new Error('Video unavailable');
+    return resolved(id,193);
+  }});
+  assert.deepEqual(called,[a.id,b.id]);
+  assert.equal(song.playbackVideoId,b.id);
+  assert.equal(song.playbackDuration,193);
+});
+
+test('Spotify diagnostics prioritize relevant rejected results and disclose artist channel and reported duration',async()=>{
+  const song={id:'spotify:diagnostic-relevance',source:'spotify',title:"MagneticMark – I Don't Give a Fuck",duration:180};
+  const noise=Array.from({length:6},(_,index)=>yt('abcdefghij'+index,'Unrelated channel – Random music '+index,180));
+  const near={...yt('lmnopqrstuv',"MagneticMark – I Don't Give a F*ck (Official Audio)",310),channel:'MagneticMark - Topic'};
+  const error=await resolveSpotify(song,null,{search:async()=>[...noise,near],resolve:async()=>{assert.fail('Wrong search duration must never resolve')}}).catch(value=>value);
+  assert.ok(error instanceof SpotifyMatchUnavailableError);
+  assert.ok(error.diagnostics.duration>=1);
+  assert.ok(error.diagnostics.examples.some(example=>example.includes('MagneticMark')&&example.includes('Kanal/Künstler: MagneticMark - Topic')&&example.includes('310 s')));
   assert.equal(song.playbackVideoId,undefined);
 });
