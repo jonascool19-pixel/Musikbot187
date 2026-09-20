@@ -119,42 +119,99 @@ const spotifyCandidateCredit=candidate=>{
   const artist=String(candidate?.artist||candidate?.channel||candidate?.uploader||'').replace(/\s*-\s*Topic$/i,'').trim();
   return artist;
 };
+const spotifySongPart=track=>{
+  const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/);
+  return parts.length>1?parts.slice(1).join(' – '):full;
+};
+const spotifyArtistNames=value=>String(value||'').split(/\s*(?:,|;|&|\+|\band\b|\bund\b)\s*/iu).map(name=>name.trim()).filter(Boolean);
+const spotifyCanonicalArtist=value=>String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/\p{M}/gu,'').replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,'');
+const spotifyNamedRemix=value=>{
+  // A named remix must be an identifiable version suffix, not random title words.
+  const title=String(value||'').trim().replace(/\s*[\[(]\s*(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video)\s*[\])]\s*$/iu,'').trim();
+  const suffix=title.match(/(?:\s+[–—-]\s+|[\[(]\s*)([^()[\]]+?)\s+remix\s*[\])]?$/iu);
+  if(!suffix)return null;
+  const names=spotifyArtistNames(suffix[1]),credits=names.map(spotifyCanonicalArtist),base=title.slice(0,suffix.index).trim();
+  if(!base||!names.length||names.length>6||credits.some(name=>!name)||new Set(credits).size!==credits.length)return null;
+  return {base,names,credits:new Set(credits)};
+};
+const spotifyCandidateSong=candidate=>{
+  const parts=spotifyCandidateTitleParts(candidate);
+  return parts.length>1?parts.slice(1).join(' – '):parts[0]||'';
+};
 export function spotifyPlaybackArtistCompatible(track,candidate){
   const expected=matchingWords(spotifyArtistCredit(track)),credit=spotifyCandidateCredit(candidate);
   if(!expected.size)return true;
   if(!credit)return false;
+  if(spotifyNamedRemix(spotifySongPart(track))){
+    const sourceNames=spotifyArtistNames(spotifyArtistCredit(track)).map(spotifyCanonicalArtist);
+    const offeredNames=spotifyArtistNames(credit).map(spotifyCanonicalArtist);
+    // Main artist required; named remixers may be credited in the title instead.
+    return Boolean(sourceNames[0]&&offeredNames.includes(sourceNames[0])&&
+      offeredNames.every(name=>name&&sourceNames.includes(name)));
+  }
   const offered=matchingWords(credit);
   if(!offered.size)return false;
-  // Shared artist credits may be abbreviated, but an unrelated credited artist never qualifies.
   const matching=spotifyWordCoverage(expected,offered);
   return matching>=Math.max(1,Math.ceil(expected.size*0.6));
+}
+export function spotifyPlaybackMatchRejection(track,candidate){
+  if(!spotifyPlaybackArtistCompatible(track,candidate))return 'artist';
+  const song=spotifySongPart(track),candidateSong=spotifyCandidateSong(candidate),remix=spotifyNamedRemix(song);
+  let offeredRemix=null;
+  if(remix){
+    offeredRemix=spotifyNamedRemix(candidateSong);
+    if(!offeredRemix||offeredRemix.credits.size!==remix.credits.size||
+      [...remix.credits].some(name=>!offeredRemix.credits.has(name))||
+      /\bremix\b/i.test(offeredRemix.base))return 'version';
+  }
+  const variant=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|extended|mix)\b)/gi;
+  const requested=new Set((song.match(variant)||[]).map(value=>value.toLowerCase()));
+  const offered=(String(candidate?.title||'').match(variant)||[]).map(value=>value.toLowerCase());
+  if(offered.some(value=>!requested.has(value))||
+    remix&&offered.filter(value=>value==='remix').length!==1||
+    requested.has('remix')&&!offered.includes('remix'))return 'version';
+  const wanted=matchingWords(remix?.base||song),seen=matchingWords(remix?offeredRemix.base:candidateSong);
+  if(wanted.size&&spotifyWordCoverage(wanted,seen)<Math.max(1,Math.ceil(wanted.size*0.8)))return 'title';
+  return null;
 }
 export function rankSpotifyPlaybackCandidates(track,candidates){const rejected=spotifyRejectedPlaybackIds(track),available=(Array.isArray(candidates)?candidates:[]).filter(candidate=>{const url=canonicalYouTubeVideoUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';return url&&candidate?.title&&!rejected.has(String(id||''))&&!(track?.autoplayMode==='similar'&&musicSlowedVersion(candidate))});if(!available.length)return[];const wanted=matchingWords(track?.title),targetDuration=Math.max(0,Number(track?.catalogDuration??track?.duration)||0),variants=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|edit|version)\b)/i;return [...available].sort((left,right)=>{const score=candidate=>{const words=matchingWords(candidate.title),matched=spotifyWordCoverage(wanted,words),coverage=wanted.size?matched/wanted.size:0,duration=Math.max(0,Number(candidate.duration)||0),durationPenalty=targetDuration&&duration?Math.abs(duration-targetDuration)/targetDuration*100:25,variantPenalty=variants.test(candidate.title)&&!variants.test(track?.title||'')?45:0;return durationPenalty+(1-coverage)*80+variantPenalty};return score(left)-score(right)})}
 export function selectSpotifyPlaybackCandidate(track,candidates){return rankSpotifyPlaybackCandidates(track,candidates)[0]||null;}
 export const spotifyMatchSearchLimit=24;
 export const spotifyMatchResolveLimit=12;
 export const spotifyMatchSearchTimeMs=90_000;
+const spotifyMatchReasonLabels=Object.freeze({artist:'falscher Künstler',version:'falsche Version',title:'abweichender Titel',duration:'unpassende Länge',source:'nicht erreichbare Quelle',search:'fehlgeschlagene YouTube-Suche'});
 export class SpotifyMatchUnavailableError extends Error{
-  constructor(item){super(`Spotify-Titel „${String(item?.title||'Unbekannt').slice(0,160)}“ übersprungen: keine passende YouTube-Version gefunden.`);this.name='SpotifyMatchUnavailableError';this.code='SPOTIFY_MATCH_UNAVAILABLE'}
+  constructor(item,diagnostics={}){
+    const counts=Object.entries(spotifyMatchReasonLabels).filter(([key])=>diagnostics[key]>0).map(([key,label])=>label+': '+diagnostics[key]);
+    const examples=(diagnostics.examples||[]).slice(0,4).join(' | ');
+    super('Spotify-Titel „'+String(item?.title||'Unbekannt').slice(0,160)+'“ übersprungen: keine passende YouTube-Version gefunden. Diagnose: '+(counts.join(', ')||'keine geeigneten Suchtreffer')+(examples?'; Beispiele: '+examples:'')+'.');
+    this.name='SpotifyMatchUnavailableError';this.code='SPOTIFY_MATCH_UNAVAILABLE';this.diagnostics=diagnostics;
+  }
 }
 export const isSpotifyMatchUnavailableError=error=>error?.code==='SPOTIFY_MATCH_UNAVAILABLE';
 export function spotifyPlaybackSearchQueries(item){
-  const full=String(item?.title||'').trim().slice(0,180),parts=full.split(/\s+[–—-]\s+/),artist=String(parts.length>1?parts.shift():'').trim(),song=parts.join(' – ').trim(),primaryArtist=artist.split(/[,;&]/)[0]?.trim()||'';
-  // A missing last letter such as Collaps/Collapse should trigger an alternative
-  // search query, but cannot bypass artist, title or verified duration checks.
-  const finalWord=song.match(/([\p{L}]{6,}s)$/iu)?.[1]||'',alternateSong=finalWord?`${song.slice(0,-finalWord.length)}${finalWord}e`:'';
-  return [...new Set([full?`${full} audio`:'',artist&&alternateSong?`${primaryArtist} ${alternateSong} audio`:'',artist&&song?`"${song}" "${artist}" official audio`:'',artist&&song?`${primaryArtist} ${song} topic`:'',artist&&song?`${song} ${artist}`:'',full].map(value=>value.trim()).filter(Boolean))].slice(0,6);
+  const full=String(item?.title||'').trim().slice(0,180),parts=full.split(/\s+[–—-]\s+/),artist=String(parts.length>1?parts.shift():'').trim(),song=parts.join(' – ').trim(),primaryArtist=spotifyArtistNames(artist)[0]||'';
+  // Independently search main performer, base title, and named remixers.
+  const remix=spotifyNamedRemix(song);
+  const remixQuery=remix&&primaryArtist?primaryArtist+' "'+remix.base+'" '+remix.names.join(' ')+' remix audio':'';
+  // Search spelling alternatives without relaxing the version or duration guards.
+  const finalWord=song.match(/([\p{L}]{6,}s)$/iu)?.[1]||'',alternateSong=finalWord?song.slice(0,-finalWord.length)+finalWord+'e':'';
+  return [...new Set([full?full+' audio':'',remixQuery,artist&&alternateSong?primaryArtist+' '+alternateSong+' audio':'',artist&&song?'"'+song+'" "'+artist+'" official audio':'',artist&&song?primaryArtist+' '+song+' topic':'',artist&&song?song+' '+artist:'',full].map(value=>value.trim()).filter(Boolean))].slice(0,7);
 }
 export function spotifyPlaybackTitleCompatible(track,candidate){
-  const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/),song=parts.length>1?parts.slice(1).join(' – '):full,candidateTitle=String(candidate?.title||''),candidateParts=spotifyCandidateTitleParts(candidate),candidateSong=candidateParts.length>1?candidateParts.slice(1).join(' – '):candidateParts[0]||'',wanted=matchingWords(song),seen=matchingWords(candidateSong);
-  if(!spotifyPlaybackArtistCompatible(track,candidate))return false;
-  if(wanted.size&&spotifyWordCoverage(wanted,seen)<Math.max(1,Math.ceil(wanted.size*0.8)))return false;
-  const variant=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|extended|mix)\b)/gi;
-  const requested=new Set((song.match(variant)||[]).map(x=>x.toLowerCase())),offered=(String(candidate?.title||'').match(variant)||[]).map(x=>x.toLowerCase());
-  return offered.every(value=>requested.has(value));
+  return spotifyPlaybackMatchRejection(track,candidate)===null;
 }
 export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=resolveYoutube}={}){
   const cacheKey=spotifyPlaybackCacheKey(item),catalogDuration=Math.max(0,Number(item.catalogDuration??item.duration)||0),cached=spotifyPlaybackCache.get(cacheKey),deadline=Date.now()+spotifyMatchSearchTimeMs;
+  const diagnostics={artist:0,version:0,title:0,duration:0,source:0,search:0,examples:[]};
+  const record=(reason,candidate)=>{
+    diagnostics[reason]=(diagnostics[reason]||0)+1;
+    if(candidate&&diagnostics.examples.length<4){
+      const title=String(candidate.title||candidate.id||'unbekannt').replace(/\s+/g,' ').slice(0,88);
+      diagnostics.examples.push(spotifyMatchReasonLabels[reason]+': '+title);
+    }
+  };
+  const resolveFailureReason=error=>/unpassende Länge|verifizierte Dauer/i.test(String(error?.message||''))?'duration':'source';
   const apply=(resolved,selected)=>{
     if(catalogDuration&&(!Number(resolved.duration)||!spotifyPlaybackDurationCompatible(catalogDuration,resolved.duration)))throw new Error('YouTube-Treffer hat eine unpassende Länge oder keine verifizierte Dauer.');
     applyResolvedPlayback(item,resolved);
@@ -165,37 +222,42 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
   };
   if(cached&&cached.expires>Date.now()&&rankSpotifyPlaybackCandidates(item,[cached]).length&&spotifyPlaybackTitleCompatible(item,cached)){
     try{const resolved=await resolve(canonicalYouTubeVideoUrl(cached.id),signal,{deadline});return apply(resolved,cached)}
-    catch(error){spotifyPlaybackCache.delete(cacheKey);if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;if(!/unpassende Länge/i.test(error.message)&&!isPermanentYouTubeResolutionError(error))throw error}
+    catch(error){spotifyPlaybackCache.delete(cacheKey);if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;record(resolveFailureReason(error),cached);if(!/unpassende Länge/i.test(error.message)&&!isPermanentYouTubeResolutionError(error))throw error}
   }
   const checked=new Set(),seen=new Set(),queries=spotifyPlaybackSearchQueries(item);let resolvedCount=0,successfulSearches=0,searchFailure=null;
   for(const query of queries){
     if(Date.now()>=deadline||resolvedCount>=spotifyMatchResolveLimit)break;
     let candidates;
     try{candidates=await search(query,{limit:spotifyMatchSearchLimit,timeout:Math.min(20_000,Math.max(1000,deadline-Date.now())),signal})}
-    catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error;continue}
+    catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error;record('search');continue}
     successfulSearches++;
     const newlyFound=[];
     for(const candidate of candidates){
       const url=canonicalYouTubeVideoUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';
-      if(!id||seen.has(id))continue;
+      if(!id){record('source',candidate);continue}
+      if(seen.has(id))continue;
       seen.add(id);
-      if(!spotifyPlaybackTitleCompatible(item,candidate))continue;
+      const reason=spotifyPlaybackMatchRejection(item,candidate);
+      if(reason){record(reason,candidate);continue}
       newlyFound.push(candidate);
     }
     const ranked=rankSpotifyPlaybackCandidates(item,newlyFound);
     // Search metadata is a hint; verify promising durations before spending time on obvious mismatches.
-    const shortlist=ranked.filter(candidate=>spotifyPlaybackDurationCompatible(catalogDuration,candidate.duration));
+    const shortlist=ranked.filter(candidate=>{
+      if(spotifyPlaybackDurationCompatible(catalogDuration,candidate.duration))return true;
+      record('duration',candidate);return false;
+    });
     for(const selected of shortlist){
       if(resolvedCount>=spotifyMatchResolveLimit||Date.now()>=deadline)break;
       const url=canonicalYouTubeVideoUrl(selected.id,selected.url);
       if(!url||checked.has(selected.id))continue;
       checked.add(selected.id);resolvedCount++;
       try{const resolved=await resolve(url,signal,{deadline});return apply(resolved,selected)}
-      catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error}
+      catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error;record(resolveFailureReason(error),selected)}
     }
   }
   // Search may return no matches at all; do not turn an unavailable version into a player failure.
   if(searchFailure&&!successfulSearches)throw searchFailure;
-  throw new SpotifyMatchUnavailableError(item);
+  throw new SpotifyMatchUnavailableError(item,diagnostics);
 }
 export async function resolveInput(item,musicDir,{signal}={}){if(signal?.aborted){const error=new Error('Medienauflösung abgebrochen');error.name='AbortError';throw error;}if(item.source==='local')return safeMusicRelativePath(musicDir,item.path);if(item.source==='youtube'){const url=canonicalYouTubeVideoUrl(item.id,item.url);if(!url)throw new Error('Der gespeicherte YouTube-Titel enthält keine gültige Video-ID.');const resolved=await resolveYoutube(url,signal);applyResolvedPlayback(item,resolved);return resolved.url}if(item.source==='spotify')return resolveSpotify(item,signal);const url=normalizeRadioUrl(item.url);await assertSafeExternalUrl(url);return url;}
