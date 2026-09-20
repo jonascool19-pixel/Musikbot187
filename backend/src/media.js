@@ -348,11 +348,11 @@ export function spotifyPlaybackSearchQueries(item){
   // The search merely proposes candidates; artist, version and verified
   // source duration are independent mandatory checks before playback.
   const queries=[
+    multipleArtists&&song?multipleArtists+' "'+song+'" audio':'',
     primaryArtist&&song?primaryArtist+' "'+song+'" official audio':'',
     primaryArtist&&song?primaryArtist+' "'+song+'" topic audio':'',
     remix&&primaryArtist?primaryArtist+' "'+remix.base+'" '+remix.names.join(' ')+' remix audio':'',
     edit&&primaryArtist?primaryArtist+' "'+edit.base+'" '+edit.editor+' edit audio':'',
-    multipleArtists&&song?multipleArtists+' "'+song+'" audio':'',
     primaryArtist&&baseSong?primaryArtist+' "'+baseSong+'" provided to youtube audio':'',
     artist&&alternateSong?primaryArtist+' '+alternateSong+' audio':'',
     primaryArtist&&/[\p{L}]-[\p{L}]/u.test(baseSong)?primaryArtist+' "'+baseSong.replace(/([\p{L}])-([\p{L}])/gu,'$1 $2')+'" audio':'',
@@ -414,7 +414,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
         realDuration-catalogDuration<=spotifyPlaybackDurationToleranceSeconds(catalogDuration)||
         realDuration-catalogDuration>Math.min(60,catalogDuration*0.25))
         throw new Error('Musikvideo-Fallback hat eine unpassende Länge oder keine verifizierte Dauer.');
-    }else if(catalogDuration&&(!realDuration||!spotifyPlaybackDurationCompatible(catalogDuration,realDuration))){
+    }else if(catalogDuration&&(!realDuration||!spotifyPlaybackDurationCompatible(catalogDuration,resolved.duration))){
       throw new Error('YouTube-Treffer hat eine unpassende Länge oder keine verifizierte Dauer.');
     }
     const originalSpotifyTitle=String(item.title||'');
