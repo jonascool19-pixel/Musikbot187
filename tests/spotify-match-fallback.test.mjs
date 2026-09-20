@@ -143,3 +143,76 @@ test('A credited Topic-channel video keeps its artist evidence when cached for l
   assert.equal(resolutions,2,'the cached video is freshly resolved before every playback');
   assert.equal(replay.playbackVideoId,candidate.id);
 });
+
+const namedRemixTrack=()=>({id:'spotify:brief-an-die-zukunft-named-remix',source:'spotify',title:'Shirukid, Cy_He, NoCheats – brief an die zukunft - Cy_He, NoCheats Remix',duration:202});
+
+test('named Spotify remix accepts main artist in YouTube credit and both remixers in reordered suffix',async()=>{
+  const song=namedRemixTrack(),queries=[],resolutions=[];
+  const matching=yt('abcdefghijk','Shirukid – brief an die zukunft (NoCheats & Cy He Remix)',202);
+  assert.equal(spotifyPlaybackArtistCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,yt('lmnopqrstuv','Shirukid, NoCheats & Cy_He – brief an die zukunft (Cy_He, NoCheats Remix)',202)),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...yt('wxyz1234567','brief an die zukunft (Cy_He & NoCheats Remix)',202),channel:'Shirukid - Topic'}),true);
+  const search=async query=>{
+    queries.push(query);
+    return query.includes('"brief an die zukunft"')&&query.includes('remix audio')?[matching]:[];
+  };
+  const resolve=async url=>{resolutions.push(url);return resolved(matching.id,203)};
+  assert.equal(await resolveSpotify(song,null,{search,resolve}),'https://example.test/audio/abcdefghijk');
+  assert.ok(queries.some(query=>query.includes('Shirukid')&&query.includes('Cy_He')&&query.includes('NoCheats')&&query.includes('"brief an die zukunft"')));
+  assert.equal(resolutions.length,1);
+  assert.equal(song.catalogDuration,202);
+  assert.equal(song.playbackDuration,203);
+});
+
+test('named remixes still reject originals, wrong remixers, other performers and extra versions',()=>{
+  const song=namedRemixTrack(),candidate=title=>({title,duration:202});
+  for(const title of [
+    'Shirukid – brief an die zukunft',
+    'Shirukid – brief an die zukunft (Cy_He Remix)',
+    'Shirukid – brief an die zukunft (Cy_He & Other DJ Remix)',
+    'Shirukid – brief an die zukunft (Cy_He & NoCheats Extended Remix)',
+    'Shirukid – brief an die zukunft (Other Remix) (Cy_He & NoCheats Remix)',
+    'Shirukid – brief an die vergangenheit (Cy_He & NoCheats Remix)'
+  ])assert.equal(spotifyPlaybackTitleCompatible(song,candidate(title)),false,title);
+  assert.equal(spotifyPlaybackArtistCompatible(song,candidate('Other Artist – brief an die zukunft (Cy_He & NoCheats Remix)')),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,candidate('Other Artist – brief an die zukunft (Cy_He & NoCheats Remix)')),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'brief an die zukunft (Cy_He & NoCheats Remix)',channel:'Other Artist - Topic'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,candidate('Other Artist, Shirukid – brief an die zukunft (Cy_He & NoCheats Remix)')),false);
+});
+
+test('named remix checks real duration and falls back only to the same named version',async()=>{
+  const song={...namedRemixTrack(),id:'spotify:named-remix-real-duration'},tried=[];
+  const first=yt('abcdefghijk','Shirukid – brief an die zukunft (Cy_He & NoCheats Remix)',202);
+  const next=yt('lmnopqrstuv','Shirukid – brief an die zukunft (NoCheats, Cy_He Remix)',201);
+  const wrong=yt('wxyz1234567','Shirukid – brief an die zukunft (Other DJ Remix)',202);
+  const search=async()=>[first,wrong,next];
+  const resolve=async url=>{
+    const id=new URL(url).searchParams.get('v');tried.push(id);
+    return resolved(id,id===first.id?305:203);
+  };
+  await resolveSpotify(song,null,{search,resolve});
+  assert.deepEqual(tried,[first.id,next.id]);
+  assert.equal(song.playbackVideoId,next.id);
+  assert.equal(song.duration,203);
+});
+
+test('Spotify skip diagnostics distinguish artist, remix, duration and unreachable source',async()=>{
+  const song={...namedRemixTrack(),id:'spotify:named-remix-rejection-diagnostics'};
+  const candidates=[
+    yt('abcdefghijk','Other Artist – brief an die zukunft (Cy_He & NoCheats Remix)',202),
+    yt('lmnopqrstuv','Shirukid – brief an die zukunft (Cy_He & Another DJ Remix)',202),
+    yt('wxyz1234567','Shirukid – brief an die zukunft (Cy_He & NoCheats Remix)',350),
+    yt('vwxyz123456','Shirukid – brief an die zukunft (Cy_He & NoCheats Remix)',202)
+  ];
+  let resolutions=0,error;
+  try{
+    await resolveSpotify(song,null,{search:async()=>candidates,resolve:async()=>{resolutions++;throw new Error('Video unavailable')}});
+  }catch(caught){error=caught}
+  assert.ok(error instanceof SpotifyMatchUnavailableError);
+  assert.equal(resolutions,1);
+  assert.equal(song.playbackVideoId,undefined);
+  for(const reason of ['artist','version','duration','source'])assert.ok(error.diagnostics[reason]>=1,reason);
+  for(const label of ['falscher Künstler','falsche Version','unpassende Länge','nicht erreichbare Quelle'])assert.match(error.message,new RegExp(label));
+  assert.ok(error.diagnostics.examples.some(example=>example.includes('Other Artist')));
+});
