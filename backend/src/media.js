@@ -138,17 +138,41 @@ const spotifyCandidateSong=candidate=>{
   const parts=spotifyCandidateTitleParts(candidate);
   return parts.length>1?parts.slice(1).join(' – '):parts[0]||'';
 };
+const spotifyTitleFirstArtistCredit=(track,candidate)=>{
+  // Official titles can put all credited artists AFTER the song in parentheses:
+  // "Es eskaliert... (Eastsideboyz, ArniTheSavage, JSTN, Schillah)".
+  // This is only artist evidence when EVERY Spotify artist is explicitly listed.
+  const parts=spotifyCandidateTitleParts(candidate);
+  if(parts.length!==1)return null; // A prefixed artist credit must not be bypassed.
+  const match=parts[0].trim().match(/^(.+?)\s*[\[(]\s*([^\])]+?)\s*[\])]\s*$/u);
+  if(!match||/\b(?:remix|mix|cover|live|version|edit|karaoke|instrumental)\b/i.test(match[2]))return null;
+  const expected=spotifyArtistNames(spotifyArtistCredit(track)).map(spotifyCanonicalArtist);
+  const listed=spotifyArtistNames(match[2]).map(spotifyCanonicalArtist);
+  if(!expected.length||listed.length<expected.length||!expected.every(name=>listed.includes(name)))return null;
+  const song=match[1].replace(/(?:\.{2,}|…)$/u,'').trim();
+  return song?{song,credit:match[2]}:null;
+};
 export function spotifyPlaybackArtistCompatible(track,candidate){
   const expected=matchingWords(spotifyArtistCredit(track)),credit=spotifyCandidateCredit(candidate);
   if(!expected.size)return true;
+  if(spotifyTitleFirstArtistCredit(track,candidate))return true;
   if(!credit)return false;
-  if(spotifyNamedRemix(spotifySongPart(track))){
-    const sourceNames=spotifyArtistNames(spotifyArtistCredit(track)).map(spotifyCanonicalArtist);
-    const offeredNames=spotifyArtistNames(credit).map(spotifyCanonicalArtist);
-    // Main artist required; named remixers may be credited in the title instead.
+  const sourceNames=spotifyArtistNames(spotifyArtistCredit(track)).map(spotifyCanonicalArtist);
+  const offeredNames=spotifyArtistNames(credit).map(spotifyCanonicalArtist);
+  const requestedSong=spotifySongPart(track),namedRemix=spotifyNamedRemix(requestedSong);
+  if(namedRemix){
+    // The original main artist must be in the credited performer field;
+    // exact named remixers are checked independently in the song suffix.
     return Boolean(sourceNames[0]&&offeredNames.includes(sourceNames[0])&&
       offeredNames.every(name=>name&&sourceNames.includes(name)));
   }
+  // Generic catalog "REMIX" can name an already-credited collaborator as
+  // the remixer on YouTube rather than repeating them in the artist prefix.
+  const offeredRemix=spotifyNamedRemix(spotifyCandidateSong(candidate));
+  if(/\bremix\b/i.test(requestedSong)&&offeredRemix&&sourceNames[0]&&
+    offeredNames.includes(sourceNames[0])&&
+    [...offeredRemix.credits].every(name=>sourceNames.includes(name))&&
+    sourceNames.every(name=>offeredNames.includes(name)||offeredRemix.credits.has(name)))return true;
   const offered=matchingWords(credit);
   if(!offered.size)return false;
   const matching=spotifyWordCoverage(expected,offered);
@@ -156,13 +180,20 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
 }
 export function spotifyPlaybackMatchRejection(track,candidate){
   if(!spotifyPlaybackArtistCompatible(track,candidate))return 'artist';
-  const song=spotifySongPart(track),candidateSong=spotifyCandidateSong(candidate),remix=spotifyNamedRemix(song);
+  const song=spotifySongPart(track),embeddedCredit=spotifyTitleFirstArtistCredit(track,candidate),candidateSong=embeddedCredit?.song||spotifyCandidateSong(candidate),remix=spotifyNamedRemix(song);
   let offeredRemix=null;
   if(remix){
     offeredRemix=spotifyNamedRemix(candidateSong);
     if(!offeredRemix||offeredRemix.credits.size!==remix.credits.size||
       [...remix.credits].some(name=>!offeredRemix.credits.has(name))||
       /\bremix\b/i.test(offeredRemix.base))return 'version';
+  }
+  // A generic Spotify remix must not silently select a named remix by an
+  // unrelated producer; only already-credited artists may be named in the suffix.
+  if(!remix&&/\bremix\b/i.test(song)){
+    const offeredNamed=spotifyNamedRemix(candidateSong);
+    const expectedNames=spotifyArtistNames(spotifyArtistCredit(track)).map(spotifyCanonicalArtist);
+    if(offeredNamed&&[...offeredNamed.credits].some(name=>!expectedNames.includes(name)))return 'version';
   }
   const variant=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|extended|mix)\b)/gi;
   const requested=new Set((song.match(variant)||[]).map(value=>value.toLowerCase()));
