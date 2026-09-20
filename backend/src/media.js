@@ -179,8 +179,14 @@ export function selectSpotifyPlaybackCandidate(track,candidates){return rankSpot
 export const spotifyMatchSearchLimit=24;
 export const spotifyMatchResolveLimit=12;
 export const spotifyMatchSearchTimeMs=90_000;
+const spotifyMatchReasonLabels=Object.freeze({artist:'falscher Künstler',version:'falsche Version',title:'abweichender Titel',duration:'unpassende Länge',source:'nicht erreichbare Quelle',search:'fehlgeschlagene YouTube-Suche'});
 export class SpotifyMatchUnavailableError extends Error{
-  constructor(item){super(`Spotify-Titel „${String(item?.title||'Unbekannt').slice(0,160)}“ übersprungen: keine passende YouTube-Version gefunden.`);this.name='SpotifyMatchUnavailableError';this.code='SPOTIFY_MATCH_UNAVAILABLE'}
+  constructor(item,diagnostics={}){
+    const counts=Object.entries(spotifyMatchReasonLabels).filter(([key])=>diagnostics[key]>0).map(([key,label])=>label+': '+diagnostics[key]);
+    const examples=(diagnostics.examples||[]).slice(0,4).join(' | ');
+    super('Spotify-Titel „'+String(item?.title||'Unbekannt').slice(0,160)+'“ übersprungen: keine passende YouTube-Version gefunden. Diagnose: '+(counts.join(', ')||'keine geeigneten Suchtreffer')+(examples?'; Beispiele: '+examples:'')+'.');
+    this.name='SpotifyMatchUnavailableError';this.code='SPOTIFY_MATCH_UNAVAILABLE';this.diagnostics=diagnostics;
+  }
 }
 export const isSpotifyMatchUnavailableError=error=>error?.code==='SPOTIFY_MATCH_UNAVAILABLE';
 export function spotifyPlaybackSearchQueries(item){
