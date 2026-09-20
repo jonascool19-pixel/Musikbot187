@@ -240,7 +240,7 @@ test('Es eskaliert matches explicit post-title multi-artist credits but never a 
 test('XTC requires Kento Nakajima artist evidence and exact short song title',async()=>{
   const song={id:'spotify:kento-xtc-regression',source:'spotify',title:'Kento Nakajima – XTC',duration:189};
   const unrelated=yt('abcdefghijk','Kento Nakajima – Strawberry',189);
-  const artistOnly=yt('lmnopqrstuv','Kento Nakajima "THE CODE" Music Video',189);
+  const artistOnly={...yt('lmnopqrstuv','Kento Nakajima "THE CODE" Music Video',189),channel:'Kento Nakajima - Topic'};
   const wrongArtist=yt('wxyz1234567','Unknown Singer – XTC',189);
   const good=yt('vwxyz123456','Kento Nakajima – XTC (Official Audio)',189);
   assert.equal(spotifyPlaybackMatchRejection(song,unrelated),'title');
