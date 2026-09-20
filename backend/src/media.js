@@ -184,19 +184,16 @@ export class SpotifyMatchUnavailableError extends Error{
 }
 export const isSpotifyMatchUnavailableError=error=>error?.code==='SPOTIFY_MATCH_UNAVAILABLE';
 export function spotifyPlaybackSearchQueries(item){
-  const full=String(item?.title||'').trim().slice(0,180),parts=full.split(/\s+[–—-]\s+/),artist=String(parts.length>1?parts.shift():'').trim(),song=parts.join(' – ').trim(),primaryArtist=artist.split(/[,;&]/)[0]?.trim()||'';
-  // A missing last letter such as Collaps/Collapse should trigger an alternative
-  // search query, but cannot bypass artist, title or verified duration checks.
-  const finalWord=song.match(/([\p{L}]{6,}s)$/iu)?.[1]||'',alternateSong=finalWord?`${song.slice(0,-finalWord.length)}${finalWord}e`:'';
-  return [...new Set([full?`${full} audio`:'',artist&&alternateSong?`${primaryArtist} ${alternateSong} audio`:'',artist&&song?`"${song}" "${artist}" official audio`:'',artist&&song?`${primaryArtist} ${song} topic`:'',artist&&song?`${song} ${artist}`:'',full].map(value=>value.trim()).filter(Boolean))].slice(0,6);
+  const full=String(item?.title||'').trim().slice(0,180),parts=full.split(/\s+[–—-]\s+/),artist=String(parts.length>1?parts.shift():'').trim(),song=parts.join(' – ').trim(),primaryArtist=spotifyArtistNames(artist)[0]||'';
+  // Independently search main performer, base title, and named remixers.
+  const remix=spotifyNamedRemix(song);
+  const remixQuery=remix&&primaryArtist?primaryArtist+' "'+remix.base+'" '+remix.names.join(' ')+' remix audio':'';
+  // Search spelling alternatives without relaxing the version or duration guards.
+  const finalWord=song.match(/([\p{L}]{6,}s)$/iu)?.[1]||'',alternateSong=finalWord?song.slice(0,-finalWord.length)+finalWord+'e':'';
+  return [...new Set([full?full+' audio':'',remixQuery,artist&&alternateSong?primaryArtist+' '+alternateSong+' audio':'',artist&&song?'"'+song+'" "'+artist+'" official audio':'',artist&&song?primaryArtist+' '+song+' topic':'',artist&&song?song+' '+artist:'',full].map(value=>value.trim()).filter(Boolean))].slice(0,7);
 }
 export function spotifyPlaybackTitleCompatible(track,candidate){
-  const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/),song=parts.length>1?parts.slice(1).join(' – '):full,candidateTitle=String(candidate?.title||''),candidateParts=spotifyCandidateTitleParts(candidate),candidateSong=candidateParts.length>1?candidateParts.slice(1).join(' – '):candidateParts[0]||'',wanted=matchingWords(song),seen=matchingWords(candidateSong);
-  if(!spotifyPlaybackArtistCompatible(track,candidate))return false;
-  if(wanted.size&&spotifyWordCoverage(wanted,seen)<Math.max(1,Math.ceil(wanted.size*0.8)))return false;
-  const variant=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|extended|mix)\b)/gi;
-  const requested=new Set((song.match(variant)||[]).map(x=>x.toLowerCase())),offered=(String(candidate?.title||'').match(variant)||[]).map(x=>x.toLowerCase());
-  return offered.every(value=>requested.has(value));
+  return spotifyPlaybackMatchRejection(track,candidate)===null;
 }
 export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=resolveYoutube}={}){
   const cacheKey=spotifyPlaybackCacheKey(item),catalogDuration=Math.max(0,Number(item.catalogDuration??item.duration)||0),cached=spotifyPlaybackCache.get(cacheKey),deadline=Date.now()+spotifyMatchSearchTimeMs;
