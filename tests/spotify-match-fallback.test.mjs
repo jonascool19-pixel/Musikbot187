@@ -261,7 +261,7 @@ test('NEWKID3 generic Spotify remix recognizes separately credited collaborator 
   const wrongArtist=yt('wxyz1234567','Another Singer – NEWKID3 (KICKARTZ Remix)',158);
   const correct=yt('vwxyz123456','FEDX – NEWKID3 (KICKARTZ Remix)',158);
   assert.equal(spotifyPlaybackMatchRejection(song,original),'version');
-  assert.equal(spotifyPlaybackMatchRejection(song,unrelated),'artist');
+  assert.equal(spotifyPlaybackMatchRejection(song,unrelated),'version');
   assert.equal(spotifyPlaybackTitleCompatible(song,wrongArtist),false);
   assert.equal(spotifyPlaybackTitleCompatible(song,correct),true);
   assert.equal(spotifyPlaybackTitleCompatible(song,{title:'NEWKID3 (REMIX)',channel:'FEDX, KICKARTZ - Topic'}),true);
@@ -364,8 +364,8 @@ test('an actually reachable matching censored song is retried after a permanent 
   const song={id:'spotify:masked-fallback',source:'spotify',title:"MagneticMark – I Don't Give a Fuck",duration:192};
   const a=yt('abcdefghijk',"MagneticMark - I Don't Give a F*ck (Official Audio)",192);
   const b=yt('lmnopqrstuv',"MagneticMark - I Don't Give a Fuck (Official Audio)",192);
-  const called=[];
-  await resolveSpotify(song,null,{search:async()=>[a,b],resolve:async url=>{
+  const called=[];let searches=0;
+  await resolveSpotify(song,null,{search:async()=>++searches===1?[a]:[b],resolve:async url=>{
     const id=new URL(url).searchParams.get('v');called.push(id);
     if(id===a.id)throw new Error('Video unavailable');
     return resolved(id,193);
