@@ -88,7 +88,8 @@ export function rejectSpotifyPlaybackMatch(item){
   const rejected=[id,...spotifyRejectedPlaybackIds(item)].filter((value,index,list)=>list.indexOf(value)===index).slice(0,8);
   Object.defineProperty(item,'_spotifyRejectedPlaybackIds',{value:rejected,writable:true,configurable:true,enumerable:false});
   spotifyPlaybackCache.delete(spotifyPlaybackCacheKey(item));
-  delete item.playbackMatch;delete item.playbackVideoId;delete item.playbackProtocol;delete item.playbackDuration;
+  delete item.playbackMatch;delete item.playbackVideoId;delete item.playbackProtocol;delete item.playbackDuration;delete item.playbackVersion;
+  if(Number(item.catalogDuration)>0)item.duration=Number(item.catalogDuration);
   return true;
 }
 const matchingWords=value=>new Set(String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/\p{M}/gu,'').replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,' ').split(/\s+/).filter(word=>word.length>1&&!['official','video','audio','lyrics','lyric','topic','musik','music'].includes(word)));
@@ -402,21 +403,45 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
     }
   };
   const resolveFailureReason=error=>/unpassende Länge|verifizierte Dauer/i.test(String(error?.message||''))?'duration':'source';
-  const apply=(resolved,selected)=>{
-    if(catalogDuration&&(!Number(resolved.duration)||!spotifyPlaybackDurationCompatible(catalogDuration,resolved.duration)))throw new Error('YouTube-Treffer hat eine unpassende Länge oder keine verifizierte Dauer.');
+  const apply=(resolved,selected,{officialVideoFallback=false}={})=>{
+    const realDuration=Math.max(0,Number(resolved?.duration)||0);
+    if(officialVideoFallback){
+      // An official video is not the catalog-length audio file. Verify that
+      // the selected public video and freshly resolved stream have the SAME
+      // video length and the requested original recording/title identity.
+      if(!spotifyOfficialMusicVideoFallbackCandidate(item,selected)||
+        !realDuration||Math.abs(realDuration-Number(selected.duration))>3||
+        realDuration-catalogDuration<=spotifyPlaybackDurationToleranceSeconds(catalogDuration)||
+        realDuration-catalogDuration>Math.min(60,catalogDuration*0.25))
+        throw new Error('Musikvideo-Fallback hat eine unpassende Länge oder keine verifizierte Dauer.');
+    }else if(catalogDuration&&(!realDuration||!spotifyPlaybackDurationCompatible(catalogDuration,realDuration))){
+      throw new Error('YouTube-Treffer hat eine unpassende Länge oder keine verifizierte Dauer.');
+    }
+    const originalSpotifyTitle=String(item.title||'');
     applyResolvedPlayback(item,resolved);
-    const match={id:resolved.id||selected.id,title:selected.title,artist:selected.artist||'',channel:selected.channel||'',duration:Number(resolved.duration)||0,protocol:resolved.protocol||''};
+    // The catalog identity remains unchanged in the dashboard, queue,
+    // learning profile and Discord; YouTube identity stays source metadata.
+    item.title=originalSpotifyTitle;
+    const version=officialVideoFallback?'official-video-fallback':'audio';
+    const match={id:resolved.id||selected.id,title:selected.title,artist:selected.artist||'',channel:selected.channel||'',duration:realDuration,catalogDuration,protocol:resolved.protocol||'',version};
+    item.playbackVersion=version;
     item.playbackMatch=match;spotifyPlaybackCache.set(cacheKey,{...match,expires:Date.now()+12*60*60_000});
     while(spotifyPlaybackCache.size>500)spotifyPlaybackCache.delete(spotifyPlaybackCache.keys().next().value);
     return resolved.url;
   };
-  if(cached&&cached.expires>Date.now()&&rankSpotifyPlaybackCandidates(item,[cached]).length&&spotifyPlaybackTitleCompatible(item,cached)){
-    try{const resolved=await resolve(canonicalYouTubeVideoUrl(cached.id),signal,{deadline});return apply(resolved,cached)}
+  const cachedFallback=cached?.version==='official-video-fallback';
+  if(cached&&cached.expires>Date.now()&&rankSpotifyPlaybackCandidates(item,[cached]).length&&
+    spotifyPlaybackTitleCompatible(item,cached)&&
+    (!cachedFallback||spotifyOfficialMusicVideoFallbackCandidate(item,cached))){
+    try{const resolved=await resolve(canonicalYouTubeVideoUrl(cached.id),signal,{deadline});return apply(resolved,cached,{officialVideoFallback:cachedFallback})}
     catch(error){spotifyPlaybackCache.delete(cacheKey);if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;record(resolveFailureReason(error),cached);if(!/unpassende Länge/i.test(error.message)&&!isPermanentYouTubeResolutionError(error))throw error}
   }
-  const checked=new Set(),seen=new Set(),queries=spotifyPlaybackSearchQueries(item);let resolvedCount=0,successfulSearches=0,searchFailure=null;
+  const checked=new Set(),seen=new Set(),fallbackCandidates=[],queries=spotifyPlaybackSearchQueries(item);let resolvedCount=0,successfulSearches=0,searchFailure=null;
   for(const query of queries){
     if(Date.now()>=deadline||resolvedCount>=spotifyMatchResolveLimit)break;
+    // Once audio searches had time, reserve enough budget to check an
+    // already-found official video instead of timing out before resolving it.
+    if(fallbackCandidates.length&&successfulSearches>=3&&Date.now()>=deadline-25_000)break;
     let candidates;
     try{candidates=await search(query,{limit:spotifyMatchSearchLimit,timeout:Math.min(20_000,Math.max(1000,deadline-Date.now())),signal})}
     catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error;record('search');continue}
@@ -435,7 +460,9 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
     // Search metadata is a hint; verify promising durations before spending time on obvious mismatches.
     const shortlist=ranked.filter(candidate=>{
       if(spotifyPlaybackDurationCompatible(catalogDuration,candidate.duration))return true;
-      record('duration',candidate);return false;
+      if(spotifyOfficialMusicVideoFallbackCandidate(item,candidate))fallbackCandidates.push(candidate);
+      else record('duration',candidate);
+      return false;
     });
     for(const selected of shortlist){
       if(resolvedCount>=spotifyMatchResolveLimit||Date.now()>=deadline)break;
@@ -444,6 +471,20 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
       checked.add(selected.id);resolvedCount++;
       try{const resolved=await resolve(url,signal,{deadline});return apply(resolved,selected)}
       catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error;record(resolveFailureReason(error),selected)}
+    }
+  }
+  // Consider the longer original video only after all viable audio releases.
+  for(const selected of fallbackCandidates.sort((left,right)=>Number(left.duration)-Number(right.duration))){
+    if(Date.now()>=deadline||resolvedCount>=spotifyMatchResolveLimit)break;
+    const url=canonicalYouTubeVideoUrl(selected.id,selected.url);
+    if(!url||checked.has(selected.id))continue;
+    checked.add(selected.id);resolvedCount++;
+    try{
+      const resolved=await resolve(url,signal,{deadline});
+      return apply(resolved,selected,{officialVideoFallback:true});
+    }catch(error){
+      if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;
+      searchFailure=error;record(resolveFailureReason(error),selected);
     }
   }
   // Search may return no matches at all; do not turn an unavailable version into a player failure.
