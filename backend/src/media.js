@@ -294,8 +294,13 @@ export function spotifyPlaybackMatchRejection(track,candidate){
   if(/\bedit\b/iu.test(song)&&!/\bedit\b/iu.test(rawCandidateSong))return 'version';
   if(!/\bedit\b/iu.test(song)&&/\bedit\b/iu.test(rawCandidateSong))return 'version';
   if(!spotifyPlaybackArtistCompatible(track,candidate))return 'artist';
-  const wanted=spotifySongWords(spotifyPlainSong(requestedRemix?.base||requestedEdit?.base||song));
-  const seen=spotifySongWords(spotifyPlainSong(candidateRemix?.base||candidateEdit?.base||rawCandidateSong));
+  const genericRemix=!requestedRemix&&/\bremix\b/iu.test(song);
+  const removeGenericRemix=value=>String(value||'').replace(/(?:\s+[–—-]\s+remix|\s*[\[(]\s*remix\s*[\])])\s*$/iu,'').trim();
+  const requestedBase=requestedRemix?.base||requestedEdit?.base||(genericRemix?removeGenericRemix(song):song);
+  const candidateBase=requestedRemix?candidateRemix.base:requestedEdit?candidateEdit.base:
+    genericRemix?(candidateRemix?.base||removeGenericRemix(rawCandidateSong)):rawCandidateSong;
+  const wanted=spotifySongWords(spotifyPlainSong(requestedBase));
+  const seen=spotifySongWords(spotifyPlainSong(candidateBase));
   const coverage=spotifySongCoverage(wanted,seen);
   if(wanted.size&&coverage.matches<Math.max(1,Math.ceil(wanted.size*0.8)))return 'title';
   if(wanted.size<=2&&coverage.extra.length)return 'title';
