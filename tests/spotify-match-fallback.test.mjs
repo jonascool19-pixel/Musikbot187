@@ -418,22 +418,24 @@ test('official-video production credits after a visual separator are not a secon
   assert.equal(song.playbackVideoId,matching.id);
 });
 
-test('duration remains strict for Alli-Alligatoah, and skip diagnostics include the actual catalog baseline',async()=>{
-  const song={id:'spotify:alligatoah-alli-duration',source:'spotify',title:'Alligatoah – Alli-Alligatoah',duration:240};
+test('Alli-Alligatoah is shown as a 306-second official-video fallback rather than a 240-second audio recording',async()=>{
+  const originalTitle='Alligatoah – Alli-Alligatoah';
+  const song={id:'spotify:alligatoah-alli-duration',source:'spotify',title:originalTitle,duration:240};
   const official={...yt('abcdefghijk','Alligatoah - Alli-Alligatoah (Official Video)',306),channel:'Alligatoah'};
   const extended={...yt('lmnopqrstuv','Alligatoah - Alli Alligatoah (Extended Version)',298),channel:'Alligatoah'};
   assert.equal(spotifyPlaybackTitleCompatible(song,official),true);
   assert.equal(spotifyPlaybackMatchRejection(song,extended),'version');
+  assert.equal(spotifyOfficialMusicVideoFallbackCandidate(song,official),true);
   const queries=spotifyPlaybackSearchQueries(song);
   assert.ok(queries.some(value=>value.includes('"Alli Alligatoah"')&&value.includes('Alligatoah')));
   let attempts=0;
-  const error=await resolveSpotify(song,null,{search:async()=>[official,extended],resolve:async()=>{attempts++;return resolved(official.id,306)}}).catch(value=>value);
-  assert.ok(error instanceof SpotifyMatchUnavailableError);
-  assert.equal(attempts,0,'a known 306-second upload must not consume a stream resolution for a 240-second recording');
-  assert.ok(error.diagnostics.duration>=1);
-  assert.match(error.message,/Katalogdauer: 240 s/);
-  assert.match(error.message,/Toleranz ±19 s/);
-  assert.equal(song.playbackVideoId,undefined);
+  await resolveSpotify(song,null,{search:async()=>[official,extended],resolve:async()=>{attempts++;return resolved(official.id,306)}});
+  assert.equal(attempts,1,'only the marked original official music video may be streamed, not the extended recording');
+  assert.equal(song.playbackMatch.version,'official-video-fallback');
+  assert.equal(song.catalogDuration,240);
+  assert.equal(song.duration,306);
+  assert.equal(song.title,originalTitle);
+  assert.equal(song.playbackVideoId,official.id);
 });
 
 test('search-duration hints cannot approve a mismatched resolved official video',async()=>{
@@ -504,13 +506,14 @@ test('a longer unrelated, impersonated, non-original or wrongly timed video cann
     {...candidate,title:'Other Artist - I Need A Face (Official Video)'},
     {...candidate,title:'Alligatoah - I Need A Face And More (Official Video)'},
     {...candidate,title:'Alligatoah - I Need Another Face (Official Video)'},
-    {...candidate,duration:310},
+    {...candidate,duration:350},
     {...candidate,duration:0}
   ])assert.equal(spotifyOfficialMusicVideoFallbackCandidate(song,alternative),false,alternative.title+'; '+alternative.channel+'; '+alternative.duration);
   const collaboration={title:'Alligatoah, Other Artist – I Need A Face',source:'spotify',duration:241};
   assert.equal(spotifyOfficialMusicVideoFallbackCandidate(collaboration,candidate),false,'a solo music-video title cannot establish an omitted Spotify collaborator');
   const far={...yt('lmnopqrstuv','Alligatoah - Alli-Alligatoah (Official Video)',306),channel:'Alligatoah'};
-  assert.equal(spotifyOfficialMusicVideoFallbackCandidate({title:'Alligatoah – Alli-Alligatoah',duration:240,source:'spotify'},far),false);
+  assert.equal(spotifyOfficialMusicVideoFallbackCandidate({title:'Alligatoah – Alli-Alligatoah',duration:240,source:'spotify'},far),true,'a longer exact original artist-channel video is allowed only as a clearly labeled separate version');
+  assert.equal(spotifyOfficialMusicVideoFallbackCandidate({title:'Alligatoah – Alli-Alligatoah',duration:240,source:'spotify'},{...far,channel:'Unknown uploader'}),false);
 });
 
 test('actual stream length must match the verified official video and cannot silently use a different recording',async()=>{
