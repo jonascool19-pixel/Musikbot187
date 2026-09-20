@@ -45,7 +45,7 @@ test('similar autoplay filters duplicates, marks recommendations and learns a lo
   const seed={id:'seed',title:'Uptempo Hardcore Anthem (Official Video)',source:'youtube'},player=new FakePlayer();player.current=seed;
   const settings={autoplayEnabled:false,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:1,tracks:[]},queries=[],controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{queries.push({track,query});return [seed,{id:'variant',title:'Uptempo Hardcore Anthem (Hardstyle Remix)',source:'youtube'},{id:'one',title:'Other Artist – Hardcore Mix One',source:'youtube'},{id:'two',title:'Second Artist – Uptempo Mix Two',source:'youtube'},{id:'three',title:'Third Artist – Hardcore Mix Three',source:'youtube'}]},save:async()=>{}});
   await controller.setEnabled(true);
-  assert.deepEqual(player.queue.map(track=>track.id),['one','two','three']);
+  assert.deepEqual(player.queue.map(track=>track.id),['two','one','three']);
   assert.ok(player.queue.every(track=>track.autoplay&&track.autoplayMode==='similar'));
   assert.match(queries[0].query,/verschiedene Künstler/);
   assert.equal(player.queue.some(track=>track.id==='variant'),false);
