@@ -205,6 +205,7 @@ export function spotifyPlaybackMatchRejection(track,candidate){
     remix&&offered.filter(value=>value==='remix').length!==1||
     requested.has('remix')&&!offered.includes('remix'))return 'version';
   const wanted=matchingWords(remix?.base||song),seen=matchingWords(remix?offeredRemix.base:candidateSong);
+  if(embeddedCredit&&wanted.size<=3&&seen.size!==wanted.size)return 'title'; // A short, title-first song cannot grow extra words.
   if(wanted.size&&spotifyWordCoverage(wanted,seen)<Math.max(1,Math.ceil(wanted.size*0.8)))return 'title';
   return null;
 }
