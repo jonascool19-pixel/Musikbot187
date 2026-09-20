@@ -110,7 +110,7 @@ const spotifyArtistCredit=(track)=>{const title=String(track?.title||''),parts=t
 const spotifyCandidateTitleParts=candidate=>{
   // Video credits also appear as "Artist x Artist ✖ Song". The separators must
   // be surrounded by spacing to avoid cutting ordinary names and song words.
-  const parts=String(candidate?.title||'').split(/\s+[–—-✖×]\uFE0F?\s+/u);
+  const parts=String(candidate?.title||'').split(/\s+[–—✖×-]\uFE0F?\s+/u);
   // Decorative segments never supply artist evidence or a different recording.
   while(parts.length>1&&/^(?:[\[(]\s*)?(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)(?:\s*[\])])?(?:\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_ -]+)?$/iu.test(parts.at(-1).trim()))parts.pop();
   return parts;
