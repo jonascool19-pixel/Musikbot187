@@ -179,6 +179,9 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   return matching>=Math.max(1,Math.ceil(expected.size*0.6));
 }
 export function spotifyPlaybackMatchRejection(track,candidate){
+  // Classify a missing requested remix as a version mismatch, not an artist
+  // mismatch merely because an original upload omits co-producer credits.
+  if(/\bremix\b/i.test(spotifySongPart(track))&&!/\bremix\b/i.test(String(candidate?.title||'')))return 'version';
   if(!spotifyPlaybackArtistCompatible(track,candidate))return 'artist';
   const song=spotifySongPart(track),embeddedCredit=spotifyTitleFirstArtistCredit(track,candidate),candidateSong=embeddedCredit?.song||spotifyCandidateSong(candidate),remix=spotifyNamedRemix(song);
   let offeredRemix=null;
@@ -221,13 +224,23 @@ export class SpotifyMatchUnavailableError extends Error{
 }
 export const isSpotifyMatchUnavailableError=error=>error?.code==='SPOTIFY_MATCH_UNAVAILABLE';
 export function spotifyPlaybackSearchQueries(item){
-  const full=String(item?.title||'').trim().slice(0,180),parts=full.split(/\s+[–—-]\s+/),artist=String(parts.length>1?parts.shift():'').trim(),song=parts.join(' – ').trim(),primaryArtist=spotifyArtistNames(artist)[0]||'';
-  // Independently search main performer, base title, and named remixers.
-  const remix=spotifyNamedRemix(song);
+  const full=String(item?.title||'').trim().slice(0,180),parts=full.split(/\s+[–—-]\s+/),artist=String(parts.length>1?parts.shift():'').trim(),song=parts.join(' – ').trim(),artistNames=spotifyArtistNames(artist),primaryArtist=artistNames[0]||'',remix=spotifyNamedRemix(song),baseSong=remix?.base||song;
+  // Search the song and its real artists together before falling back to quoted
+  // and Topic variants. Do not broaden to a generic music / unrelated cover query.
   const remixQuery=remix&&primaryArtist?primaryArtist+' "'+remix.base+'" '+remix.names.join(' ')+' remix audio':'';
-  // Search spelling alternatives without relaxing the version or duration guards.
   const finalWord=song.match(/([\p{L}]{6,}s)$/iu)?.[1]||'',alternateSong=finalWord?song.slice(0,-finalWord.length)+finalWord+'e':'';
-  return [...new Set([full?full+' audio':'',remixQuery,artist&&alternateSong?primaryArtist+' '+alternateSong+' audio':'',artist&&song?'"'+song+'" "'+artist+'" official audio':'',artist&&song?primaryArtist+' '+song+' topic':'',artist&&song?song+' '+artist:'',full].map(value=>value.trim()).filter(Boolean))].slice(0,7);
+  const multipleArtists=artistNames.length>1?artistNames.join(' '):'';
+  return [...new Set([
+    full?full+' audio':'',
+    artist&&song?artist.replace(/[,;&]/g,' ')+' '+song+' audio':'',
+    remixQuery,
+    multipleArtists&&baseSong?'"'+baseSong+'" '+multipleArtists+' audio':'',
+    primaryArtist&&baseSong?primaryArtist+' "'+baseSong+'" official audio':'',
+    artist&&alternateSong?primaryArtist+' '+alternateSong+' audio':'',
+    artist&&song?primaryArtist+' '+song+' topic':'',
+    artist&&song?song+' '+artist:'',
+    full
+  ].map(value=>value.trim()).filter(Boolean))].slice(0,8);
 }
 export function spotifyPlaybackTitleCompatible(track,candidate){
   return spotifyPlaybackMatchRejection(track,candidate)===null;
