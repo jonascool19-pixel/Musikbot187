@@ -112,13 +112,15 @@ const spotifyCandidateTitleParts=candidate=>{
   // be surrounded by spacing to avoid cutting ordinary names and song words.
   const parts=String(candidate?.title||'').split(/\s+[–—✖×-]\uFE0F?\s+/u);
   // Decorative segments never supply artist evidence or a different recording.
-  while(parts.length>1&&/^(?:[\[(]\s*)?(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)(?:\s*[\])])?(?:\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_ -]+)?$/iu.test(parts.at(-1).trim()))parts.pop();
+  while(parts.length>1&&/^(?:[\[(]\s*)?(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)(?:\s*[\])])?(?:\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_ -]+)?$/iu.test(parts.at(-1).trim()))parts.pop();
   return parts;
 };
 const spotifyBylineCredit=candidate=>{
   const title=String(candidate?.title||'').trim();
+  // A producer credit in a formatted video title is NOT an artist byline.
+  if(spotifyCandidateTitleParts(candidate).length>1)return null;
   const match=title.match(/^(.+?)\s+by\s+([^|｜]+?)(?:\s*[|｜]\s*(.+))?$/iu);
-  if(!match||!match[1].trim()||!match[2].trim())return null;
+  if(!match||!match[1].trim()||!match[2].trim()||/\b(?:prod(?:uced)?\.?)\s*$/iu.test(match[1]))return null;
   return {song:match[1].trim(),credit:match[2].trim(),trailing:match[3]||''};
 };
 const spotifyCandidateCredit=candidate=>{
@@ -151,7 +153,7 @@ const spotifyCandidateArtistEvidence=candidate=>{
   const explicit=prefix||String(candidate?.artist||'').trim();
   const featured=spotifyFeaturedArtists(String(candidate?.title||''));
   const names=[...new Set([...spotifyArtistAliases(explicit),...featured])];
-  if(!prefix&&channel&&/\s*-\s*Topic$/iu.test(channel))names.push(...spotifyArtistAliases(channel.replace(/\s*-\s*Topic$/iu,'')));
+  if(!prefix&&channel)names.push(...spotifyArtistAliases(channel.replace(/\s*-\s*Topic$/iu,'')));
   return {names:new Set(names),prefix,topic:/\s*-\s*Topic$/iu.test(channel),channelArtist:spotifyCanonicalArtist(channel.replace(/\s*-\s*Topic$/iu,''))};
 };
 const spotifyArtistAliasMap=track=>{
@@ -186,8 +188,8 @@ const spotifyCandidateSong=candidate=>{
 const spotifyPlainSong=value=>String(value||'')
   .replace(/\s*[\[(]\s*prod(?:uced)?\.?\s+by\s+[^\])]+[\])]\s*$/iu,'')
   .replace(/\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_. -]+$/iu,'')
-  .replace(/\s*[|｜]\s*(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*$/iu,'')
-  .replace(/\s*[\[(]\s*(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*[\])]\s*$/iu,'')
+  .replace(/\s*[|｜]\s*(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*$/iu,'')
+  .replace(/\s*[\[(]\s*(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*[\])]\s*$/iu,'')
   .replace(/\s*[\[(]\s*(?:feat(?:uring)?\.?|ft\.?)\s+[^\])]+\s*[\])]\s*$/iu,'')
   .trim();
 const spotifyMaskedWordEquivalent=(expected,actual)=>{
@@ -231,12 +233,13 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   if(!expected.length)return true;
   if(spotifyTitleFirstArtistCredit(track,candidate))return true;
   const evidence=spotifyCandidateArtistEvidence(candidate),aliases=spotifyArtistAliasMap(track),primary=expected[0];
-  const known=name=>[...(aliases.get(name)||[])].some(alias=>evidence.names.has(alias));
+  const fusedPrefix=evidence.prefix&&spotifyArtistNames(evidence.prefix).length===1&&spotifyCanonicalArtist(evidence.prefix)===expected.join('');
+  const known=name=>fusedPrefix||[...(aliases.get(name)||[])].some(alias=>evidence.names.has(alias));
   const matches=expected.map(known);
   if(!matches[0])return false;
   // An explicitly conflicting performer prefix must not be made credible by
   // a matching YouTube channel or a collaborator mentioned elsewhere.
-  if(evidence.prefix){
+  if(evidence.prefix&&!fusedPrefix){
     const prefixNames=spotifyArtistAliases(evidence.prefix);
     const allowed=[...aliases.values()].flatMap(aliases=>[...aliases]);
     if(prefixNames.some(name=>!allowed.includes(name)))return false;
