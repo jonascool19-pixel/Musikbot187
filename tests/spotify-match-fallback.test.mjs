@@ -374,3 +374,14 @@ test('an actually reachable matching censored song is retried after a permanent 
   assert.equal(song.playbackVideoId,b.id);
   assert.equal(song.playbackDuration,193);
 });
+
+test('Spotify diagnostics prioritize relevant rejected results and disclose artist channel and reported duration',async()=>{
+  const song={id:'spotify:diagnostic-relevance',source:'spotify',title:"MagneticMark – I Don't Give a Fuck",duration:180};
+  const noise=Array.from({length:6},(_,index)=>yt('abcdefghij'+index,'Unrelated channel – Random music '+index,180));
+  const near={...yt('lmnopqrstuv',"MagneticMark – I Don't Give a F*ck (Official Audio)",310),channel:'MagneticMark - Topic'};
+  const error=await resolveSpotify(song,null,{search:async()=>[...noise,near],resolve:async()=>{assert.fail('Wrong search duration must never resolve')}}).catch(value=>value);
+  assert.ok(error instanceof SpotifyMatchUnavailableError);
+  assert.ok(error.diagnostics.duration>=1);
+  assert.ok(error.diagnostics.examples.some(example=>example.includes('MagneticMark')&&example.includes('Kanal/Künstler: MagneticMark - Topic')&&example.includes('310 s')));
+  assert.equal(song.playbackVideoId,undefined);
+});
