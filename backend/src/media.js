@@ -119,15 +119,60 @@ const spotifyCandidateCredit=candidate=>{
   const artist=String(candidate?.artist||candidate?.channel||candidate?.uploader||'').replace(/\s*-\s*Topic$/i,'').trim();
   return artist;
 };
+const spotifySongPart=track=>{
+  const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/);
+  return parts.length>1?parts.slice(1).join(' – '):full;
+};
+const spotifyArtistNames=value=>String(value||'').split(/\s*(?:,|;|&|\+|\band\b|\bund\b)\s*/iu).map(name=>name.trim()).filter(Boolean);
+const spotifyCanonicalArtist=value=>String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/\p{M}/gu,'').replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,'');
+const spotifyNamedRemix=value=>{
+  // A named remix must be an identifiable version suffix, not random title words.
+  const title=String(value||'').trim().replace(/\s*[\[(]\s*(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video)\s*[\])]\s*$/iu,'').trim();
+  const suffix=title.match(/(?:\s+[–—-]\s+|[\[(]\s*)([^()[\]]+?)\s+remix\s*[\])]?$/iu);
+  if(!suffix)return null;
+  const names=spotifyArtistNames(suffix[1]),credits=names.map(spotifyCanonicalArtist),base=title.slice(0,suffix.index).trim();
+  if(!base||!names.length||names.length>6||credits.some(name=>!name)||new Set(credits).size!==credits.length)return null;
+  return {base,names,credits:new Set(credits)};
+};
+const spotifyCandidateSong=candidate=>{
+  const parts=spotifyCandidateTitleParts(candidate);
+  return parts.length>1?parts.slice(1).join(' – '):parts[0]||'';
+};
 export function spotifyPlaybackArtistCompatible(track,candidate){
   const expected=matchingWords(spotifyArtistCredit(track)),credit=spotifyCandidateCredit(candidate);
   if(!expected.size)return true;
   if(!credit)return false;
+  if(spotifyNamedRemix(spotifySongPart(track))){
+    const sourceNames=spotifyArtistNames(spotifyArtistCredit(track)).map(spotifyCanonicalArtist);
+    const offeredNames=spotifyArtistNames(credit).map(spotifyCanonicalArtist);
+    // Main artist required; named remixers may be credited in the title instead.
+    return Boolean(sourceNames[0]&&offeredNames.includes(sourceNames[0])&&
+      offeredNames.every(name=>name&&sourceNames.includes(name)));
+  }
   const offered=matchingWords(credit);
   if(!offered.size)return false;
-  // Shared artist credits may be abbreviated, but an unrelated credited artist never qualifies.
   const matching=spotifyWordCoverage(expected,offered);
   return matching>=Math.max(1,Math.ceil(expected.size*0.6));
+}
+export function spotifyPlaybackMatchRejection(track,candidate){
+  if(!spotifyPlaybackArtistCompatible(track,candidate))return 'artist';
+  const song=spotifySongPart(track),candidateSong=spotifyCandidateSong(candidate),remix=spotifyNamedRemix(song);
+  let offeredRemix=null;
+  if(remix){
+    offeredRemix=spotifyNamedRemix(candidateSong);
+    if(!offeredRemix||offeredRemix.credits.size!==remix.credits.size||
+      [...remix.credits].some(name=>!offeredRemix.credits.has(name))||
+      /\bremix\b/i.test(offeredRemix.base))return 'version';
+  }
+  const variant=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|extended|mix)\b)/gi;
+  const requested=new Set((song.match(variant)||[]).map(value=>value.toLowerCase()));
+  const offered=(String(candidate?.title||'').match(variant)||[]).map(value=>value.toLowerCase());
+  if(offered.some(value=>!requested.has(value))||
+    remix&&offered.filter(value=>value==='remix').length!==1||
+    requested.has('remix')&&!offered.includes('remix'))return 'version';
+  const wanted=matchingWords(remix?.base||song),seen=matchingWords(remix?offeredRemix.base:candidateSong);
+  if(wanted.size&&spotifyWordCoverage(wanted,seen)<Math.max(1,Math.ceil(wanted.size*0.8)))return 'title';
+  return null;
 }
 export function rankSpotifyPlaybackCandidates(track,candidates){const rejected=spotifyRejectedPlaybackIds(track),available=(Array.isArray(candidates)?candidates:[]).filter(candidate=>{const url=canonicalYouTubeVideoUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';return url&&candidate?.title&&!rejected.has(String(id||''))&&!(track?.autoplayMode==='similar'&&musicSlowedVersion(candidate))});if(!available.length)return[];const wanted=matchingWords(track?.title),targetDuration=Math.max(0,Number(track?.catalogDuration??track?.duration)||0),variants=/(?:\b(?:live|remix|sped up|slowed|nightcore|cover|karaoke|instrumental|reverb|edit|version)\b)/i;return [...available].sort((left,right)=>{const score=candidate=>{const words=matchingWords(candidate.title),matched=spotifyWordCoverage(wanted,words),coverage=wanted.size?matched/wanted.size:0,duration=Math.max(0,Number(candidate.duration)||0),durationPenalty=targetDuration&&duration?Math.abs(duration-targetDuration)/targetDuration*100:25,variantPenalty=variants.test(candidate.title)&&!variants.test(track?.title||'')?45:0;return durationPenalty+(1-coverage)*80+variantPenalty};return score(left)-score(right)})}
 export function selectSpotifyPlaybackCandidate(track,candidates){return rankSpotifyPlaybackCandidates(track,candidates)[0]||null;}
