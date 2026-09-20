@@ -89,6 +89,8 @@ export function autoplayCandidateMatchesPreferences(track,{preferredStyles=[],pr
   const text=`${track?.title||''} ${(track?.styles||[]).join(' ')}`,artist=musicArtist(track);
   const preferredKnown=[...new Set(styles.flatMap(stylesIn))],candidateKnown=[...new Set(stylesIn(text))];
   const explicitStyleMatch=styles.some(style=>containsMusicTerm(text,style))||candidateKnown.some(candidate=>preferredKnown.some(preferred=>strictStyle?candidate===preferred:compatibleStyle(candidate,preferred)));
+  // A matching artist or a single matching style cannot override an explicit conflicting genre.
+  if(candidateKnown.length&&(!preferredKnown.length||candidateKnown.some(candidate=>!preferredKnown.some(preferred=>strictStyle?candidate===preferred:compatibleStyle(candidate,preferred)))))return false;
   if(candidateKnown.length&&styles.length&&!explicitStyleMatch)return false;
   if(!explicitStyleMatch&&preferredKnown.some(style=>modernElectronicStyles.has(style))&&(historicallyUnrelatedPattern.test(text)||oldYearPattern.test(text)))return false;
   if(queryArtist)return containsMusicTerm(artist,queryArtist);
@@ -345,6 +347,7 @@ export class AutoplayController{
     }
     this.pruneProfile();
     await this.save();
+    if(this.settings.autoplayEnabled)this.schedule();
     const afterKeys=new Set(this.profile.tracks.map(track=>track.key)),added=[...afterKeys].filter(key=>!beforeKeys.has(key)).length;
     return {profile:this.profileSummary(),playlistCount:selected.length,scanned:rows.length,accepted,added,existing,ignored};
   }
@@ -498,10 +501,10 @@ export class AutoplayController{
   }
 
   removeInvalidSimilarAutoplay(){
-    const preferences=autoplayPreferenceContext(this.profile),valid=track=>{
+    const preferences=autoplayPreferenceContext(this.profile),hasTaste=Boolean(preferences.styles.length||preferences.artists.length),valid=track=>{
       const known=this.profile.tracks.find(entry=>autoplayTrackKey(entry)===autoplayTrackKey(track)&&listeningSignalWeight(entry)>0);
       return !this.profileTrackExcluded(track)&&autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)&&
-        (track.autoplayKnownFavorite&&known||autoplayCandidateMatchesPreferences(track,{preferredStyles:preferences.styles,preferredArtists:preferences.artists,strictStyle:true}));
+        (track.autoplayKnownFavorite&&known||hasTaste&&autoplayCandidateMatchesPreferences(track,{preferredStyles:preferences.styles,preferredArtists:preferences.artists,strictStyle:true}));
     };
     for(let index=this.player.queue.length-1;index>=0;index--){const track=this.player.queue[index];if(track?.autoplayMode==='similar'&&!valid(track))this.player.remove(index)}
     const current=this.player.current;if(current?.autoplayMode==='similar'&&!valid(current))this.player.skip('autoplay-filter');
@@ -535,7 +538,7 @@ export class AutoplayController{
       this.detail='Ein Radiosender läuft dauerhaft. Ähnliche Titel werden bei einzelnen Musikstücken ergänzt.';
       return [];
     }
-    const preferences=autoplayPreferenceContext(this.profile),preferredStyles=preferences.styles,preferredArtists=preferences.artists,hasMusicPreferences=Boolean(preferredStyles.length||preferredArtists.length),currentKey=autoplayTrackKey(current),profileSeeds=[...this.profile.tracks].sort((a,b)=>listeningSignalWeight(b)-listeningSignalWeight(a)||Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).filter(track=>listeningSignalWeight(track)>0&&autoplayTrackKey(track)!==currentKey&&!this.profileTrackExcluded(track)&&autoplayTrackAllowed(track,this.profile.blockedStyles)),librarySeeds=this.getPlaylists().filter(playlist=>!this.profile.excludedPlaylistIds.includes(String(playlist.id||''))).flatMap(playlist=>(playlist.items||[]).map(track=>({...track,playlistOriginId:playlist.id}))).filter(track=>track&&track.source!=='radio'&&!this.profileTrackExcluded(track)&&autoplayTrackAllowed(track,this.profile.blockedStyles)),mixIndex=this.mixCounter;
+    const preferences=autoplayPreferenceContext(this.profile),seedStyles=!preferences.styles.length&&!preferences.artists.length&&current&&current.autoplayMode!=='similar'?inferTrackStyles(current):[],preferredStyles=normalizeAutoplayStyles([...preferences.styles,...seedStyles]),preferredArtists=preferences.artists,hasMusicPreferences=Boolean(preferredStyles.length||preferredArtists.length),currentKey=autoplayTrackKey(current),profileSeeds=[...this.profile.tracks].sort((a,b)=>listeningSignalWeight(b)-listeningSignalWeight(a)||Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).filter(track=>listeningSignalWeight(track)>0&&autoplayTrackKey(track)!==currentKey&&!this.profileTrackExcluded(track)&&autoplayTrackAllowed(track,this.profile.blockedStyles)),librarySeeds=this.getPlaylists().filter(playlist=>!this.profile.excludedPlaylistIds.includes(String(playlist.id||''))).flatMap(playlist=>(playlist.items||[]).map(track=>({...track,playlistOriginId:playlist.id}))).filter(track=>track&&track.source!=='radio'&&!this.profileTrackExcluded(track)&&autoplayTrackAllowed(track,this.profile.blockedStyles)),mixIndex=this.mixCounter;
     let useProfile=false,seed=current,discovery=false;
     if(!seed){if(profileSeeds.length){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}else if(librarySeeds.length)seed=librarySeeds[this.mixCounter%librarySeeds.length];else{discovery=true;seed={id:'musikbot187-discovery',title:'Startmix',source:'youtube'};}}
     else if(profileSeeds.length>0&&(current?.autoplayMode==='similar'||this.mixCounter%3===2)){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}
@@ -550,7 +553,7 @@ export class AutoplayController{
     const recentPosition=track=>this.recentKeys.lastIndexOf(autoplayTrackKey(track));
     const familiar=[...positiveProfile].filter(track=>!queued.some(item=>autoplayTrackKey(item)===autoplayTrackKey(track)||sameRecommendationFamily(item,track))&&autoplayMusicCandidateAllowed(track,this.profile.blockedStyles))
       .sort((a,b)=>recentPosition(a)-recentPosition(b)||listeningSignalWeight(b)-listeningSignalWeight(a)||Number(b.lastPlayed||0)-Number(a.lastPlayed||0));
-    const newAllowed=track=>!used.has(autoplayTrackKey(track))&&!profileKeys.has(autoplayTrackKey(track))&&!positiveProfile.some(item=>sameRecommendationFamily(item,track))&&!this.profileTrackExcluded(track)&&!dislikedKeys.has(autoplayTrackKey(track))&&autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)&&autoplayCandidateMatchesPreferences(track,{preferredStyles,preferredArtists,strictStyle:true});
+    const newAllowed=track=>hasMusicPreferences&&!used.has(autoplayTrackKey(track))&&!profileKeys.has(autoplayTrackKey(track))&&!positiveProfile.some(item=>sameRecommendationFamily(item,track))&&!this.profileTrackExcluded(track)&&!dislikedKeys.has(autoplayTrackKey(track))&&autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)&&autoplayCandidateMatchesPreferences(track,{preferredStyles,preferredArtists,strictStyle:true,...(track.autoplayCategoryKind==='genre'?{queryStyle:track.autoplayCategory}:track.autoplayCategoryKind==='artist'?{queryArtist:track.autoplayCategory}:{})});
     this.recommendationBuffer=this.recommendationBuffer.filter(newAllowed);
     const artistLimit=Math.max(2,Math.ceil(config.queueTarget/5));
     // A full buffer of one already frequent artist is not a usable reserve.
@@ -563,7 +566,7 @@ export class AutoplayController{
       reserveReferences.push(reserve.splice(index,1)[0]);reserveCount++;
     }
     let inspectedCandidates=0;
-    if(reserveCount<needed&&(hasMusicPreferences||!positiveProfile.length)){
+    if(reserveCount<needed&&hasMusicPreferences){
       const blockedSuffix=this.profile.blockedStyles.map(style=>'-'+(/\s/.test(style)?'"'+style.replaceAll('"','')+'"':style)).join(' '),searchVariant=autoplaySearchVariants[mixIndex%autoplaySearchVariants.length],queryCandidates=[];
       if(hasMusicPreferences){
         const categories=[],categoryLength=Math.max(preferredStyles.length,preferredArtists.length);
@@ -582,9 +585,6 @@ export class AutoplayController{
         if(exploreCategory)queryCandidates.push(exploreCategory.style
           ?{...exploreCategory,explore:true,query:[exploreCategory.style,'neue Künstler Geheimtipps','official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')}
           :{...exploreCategory,explore:true,query:[exploreCategory.artist,'ähnliche neue Künstler Geheimtipps','official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')});
-      }else{
-        const primaryQuery=[recommendationQuery(seed),searchVariant,'official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ');
-        queryCandidates.push({query:primaryQuery,style:'',artist:''},...autoplayDiscoveryQueries.map(query=>({query:[query,'official audio',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' '),style:'',artist:''})));
       }
       const querySpecs=[],queryKeys=new Set();
       for(const spec of queryCandidates){const query=String(spec.query||'').trim(),key=query.toLocaleLowerCase('de-DE');if(!query||queryKeys.has(key))continue;queryKeys.add(key);querySpecs.push({...spec,query});}
@@ -699,7 +699,8 @@ export class AutoplayController{
     if(items.length)await this.save();
     if(!items.length){
       this.statusCode='waiting';
-      const subject=hasMusicPreferences?'Für '+preferences.label+' ('+this.lastSeedTitle+')':'Zu „'+this.lastSeedTitle+'“';
+      if(!hasMusicPreferences){this.detail='Noch keine verlässlichen Musikvorlieben erkannt. Lerne Titel aus einer ausgewählten Playlist oder gib gewünschte Musikrichtungen/Künstler an; ohne diese Grundlage werden keine zufälligen YouTube-Lieder ergänzt.';return items;}
+      const subject='Für '+preferences.label+' ('+this.lastSeedTitle+')';
       this.detail=inspectedCandidates?subject+' wurden '+inspectedCandidates+' YouTube-Treffer geprüft, aber gerade keine passenden neuen Musiktitel gefunden. In 30 Sekunden wird automatisch mit einer anderen Suche erneut gesucht.':subject+' hat YouTube gerade keine Suchtreffer geliefert. In 30 Sekunden wird automatisch mit einer anderen Suche erneut gesucht.';
     }
     return items;
