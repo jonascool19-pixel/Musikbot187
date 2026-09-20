@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Player} from '../backend/src/player.js';
-import {rankSpotifyPlaybackCandidates,resolveSpotify,SpotifyMatchUnavailableError,spotifyMatchResolveLimit,spotifyPlaybackArtistCompatible,spotifyPlaybackSearchQueries,spotifyPlaybackTitleCompatible,spotifyPlaybackWordEquivalent} from '../backend/src/media.js';
+import {rankSpotifyPlaybackCandidates,resolveSpotify,SpotifyMatchUnavailableError,spotifyMatchResolveLimit,spotifyPlaybackArtistCompatible,spotifyPlaybackMatchRejection,spotifyPlaybackSearchQueries,spotifyPlaybackTitleCompatible,spotifyPlaybackWordEquivalent} from '../backend/src/media.js';
 
 const yt=(id,title,duration)=>({id,title,duration,url:`https://www.youtube.com/watch?v=${id}`});
 const resolved=(id,duration)=>({id,duration,protocol:'https',url:`https://example.test/audio/${id}`});
@@ -215,4 +215,72 @@ test('Spotify skip diagnostics distinguish artist, remix, duration and unreachab
   for(const reason of ['artist','version','duration','source'])assert.ok(error.diagnostics[reason]>=1,reason);
   for(const label of ['falscher Künstler','falsche Version','unpassende Länge','nicht erreichbare Quelle'])assert.match(error.message,new RegExp(label));
   assert.ok(error.diagnostics.examples.some(example=>example.includes('Other Artist')));
+});
+
+test('Es eskaliert matches explicit post-title multi-artist credits but never a competing remix',async()=>{
+  const song={id:'spotify:es-eskaliert-multiple-credits',source:'spotify',title:'ArniTheSavage, JSTN, Schillah – Es eskaliert',duration:191};
+  const matching=yt('abcdefghijk','Es eskaliert... (Eastsideboyz, ArniTheSavage, JSTN, Schillah)',191);
+  const wrongArtist=yt('lmnopqrstuv','Es eskaliert... (Eastsideboyz, ArniTheSavage, Schillah)',191);
+  const wrongSong=yt('wxyz1234567','Es eskaliert nicht... (Eastsideboyz, ArniTheSavage, JSTN, Schillah)',191);
+  const wrongVersion=yt('vwxyz123456','Justin Pollnik, ArniTheSavage, Schillah & JSTN - Es eskaliert (Justin Pollnik & KickArtz Remix)',191);
+  assert.equal(spotifyPlaybackArtistCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackMatchRejection(song,wrongArtist),'artist');
+  assert.equal(spotifyPlaybackMatchRejection(song,wrongSong),'title');
+  assert.equal(spotifyPlaybackMatchRejection(song,wrongVersion),'version');
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,title:'Other Artist – Es eskaliert... (Eastsideboyz, ArniTheSavage, JSTN, Schillah)'}),false,'an explicit wrong performer prefix may not be overridden by a matching suffix');
+  const queries=[],attempts=[],search=async query=>{queries.push(query);return [wrongArtist,wrongVersion,matching]};
+  const resolve=async url=>{attempts.push(url);return resolved(matching.id,192)};
+  await resolveSpotify(song,null,{search,resolve});
+  assert.equal(attempts.length,1);
+  assert.equal(song.playbackVideoId,matching.id);
+  assert.ok(queries.some(query=>query.includes('ArniTheSavage')&&query.includes('JSTN')&&query.includes('Schillah')&&query.includes('Es eskaliert')));
+});
+
+test('XTC requires Kento Nakajima artist evidence and exact short song title',async()=>{
+  const song={id:'spotify:kento-xtc-regression',source:'spotify',title:'Kento Nakajima – XTC',duration:189};
+  const unrelated=yt('abcdefghijk','Kento Nakajima – Strawberry',189);
+  const artistOnly=yt('lmnopqrstuv','Kento Nakajima "THE CODE" Music Video',189);
+  const wrongArtist=yt('wxyz1234567','Unknown Singer – XTC',189);
+  const good=yt('vwxyz123456','Kento Nakajima – XTC (Official Audio)',189);
+  assert.equal(spotifyPlaybackMatchRejection(song,unrelated),'title');
+  assert.equal(spotifyPlaybackMatchRejection(song,artistOnly),'title');
+  assert.equal(spotifyPlaybackMatchRejection(song,wrongArtist),'artist');
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'XTC',channel:'Kento Nakajima - Topic'}),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'XTC',channel:'Unknown Singer - Topic'}),false);
+  const searched=[],search=async query=>{searched.push(query);return searched.length===1?[unrelated,artistOnly,wrongArtist]:[good]};
+  await resolveSpotify(song,null,{search,resolve:async()=>resolved(good.id,189)});
+  assert.equal(song.playbackVideoId,good.id);
+  assert.ok(searched.some(query=>query.includes('Kento Nakajima')&&query.includes('XTC')));
+});
+
+test('NEWKID3 generic Spotify remix recognizes separately credited collaborator but rejects original and foreign remix',async()=>{
+  const song={id:'spotify:fedx-kickartz-newkid3',source:'spotify',title:'FEDX, KICKARTZ – NEWKID3 - REMIX',duration:158};
+  const original=yt('abcdefghijk','FEDX - NEWKID3',158);
+  const unrelated=yt('lmnopqrstuv','FEDX – NEWKID3 (Other DJ Remix)',158);
+  const wrongArtist=yt('wxyz1234567','Another Singer – NEWKID3 (KICKARTZ Remix)',158);
+  const correct=yt('vwxyz123456','FEDX – NEWKID3 (KICKARTZ Remix)',158);
+  assert.equal(spotifyPlaybackMatchRejection(song,original),'version');
+  assert.equal(spotifyPlaybackMatchRejection(song,unrelated),'artist');
+  assert.equal(spotifyPlaybackTitleCompatible(song,wrongArtist),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,correct),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'NEWKID3 (REMIX)',channel:'FEDX, KICKARTZ - Topic'}),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{title:'NEWKID3 (REMIX)',channel:'Unrelated Topic - Topic'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,yt('qwerty12345','FEDX – NEWKID3 (KICKARTZ Extended Remix)',158)),false);
+  const tried=[];
+  await resolveSpotify(song,null,{search:async()=>[original,unrelated,correct],resolve:async url=>{tried.push(url);return resolved(correct.id,159)}});
+  assert.equal(song.playbackVideoId,correct.id);
+  assert.equal(tried.length,1);
+});
+
+test('ALORS ON FUCK with no verified search results stays unavailable instead of playing an unrelated song',async()=>{
+  const song={id:'spotify:gpf-no-search-hits',source:'spotify',title:'GPF – ALORS ON FUCK',duration:160},queries=[];
+  const search=async query=>{queries.push(query);return []};
+  await assert.rejects(resolveSpotify(song,null,{search,resolve:async()=>{assert.fail('No matching YouTube candidate must be resolved')}}),error=>{
+    assert.ok(error instanceof SpotifyMatchUnavailableError);
+    assert.match(error.message,/keine geeigneten Suchtreffer/);
+    return true;
+  });
+  assert.ok(queries.some(query=>query.includes('GPF')&&query.includes('ALORS ON FUCK')));
+  assert.equal(song.playbackVideoId,undefined);
 });
