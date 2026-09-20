@@ -346,12 +346,20 @@ export function spotifyPlaybackTitleCompatible(track,candidate){
 }
 export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=resolveYoutube}={}){
   const cacheKey=spotifyPlaybackCacheKey(item),catalogDuration=Math.max(0,Number(item.catalogDuration??item.duration)||0),cached=spotifyPlaybackCache.get(cacheKey),deadline=Date.now()+spotifyMatchSearchTimeMs;
-  const diagnostics={artist:0,version:0,title:0,duration:0,source:0,search:0,examples:[]};
+  const diagnostics={artist:0,version:0,title:0,duration:0,source:0,search:0,examples:[]},exampleCandidates=[];
   const record=(reason,candidate)=>{
     diagnostics[reason]=(diagnostics[reason]||0)+1;
-    if(candidate&&diagnostics.examples.length<4){
+    if(candidate){
       const title=String(candidate.title||candidate.id||'unbekannt').replace(/\s+/g,' ').slice(0,88);
-      diagnostics.examples.push(spotifyMatchReasonLabels[reason]+': '+title);
+      const artist=String(candidate.channel||candidate.artist||'').replace(/\s+/g,' ').slice(0,48);
+      const seconds=Math.max(0,Number(candidate.duration)||0);
+      const relevance=spotifyWordCoverage(matchingWords(spotifySongPart(item)),matchingWords(title));
+      const label=spotifyMatchReasonLabels[reason]+': '+title+(artist?' [Kanal/Künstler: '+artist+']':'')+(seconds?' ['+Math.round(seconds)+' s]':'');
+      exampleCandidates.push({label,relevance});
+      // Display the closest actual search results, not the first four random
+      // search hits. The playback acceptance checks remain independent.
+      exampleCandidates.sort((a,b)=>b.relevance-a.relevance);
+      if(exampleCandidates.length>4)exampleCandidates.length=4;
     }
   };
   const resolveFailureReason=error=>/unpassende Länge|verifizierte Dauer/i.test(String(error?.message||''))?'duration':'source';
@@ -401,6 +409,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
   }
   // Search may return no matches at all; do not turn an unavailable version into a player failure.
   if(searchFailure&&!successfulSearches)throw searchFailure;
+  diagnostics.examples=exampleCandidates.map(example=>example.label);
   throw new SpotifyMatchUnavailableError(item,diagnostics);
 }
 export async function resolveInput(item,musicDir,{signal}={}){if(signal?.aborted){const error=new Error('Medienauflösung abgebrochen');error.name='AbortError';throw error;}if(item.source==='local')return safeMusicRelativePath(musicDir,item.path);if(item.source==='youtube'){const url=canonicalYouTubeVideoUrl(item.id,item.url);if(!url)throw new Error('Der gespeicherte YouTube-Titel enthält keine gültige Video-ID.');const resolved=await resolveYoutube(url,signal);applyResolvedPlayback(item,resolved);return resolved.url}if(item.source==='spotify')return resolveSpotify(item,signal);const url=normalizeRadioUrl(item.url);await assertSafeExternalUrl(url);return url;}
