@@ -367,7 +367,7 @@ export function spotifyPlaybackSearchQueries(item){
 export function spotifyOfficialMusicVideoFallbackCandidate(track,candidate){
   const catalog=Math.max(0,Number(track?.catalogDuration??track?.duration)||0),reported=Math.max(0,Number(candidate?.duration)||0);
   if(!catalog||!reported||catalog<90||reported-catalog<=spotifyPlaybackDurationToleranceSeconds(catalog)||
-    reported-catalog>Math.min(60,catalog*0.25))return false;
+    reported-catalog>Math.min(90,catalog*0.35))return false;
   const title=String(candidate?.title||''),parts=spotifyCandidateTitleParts(candidate),requested=spotifyRequestedArtists(track);
   // A fallback cannot establish featured/collaborator identity from a lone
   // channel name. Only single-artist, explicitly official original videos.
@@ -412,7 +412,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
       if(!spotifyOfficialMusicVideoFallbackCandidate(item,selected)||
         !realDuration||Math.abs(realDuration-Number(selected.duration))>3||
         realDuration-catalogDuration<=spotifyPlaybackDurationToleranceSeconds(catalogDuration)||
-        realDuration-catalogDuration>Math.min(60,catalogDuration*0.25))
+        realDuration-catalogDuration>Math.min(90,catalogDuration*0.35))
         throw new Error('Musikvideo-Fallback hat eine unpassende Länge oder keine verifizierte Dauer.');
     }else if(catalogDuration&&(!realDuration||!spotifyPlaybackDurationCompatible(catalogDuration,resolved.duration))){
       throw new Error('YouTube-Treffer hat eine unpassende Länge oder keine verifizierte Dauer.');
@@ -441,7 +441,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
     if(Date.now()>=deadline||resolvedCount>=spotifyMatchResolveLimit)break;
     // Once audio searches had time, reserve enough budget to check an
     // already-found official video instead of timing out before resolving it.
-    if(fallbackCandidates.length&&successfulSearches>=3&&Date.now()>=deadline-25_000)break;
+    if(fallbackCandidates.length&&successfulSearches>=3&&Date.now()>=deadline-35_000)break;
     let candidates;
     try{candidates=await search(query,{limit:spotifyMatchSearchLimit,timeout:Math.min(20_000,Math.max(1000,deadline-Date.now())),signal})}
     catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error;record('search');continue}
