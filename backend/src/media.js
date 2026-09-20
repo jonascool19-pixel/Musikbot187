@@ -108,23 +108,61 @@ export function spotifyPlaybackWordEquivalent(expected,actual){
 const spotifyWordCoverage=(expected,actual)=>{const words=[...expected],available=[...actual];let matches=0;for(const word of words){const index=available.findIndex(candidate=>spotifyPlaybackWordEquivalent(word,candidate));if(index>=0){matches++;available.splice(index,1)}}return matches};
 const spotifyArtistCredit=(track)=>{const title=String(track?.title||''),parts=title.split(/\s+[–—-]\s+/);return parts.length>1?parts[0].trim():String(track?.artist||'').trim()};
 const spotifyCandidateTitleParts=candidate=>{
-  const parts=String(candidate?.title||'').split(/\s+[–—-]\s+/);
-  // A suffix such as "Till I Collapse – Official Audio" is not an artist credit.
-  if(parts.length>1&&/^(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)$/i.test(parts.at(-1).trim()))parts.pop();
+  // Video credits also appear as "Artist x Artist ✖ Song". The separators must
+  // be surrounded by spacing to avoid cutting ordinary names and song words.
+  const parts=String(candidate?.title||'').split(/\s+[–—-✖×]\uFE0F?\s+/u);
+  // Decorative segments never supply artist evidence or a different recording.
+  while(parts.length>1&&/^(?:[\[(]\s*)?(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)(?:\s*[\])])?(?:\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_ -]+)?$/iu.test(parts.at(-1).trim()))parts.pop();
   return parts;
 };
+const spotifyBylineCredit=candidate=>{
+  const title=String(candidate?.title||'').trim();
+  const match=title.match(/^(.+?)\s+by\s+([^|｜]+?)(?:\s*[|｜]\s*(.+))?$/iu);
+  if(!match||!match[1].trim()||!match[2].trim())return null;
+  return {song:match[1].trim(),credit:match[2].trim(),trailing:match[3]||''};
+};
 const spotifyCandidateCredit=candidate=>{
-  const parts=spotifyCandidateTitleParts(candidate);
+  const parts=spotifyCandidateTitleParts(candidate),byline=spotifyBylineCredit(candidate);
+  if(byline)return byline.credit;
   if(parts.length>1)return parts[0].trim();
-  const artist=String(candidate?.artist||candidate?.channel||candidate?.uploader||'').replace(/\s*-\s*Topic$/i,'').trim();
-  return artist;
+  return String(candidate?.artist||candidate?.channel||candidate?.uploader||'').replace(/\s*-\s*Topic$/i,'').trim();
 };
 const spotifySongPart=track=>{
   const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/);
   return parts.length>1?parts.slice(1).join(' – '):full;
 };
-const spotifyArtistNames=value=>String(value||'').split(/\s*(?:,|;|&|\+|\band\b|\bund\b)\s*/iu).map(name=>name.trim()).filter(Boolean);
-const spotifyCanonicalArtist=value=>String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/\p{M}/gu,'').replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,'');
+const spotifyArtistNames=value=>String(value||'').split(/\s*(?:,|;|&|\+|\b(?:feat\.?|featuring|ft\.?|and|und)\b\.?|\s+[x×]\s+)\s*/iu).map(name=>name.trim()).filter(Boolean);
+const spotifyCanonicalArtist=value=>String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/\p{M}/gu,'').replace(/[øØ]/g,'o').replace(/[łŁ]/g,'l').replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,'');
+const spotifyArtistAliases=value=>{
+  // A visible alias in "[Moe Phoenix]" is a second explicit artist credit.
+  return spotifyArtistNames(String(value||'').replace(/[\[(]\s*([^\])]+?)\s*[\])]/gu,(_,alias)=>', '+alias))
+    .map(spotifyCanonicalArtist).filter(Boolean);
+};
+const spotifyRequestedArtists=track=>spotifyArtistNames(spotifyArtistCredit(track)).map(spotifyCanonicalArtist).filter(Boolean);
+const spotifyFeaturedArtists=value=>{
+  const credits=[];
+  for(const match of String(value||'').matchAll(/[\[(]\s*(?:feat(?:uring)?\.?|ft\.?)\s+([^\])]+?)\s*[\])]/giu))credits.push(...spotifyArtistAliases(match[1]));
+  return [...new Set(credits)];
+};
+const spotifyCandidateArtistEvidence=candidate=>{
+  const parts=spotifyCandidateTitleParts(candidate),byline=spotifyBylineCredit(candidate);
+  const prefix=byline?.credit||parts.length>1?byline?.credit||parts[0].trim():'';
+  const channel=String(candidate?.channel||candidate?.uploader||'').trim();
+  const explicit=prefix||String(candidate?.artist||'').trim();
+  const featured=spotifyFeaturedArtists(String(candidate?.title||''));
+  const names=[...new Set([...spotifyArtistAliases(explicit),...featured])];
+  if(!prefix&&channel&&/\s*-\s*Topic$/iu.test(channel))names.push(...spotifyArtistAliases(channel.replace(/\s*-\s*Topic$/iu,'')));
+  return {names:new Set(names),prefix,topic:/\s*-\s*Topic$/iu.test(channel),channelArtist:spotifyCanonicalArtist(channel.replace(/\s*-\s*Topic$/iu,''))};
+};
+const spotifyArtistAliasMap=track=>{
+  const names=spotifyRequestedArtists(track),aliases=new Map(names.map(name=>[name,new Set([name])]));
+  const features=spotifyFeaturedArtists(spotifySongPart(track));
+  // A single credited featured artist in a two-performer catalog track can
+  // have a shorter stage name (e.g. Moe Phoenix = Moé), but never guess for
+  // multiple ambiguous contributors.
+  if(names.length===2&&features.length===1)aliases.get(names[1])?.add(features[0]);
+  return aliases;
+};
 const spotifyNamedRemix=value=>{
   // A named remix must be an identifiable version suffix, not random title words.
   const title=String(value||'').trim().replace(/\s*[\[(]\s*(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video)\s*[\])]\s*$/iu,'').trim();
@@ -135,8 +173,36 @@ const spotifyNamedRemix=value=>{
   return {base,names,credits:new Set(credits)};
 };
 const spotifyCandidateSong=candidate=>{
-  const parts=spotifyCandidateTitleParts(candidate);
-  return parts.length>1?parts.slice(1).join(' – '):parts[0]||'';
+  const byline=spotifyBylineCredit(candidate),parts=spotifyCandidateTitleParts(candidate);
+  return byline?byline.song+(byline.trailing?' | '+byline.trailing:''):parts.length>1?parts.slice(1).join(' – '):parts[0]||'';
+};
+const spotifyPlainSong=value=>String(value||'')
+  .replace(/\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_. -]+$/iu,'')
+  .replace(/\s*[|｜]\s*(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*$/iu,'')
+  .replace(/\s*[\[(]\s*(?:official\s+)?(?:audio|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*[\])]\s*$/iu,'')
+  .replace(/\s*[\[(]\s*(?:feat(?:uring)?\.?|ft\.?)\s+[^\])]+\s*[\])]\s*$/iu,'')
+  .trim();
+const spotifyMaskedWordEquivalent=(expected,actual)=>{
+  if(!['fuck','fick','fucking'].includes(expected)||!actual.includes('*')&&!actual.includes('#'))return false;
+  if(!/^f[\p{L}*#]+$/u.test(actual))return false;
+  const pattern='^'+[...actual].map(character=>character==='*'||character==='#'?'[a-z]':character).join('')+'$';
+  if(new RegExp(pattern,'u').test(expected))return true;
+  // An explicit, four-character mask cannot resolve which vowel was hidden;
+  // it is accepted only for these two profane words with other song words
+  // AND trustworthy artist evidence checked separately.
+  return /^f[*#]{3}$/u.test(actual)&&['fuck','fick'].includes(expected);
+};
+const spotifySongWords=value=>new Set(String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD')
+  .replace(/\p{M}/gu,'').replace(/[øØ]/g,'o').replace(/ß/g,'ss')
+  .match(/[\p{L}\p{N}*#]+/gu)?.filter(word=>word.length>1&&!['official','video','audio','lyrics','lyric','topic','musik','music'].includes(word))||[]);
+const spotifySongCoverage=(expected,actual)=>{
+  const wanted=[...expected],seen=[...actual],masked=[];
+  let matches=0;
+  for(const word of wanted){
+    const index=seen.findIndex(value=>spotifyPlaybackWordEquivalent(word,value)||spotifyMaskedWordEquivalent(word,value));
+    if(index>=0){if(spotifyMaskedWordEquivalent(word,seen[index]))masked.push(word);matches++;seen.splice(index,1)}
+  }
+  return {matches,masked,extra:seen};
 };
 const spotifyTitleFirstArtistCredit=(track,candidate)=>{
   // Official titles can put all credited artists AFTER the song in parentheses:
