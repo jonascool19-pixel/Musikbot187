@@ -261,13 +261,13 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const channelName=spotifyCanonicalArtist(spotifyChannelArtist(channel));
   const catalog=Math.max(0,Number(track?.catalogDuration??track?.duration)||0);
   const reported=Math.max(0,Number(candidate?.duration)||0);
-  const requestedSong=spotifyPlainSong(spotifySongPart(track));
+  const requestedExactSong=spotifyPlainSong(spotifySongPart(track));
   const actualSong=spotifyPlainSong(spotifyCandidateSong(candidate));
-  const wanted=spotifySongWords(requestedSong),seen=spotifySongWords(actualSong);
+  const wanted=spotifySongWords(requestedExactSong),seen=spotifySongWords(actualSong);
   const exact=spotifySongCoverage(wanted,seen);
   const channelIsCredited=expected.includes(channelName);
   const oneArtistRapChannel=expected.length===1&&channelName===expected[0]+'rap';
-  const genericRemix=/\bremix\b/iu.test(requestedSong)&&!spotifyNamedRemix(requestedSong);
+  const genericRemix=/\bremix\b/iu.test(requestedExactSong)&&!spotifyNamedRemix(requestedExactSong);
   const channelCreditAllowed=!evidence.prefix&&!String(candidate?.artist||'').trim()&&
     (channelIsCredited||oneArtistRapChannel)&&catalog>0&&reported>0&&
     spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
