@@ -252,6 +252,30 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const fusedPrefix=evidence.prefix&&spotifyArtistNames(evidence.prefix).length===1&&spotifyCanonicalArtist(evidence.prefix)===expected.join('');
   const known=name=>fusedPrefix||[...(aliases.get(name)||[])].some(alias=>evidence.names.has(alias));
   const matches=expected.map(known);
+  // An uploader credited as ONE of the catalog artists can publish a clean,
+  // title-only release without repeating every collaborator in its title.
+  // Accept this weaker channel evidence ONLY alongside a complete exact
+  // song/version label and a known compatible public duration. Generic
+  // "Release - Topic" and unrelated channels never establish identity.
+  const channel=String(candidate?.channel||candidate?.uploader||'').trim();
+  const channelName=spotifyCanonicalArtist(spotifyChannelArtist(channel));
+  const catalog=Math.max(0,Number(track?.catalogDuration??track?.duration)||0);
+  const reported=Math.max(0,Number(candidate?.duration)||0);
+  const requestedSong=spotifyPlainSong(spotifySongPart(track));
+  const actualSong=spotifyPlainSong(spotifyCandidateSong(candidate));
+  const wanted=spotifySongWords(requestedSong),seen=spotifySongWords(actualSong);
+  const exact=spotifySongCoverage(wanted,seen);
+  const channelIsCredited=expected.includes(channelName);
+  const oneArtistRapChannel=expected.length===1&&channelName===expected[0]+'rap';
+  const genericRemix=/\bremix\b/iu.test(requestedSong)&&!spotifyNamedRemix(requestedSong);
+  const channelCreditAllowed=!evidence.prefix&&!String(candidate?.artist||'').trim()&&
+    (channelIsCredited||oneArtistRapChannel)&&catalog>0&&reported>0&&
+    spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
+    exact.matches===wanted.size&&exact.extra.length===0&&
+    !/[\[(]\s*(?:feat(?:uring)?\.?|ft\.?)\s+/iu.test(spotifySongPart(track))&&
+    (!oneArtistRapChannel||Math.abs(catalog-reported)<=2)&&
+    (!genericRemix||channelName===expected[0]&&Math.abs(catalog-reported)<=2);
+  if(channelCreditAllowed)return true;
   if(!matches[0])return false;
   // An explicitly conflicting performer prefix must not be made credible by
   // a matching YouTube channel or a collaborator mentioned elsewhere.
