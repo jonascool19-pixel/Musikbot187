@@ -108,10 +108,20 @@ export function spotifyPlaybackWordEquivalent(expected,actual){
 }
 const spotifyWordCoverage=(expected,actual)=>{const words=[...expected],available=[...actual];let matches=0;for(const word of words){const index=available.findIndex(candidate=>spotifyPlaybackWordEquivalent(word,candidate));if(index>=0){matches++;available.splice(index,1)}}return matches};
 const spotifyArtistCredit=(track)=>{const title=String(track?.title||''),parts=title.split(/\s+[–—-]\s+/);return parts.length>1?parts[0].trim():String(track?.artist||'').trim()};
+const spotifyChannelArtist=value=>String(value||'').trim()
+  .replace(/\s*-\s*Topic$/iu,'')
+  .replace(/\s+Official(?:\s+YouTube)?\s+Channel$/iu,'')
+  .trim();
 const spotifyCandidateTitleParts=candidate=>{
   // Video credits also appear as "Artist x Artist ✖ Song". The separators must
   // be surrounded by spacing to avoid cutting ordinary names and song words.
-  const parts=String(candidate?.title||'').split(/\s+[–—✖×-]\uFE0F?\s+/u);
+  const title=String(candidate?.title||'').normalize('NFKC');
+  // Some official releases omit the Artist - Song separator and insert a
+  // subtitle notice instead: "Kento Nakajima (w/English Subtitles!) XTC [Music Video]".
+  // Only this explicit release format supplies a structured artist prefix.
+  const subtitle=title.match(/^(.+?)\s*[\[(]\s*(?:w\/|with)\s*english\s*subtitles!?\s*[\])]\s+(.+?)\s*[\[(]\s*music\s+video\s*[\])]\s*$/iu);
+  const parts=subtitle?[subtitle[1],subtitle[2]+' [Music Video]']:
+    title.split(/\s+[–—✖×-]\uFE0F?\s+/u);
   // Decorative segments never supply artist evidence or a different recording.
   while(parts.length>1&&/^(?:[\[(]\s*)?(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)(?:\s*[\])])?(?:\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_ -]+)?$/iu.test(parts.at(-1).trim()))parts.pop();
   // Some official videos list production credits after the second separator:
@@ -159,8 +169,8 @@ const spotifyCandidateArtistEvidence=candidate=>{
   const explicit=prefix||String(candidate?.artist||'').trim();
   const featured=spotifyFeaturedArtists(String(candidate?.title||''));
   const names=[...new Set([...spotifyArtistAliases(explicit),...featured])];
-  if(!prefix&&channel)names.push(...spotifyArtistAliases(channel.replace(/\s*-\s*Topic$/iu,'')));
-  return {names:new Set(names),prefix,topic:/\s*-\s*Topic$/iu.test(channel),channelArtist:spotifyCanonicalArtist(channel.replace(/\s*-\s*Topic$/iu,''))};
+  if(!prefix&&channel)names.push(...spotifyArtistAliases(spotifyChannelArtist(channel)));
+  return {names:new Set(names),prefix,topic:/\s*-\s*Topic$/iu.test(channel),channelArtist:spotifyCanonicalArtist(spotifyChannelArtist(channel))};
 };
 const spotifyArtistAliasMap=track=>{
   const names=spotifyRequestedArtists(track),aliases=new Map(names.map(name=>[name,new Set([name])]));
@@ -191,7 +201,7 @@ const spotifyCandidateSong=candidate=>{
   const byline=spotifyBylineCredit(candidate),parts=spotifyCandidateTitleParts(candidate);
   return byline?byline.song+(byline.trailing?' | '+byline.trailing:''):parts.length>1?parts.slice(1).join(' – '):parts[0]||'';
 };
-const spotifyPlainSong=value=>String(value||'')
+const spotifyPlainSong=value=>String(value||'').normalize('NFKC')
   .replace(/\s*[\[(]\s*prod(?:uced)?\.?\s+by\s+[^\])]+[\])]\s*$/iu,'')
   .replace(/\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_. -]+$/iu,'')
   .replace(/\s*[|｜]\s*(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*$/iu,'')
@@ -242,6 +252,32 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const fusedPrefix=evidence.prefix&&spotifyArtistNames(evidence.prefix).length===1&&spotifyCanonicalArtist(evidence.prefix)===expected.join('');
   const known=name=>fusedPrefix||[...(aliases.get(name)||[])].some(alias=>evidence.names.has(alias));
   const matches=expected.map(known);
+  // An uploader credited as ONE of the catalog artists can publish a clean,
+  // title-only release without repeating every collaborator in its title.
+  // Accept this weaker channel evidence ONLY alongside a complete exact
+  // song/version label and a known compatible public duration. Generic
+  // "Release - Topic" and unrelated channels never establish identity.
+  const channel=String(candidate?.channel||candidate?.uploader||'').trim();
+  const channelName=spotifyCanonicalArtist(spotifyChannelArtist(channel));
+  const catalog=Math.max(0,Number(track?.catalogDuration??track?.duration)||0);
+  const reported=Math.max(0,Number(candidate?.duration)||0);
+  const requestedExactSong=spotifyPlainSong(spotifySongPart(track));
+  const actualSong=spotifyPlainSong(spotifyCandidateSong(candidate));
+  const wanted=spotifySongWords(requestedExactSong),seen=spotifySongWords(actualSong);
+  const exact=spotifySongCoverage(wanted,seen);
+  const channelIsCredited=expected.includes(channelName);
+  const oneArtistRapChannel=expected.length===1&&channelName===expected[0]+'rap';
+  const genericRemix=/\bremix\b/iu.test(requestedExactSong)&&!spotifyNamedRemix(requestedExactSong);
+  const genreMarked=/[\[(]\s*(?:uptempo|hardstyle|hardtekk|rawstyle|frenchcore|hardcore|techno|trance)\s*[\])]\s*$/iu.test(spotifySongPart(track));
+  const distinctiveCollaboratorSong=channelName!==expected[0]&&wanted.size===1&&[...wanted][0].length>=8;
+  const channelCreditAllowed=(expected.length===1||genreMarked||genericRemix||distinctiveCollaboratorSong)&&!evidence.prefix&&!String(candidate?.artist||'').trim()&&
+    (channelIsCredited||oneArtistRapChannel)&&catalog>0&&reported>0&&
+    spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
+    exact.matches===wanted.size&&exact.extra.length===0&&
+    !/[\[(]\s*(?:feat(?:uring)?\.?|ft\.?)\s+/iu.test(spotifySongPart(track))&&
+    (!oneArtistRapChannel||Math.abs(catalog-reported)<=2)&&
+    (!genericRemix||channelName===expected[0]&&Math.abs(catalog-reported)<=2);
+  if(channelCreditAllowed)return true;
   if(!matches[0])return false;
   // An explicitly conflicting performer prefix must not be made credible by
   // a matching YouTube channel or a collaborator mentioned elsewhere.
@@ -371,10 +407,11 @@ export function spotifyOfficialMusicVideoFallbackCandidate(track,candidate){
   const title=String(candidate?.title||''),parts=spotifyCandidateTitleParts(candidate),requested=spotifyRequestedArtists(track);
   // A fallback cannot establish featured/collaborator identity from a lone
   // channel name. Only single-artist, explicitly official original videos.
+  const subtitleVideo=/[\[(]\s*(?:w\/|with)\s*english\s*subtitles!?\s*[\])]\s+.+?[\[(]\s*music\s+video\s*[\])]\s*$/iu.test(title);
   if(requested.length!==1||parts.length!==2||
     spotifyCanonicalArtist(parts[0])!==requested[0]||
-    spotifyCanonicalArtist(String(candidate?.channel||'').replace(/\s*-\s*Topic$/iu,''))!==requested[0]||
-    !/[\[(]\s*(?:official\s+)?(?:music\s+)?video\s*[\])]\s*$/iu.test(title)||
+    spotifyCanonicalArtist(spotifyChannelArtist(candidate?.channel))!==requested[0]||
+    !(/[\[(]\s*(?:official\s+)?(?:music\s+)?video\s*[\])]\s*$/iu.test(title)||subtitleVideo&&/\bOfficial\s+(?:YouTube\s+)?Channel\s*$/iu.test(String(candidate?.channel||'')))||
     /\b(?:remix|edit|slowed|extended|instrumental|karaoke|cover|reaction|live\s+(?:video|performance)|concert)\b/iu.test(title))return false;
   const wanted=spotifySongWords(spotifyPlainSong(spotifySongPart(track))),actual=spotifySongWords(spotifyPlainSong(parts[1]));
   const coverage=spotifySongCoverage(wanted,actual);

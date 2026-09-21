@@ -539,3 +539,90 @@ test('an ordinary 231-second candidate cannot replace the original 126-second au
   assert.equal(song.duration,126);
 });
 
+
+test('XTC subtitle-noted music video on exact Official YouTube Channel is matched as a labeled video fallback',async()=>{
+  const song={id:'spotify:kento-xtc-official-2026',title:'Kento Nakajima – XTC',source:'spotify',duration:174};
+  const candidate={...yt('abcdefghijk','Kento Nakajima (w/English Subtitles!) XTC [Music Video]',191),channel:'Kento Nakajima Official YouTube Channel'};
+  assert.equal(spotifyPlaybackArtistCompatible(song,candidate),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,candidate),true);
+  assert.equal(spotifyOfficialMusicVideoFallbackCandidate(song,candidate),true);
+  let resolvedCount=0;
+  await resolveSpotify(song,null,{search:async()=>[candidate],resolve:async()=>{resolvedCount++;return resolved(candidate.id,191)}});
+  assert.equal(resolvedCount,1);
+  assert.equal(song.title,'Kento Nakajima – XTC');
+  assert.equal(song.catalogDuration,174);
+  assert.equal(song.duration,191);
+  assert.equal(song.playbackMatch.version,'official-video-fallback');
+  for(const wrong of [
+    {...candidate,channel:'Kento Nakajima Fan'},
+    {...candidate,channel:'Another Artist Official YouTube Channel'},
+    {...candidate,title:'Kento Nakajima (w/English Subtitles!) IDOLIC [Music Video]'},
+    {...candidate,title:'Kento Nakajima (w/English Subtitles!) XTC (Slowed) [Music Video]'},
+    {...candidate,title:'Kento Nakajima (w/English Subtitles!) XTC (Other DJ Remix) [Music Video]'},
+    {...candidate,duration:270}
+  ])assert.equal(spotifyOfficialMusicVideoFallbackCandidate({title:'Kento Nakajima – XTC',duration:174,source:'spotify'},wrong),false,wrong.title+' / '+wrong.channel);
+});
+
+test('verified credited-artist channel can match exact Adrenalin Remix without guessing other artists',async()=>{
+  const song={id:'spotify:adrenalin-credited-channel-2026',source:'spotify',title:'The Boy The G, MilleniumKid, JBS – Adrenalin - Remix',duration:157};
+  const good={...yt('abcdefghijk','Adrenalin (Remix)',157),channel:'The Boy The G',artist:''};
+  assert.equal(spotifyPlaybackArtistCompatible(song,good),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,good),true);
+  for(const bad of [
+    {...good,channel:'Unknown channel'},
+    {...good,channel:'Release - Topic'},
+    {...good,title:'Adrenalin'},
+    {...good,title:'Adrenalin (Different Producer Remix)'},
+    {...good,title:'Adrenalin (Slowed Remix)'},
+    {...good,title:'Adrenalin (Remix)',duration:161},
+    {...good,title:'Adrenalin (Remix)',artist:'Unknown artist'}
+  ])assert.equal(spotifyPlaybackTitleCompatible(song,bad),false,bad.title+' / '+bad.channel+' / '+bad.duration);
+  await resolveSpotify(song,null,{search:async()=>[good],resolve:async()=>resolved(good.id,158)});
+  assert.equal(song.playbackMatch.version,'audio');
+  assert.equal(song.playbackVideoId,good.id);
+  assert.equal(song.title,'The Boy The G, MilleniumKid, JBS – Adrenalin - Remix');
+});
+
+test('Zensery Rap channel alias requires the entire same title and near-identical catalog duration',async()=>{
+  const song={id:'spotify:zensery-rap-channel',source:'spotify',title:'Zensery – TAG EIN TAG AUS',duration:170};
+  const good={...yt('abcdefghijk','TAG EIN TAG AUS',170),channel:'Zensery Rap',artist:''};
+  assert.equal(spotifyPlaybackTitleCompatible(song,good),true);
+  for(const bad of [
+    {...good,channel:'Zensery Fan'},
+    {...good,channel:'Zensery Rap Fans'},
+    {...good,title:'TAG EIN TAG AUS (Slowed)'},
+    {...good,title:'TAG EIN TAG AUS - Cover'},
+    {...good,title:'TAG EIN TAG AUS AND MORE'},
+    {...good,duration:176}
+  ])assert.equal(spotifyPlaybackTitleCompatible(song,bad),false,bad.title+' / '+bad.channel);
+  await resolveSpotify(song,null,{search:async()=>[good],resolve:async()=>resolved(good.id,170)});
+  assert.equal(song.title,'Zensery – TAG EIN TAG AUS');
+  assert.equal(song.playbackVideoId,good.id);
+});
+
+test('MORTALTEKK official visualizer on the credited GARIX channel keeps exact version and duration guards',async()=>{
+  const song={id:'spotify:mortaltekk-garix-credit',source:'spotify',title:'ZEVXR, GARIX, TISHKIN – MORTALTEKK',duration:102};
+  const matching={...yt('abcdefghijk','MORTALTEKK | 𝓞𝓯𝓯𝓲𝓬𝓲𝓪𝓵 𝓥𝓲𝓼𝓾𝓪𝓵𝓲𝔃𝓮𝓻',108),channel:'GARIX',artist:''};
+  assert.equal(spotifyPlaybackTitleCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,channel:'Release - Topic'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,channel:'GARIX fan'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,title:'MORTALTEKK (SLOWED) | Official Visualizer'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,title:'MORTALTEKK (Other DJ Remix) | Official Visualizer'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...matching,duration:120}),false);
+  await resolveSpotify(song,null,{search:async()=>[matching],resolve:async()=>resolved(matching.id,108)});
+  assert.equal(song.playbackVideoId,matching.id);
+  assert.equal(song.catalogDuration,102);
+  assert.equal(song.playbackDuration,108);
+});
+
+test('Release - Topic and absent YouTube results do not fabricate ReCombined or GPF playback',async()=>{
+  const combined={title:'ReCombined – Hammer Down',source:'spotify',duration:147};
+  const ambiguous={...yt('abcdefghijk','Hammer Down',140),channel:'Release - Topic',artist:''};
+  assert.equal(spotifyPlaybackTitleCompatible(combined,ambiguous),false);
+  const gpf={id:'spotify:gpf-still-no-search-result',title:'GPF – ALORS ON FUCK',source:'spotify',duration:110};
+  let resolves=0;
+  const error=await resolveSpotify(gpf,null,{search:async()=>[],resolve:async()=>{resolves++;return resolved('abcdefghijk',110)}}).catch(value=>value);
+  assert.ok(error instanceof SpotifyMatchUnavailableError);
+  assert.equal(resolves,0);
+  assert.equal(gpf.playbackVideoId,undefined);
+});
