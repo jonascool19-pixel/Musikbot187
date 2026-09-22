@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {PassThrough} from 'node:stream';
-import {ffmpegPipeArgs} from '../backend/src/player.js';
+import {Player,ffmpegPipeArgs,isYouTubeTokenProviderUnavailable,isYouTubeAudioFormatUnavailable} from '../backend/src/player.js';
 import {playbackYouTubePageUrl,youtubePlaybackPipeArgs} from '../backend/src/media.js';
 import {createYouTubePlaybackPipeline} from '../backend/src/youtube-playback-pipe.js';
+import {classifyYouTubeAudioFailure} from '../backend/src/youtube-access.js';
 
 const fakeAccessGuard=()=>({generation:0,blocked:0,recovered:0,beginRequest(){return this.generation},recoverRequest(){this.recovered++;return true},blockFromError(error){if(/429|not a bot/i.test(String(error?.message||error||''))){this.blocked++;const blocked=new Error('YouTube-Schutzpause');blocked.code='YOUTUBE_ACCESS_BLOCKED';blocked.retryAfterMs=60000;return blocked}return null}});
 
@@ -78,4 +79,95 @@ test('streamed yt-dlp 429 establishes the shared-style access pause for later re
   assert.equal(guard.blocked,1);
   assert.equal(pipeline.playbackError?.code,'YOUTUBE_ACCESS_BLOCKED');
   assert.equal(pipeline.playbackError?.retryAfterMs,60000);
+});
+
+
+test('yt-dlp bgutil transport outage wins over the misleading only-images audio error',()=>{
+  const logs='WARNING: [youtube] [pot:bgutil:http] Error reaching GET https://token.example.invalid/token (caused by TransportError)\nWARNING: Only images are available for download. use --list-formats to see them\nERROR: [youtube] t0l6DFWM1IA: Requested format is not available';
+  const provider=classifyYouTubeAudioFailure(logs);
+  assert.equal(provider?.code,'YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE');
+  assert.equal(isYouTubeTokenProviderUnavailable(provider),true);
+  assert.equal(isYouTubeAudioFormatUnavailable(provider),false);
+  assert.match(provider.message,/bgutil/);
+  assert.doesNotMatch(provider.message,/https?:\/\//);
+  const unavailable=classifyYouTubeAudioFailure('WARNING: Only images are available for download\nERROR: Requested format is not available');
+  assert.equal(unavailable?.code,'YOUTUBE_AUDIO_FORMAT_UNAVAILABLE');
+  assert.equal(isYouTubeAudioFormatUnavailable(unavailable),true);
+  assert.equal(classifyYouTubeAudioFailure('ordinary normal stderr'),null);
+});
+
+test('downloader exposes a classified upstream outage instead of declaring the video itself broken',async()=>{
+  const children=[],guard=fakeAccessGuard();
+  const pipeline=createYouTubePlaybackPipeline({source:'spotify',playbackVideoId:'abcdefghijk'},0,{
+    spawnImpl:command=>{const child=new FakeChild(command);children.push(child);return child},
+    decoderArgs:ffmpegPipeArgs,accessGuard:guard
+  });
+  const closed=new Promise(resolve=>pipeline.once('close',resolve));
+  children[0].stderr.write('WARNING: [youtube] [pot:bgutil:http] Error reaching GET https://token.example.invalid/ (caused by TransportError)\nWARNING: Only images are available for download\nERROR: Requested format is not available\n');
+  children[0].stdout.end();children[0].emit('close',1);children[1].emit('close',1);
+  assert.equal(await closed,1);
+  assert.equal(pipeline.playbackError?.code,'YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE');
+  assert.equal(guard.blocked,0,'PO-token outage is not a YouTube HTTP 429 ban');
+});
+
+test('the playback pipe retries a different yt-dlp client only after a classified provider failure',()=>{
+  const defaultArgs=youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk');
+  const fallbackArgs=youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk','web_embedded');
+  assert.equal(defaultArgs.includes('--extractor-args'),false);
+  assert.deepEqual(fallbackArgs.slice(fallbackArgs.indexOf('--extractor-args'),fallbackArgs.indexOf('--extractor-args')+2),['--extractor-args','youtube:player_client=web_embedded']);
+  assert.equal(youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk','unknown').includes('--extractor-args'),false);
+  const children=[];
+  createYouTubePlaybackPipeline({source:'spotify',playbackVideoId:'abcdefghijk',_youtubePlaybackClient:'web_embedded'},0,{
+    spawnImpl:(command,args)=>{const child=new FakeChild(command);children.push({command,args,child});return child},
+    decoderArgs:ffmpegPipeArgs,accessGuard:fakeAccessGuard()
+  });
+  assert.deepEqual(children[0].args.slice(children[0].args.indexOf('--extractor-args'),children[0].args.indexOf('--extractor-args')+2),['--extractor-args','youtube:player_client=web_embedded']);
+  for(const entry of children)entry.child.kill('SIGKILL');
+});
+
+test('provider failure retains Spotify identity and queue, retries boundedly, and never blacklists the video',()=>{
+  const logs=[],p=new Player({musicDir:'.',diagnostic:(level,source,message)=>logs.push({level,source,message})});
+  const item={id:'spotify:token-outage-test',source:'spotify',title:'GPF – ALORS ON FUCK',catalogDuration:110,duration:110,playbackVideoId:'abcdefghijk',playbackMatch:{id:'abcdefghijk',title:'GPF – ALORS ON FUCK'}};
+  p.current=item;p.queue=[{id:'next-spotify-track',source:'spotify',title:'Nächster Song'}];p.generation=7;
+  const fault=classifyYouTubeAudioFailure('WARNING: [youtube] [pot:bgutil:http] Error reaching GET (caused by TransportError)\nERROR: Requested format is not available');
+  p.finish(7,1,fault,0,item,null);
+  assert.equal(p.current,item);
+  assert.equal(p.reconnecting,true);
+  assert.equal(item.playbackVideoId,'abcdefghijk');
+  assert.equal(item._spotifyRejectedPlaybackIds,undefined);
+  assert.equal(item._youtubePlaybackClient,'web_embedded');
+  assert.equal(p.queue.length,1);
+  assert.ok(logs.some(entry=>/bgutil nicht erreichbar/.test(entry.message)));
+  clearTimeout(p.retryTimer);
+  p.finish(7,1,fault,1,item,null);
+  assert.equal(item._youtubePlaybackClient,'web_safari');
+  assert.equal(item.playbackVideoId,'abcdefghijk');
+  clearTimeout(p.retryTimer);
+  p.next=()=>{};
+  p.finish(7,1,fault,2,item,null);
+  assert.equal(p.reconnecting,false,'provider outage must not retry the same song indefinitely');
+  assert.equal(item.playbackVideoId,'abcdefghijk','upstream outage must not poison Spotify matching cache');
+});
+
+test('only a genuinely no-audio Spotify video is rejected and re-searched, not arbitrary YouTube songs',()=>{
+  const p=new Player({musicDir:'.',diagnostic(){}});
+  const item={id:'spotify:bad-video-test',source:'spotify',title:'ReCombined – Hammer Down',catalogDuration:147,duration:148,playbackVideoId:'abcdefghijk',playbackMatch:{id:'abcdefghijk',title:'ReCombined - Hammer Down'}};
+  p.current=item;p.generation=5;p.queue=[{id:'next-song',source:'spotify',title:'Nächster Titel'}];
+  const failure=classifyYouTubeAudioFailure('WARNING: Only images are available\nERROR: Requested format is not available');
+  p.finish(5,1,failure,0,item,null);
+  assert.equal(p.current,item);
+  assert.equal(p.reconnecting,true);
+  assert.equal(item.playbackVideoId,undefined);
+  assert.deepEqual(item._spotifyRejectedPlaybackIds,['abcdefghijk']);
+  assert.equal(item.duration,147,'the catalog duration is restored before trying another verified source');
+  assert.equal(p.queue.length,1);
+  clearTimeout(p.retryTimer);
+  p.next=()=>{};
+  p.finish(5,1,failure,3,item,null);
+  assert.equal(p.reconnecting,false,'an audio format failure cannot cause unbounded retries');
+  const direct=new Player({musicDir:'.',diagnostic(){}});
+  direct.current={id:'abcdefghijk',title:'YouTube Upload',source:'youtube'};
+  direct.generation=3;direct.next=()=>{};
+  direct.finish(3,1,failure,0,direct.current,null);
+  assert.equal(direct.reconnecting,false,'a manually selected YouTube upload must not be replaced with another song');
 });

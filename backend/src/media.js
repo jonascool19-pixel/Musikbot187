@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import {musicArtist,musicSlowedVersion} from './music-identity.js';
-import {isYouTubeAccessBlocked,sharedYouTubeAccess} from './youtube-access.js';
+import {classifyYouTubeAudioFailure,isYouTubeAccessBlocked,sharedYouTubeAccess} from './youtube-access.js';
 import {spawn} from 'node:child_process';
 import path from 'node:path';
 import {assertSafeExternalUrl,safeMusicPath,safeMusicRelativePath} from './security.js';
@@ -34,10 +34,11 @@ export function playbackYouTubePageUrl(item){
   if(item?.source==='spotify')return canonicalYouTubeVideoUrl(item.playbackVideoId||item.playbackMatch?.id);
   return '';
 }
-export function youtubePlaybackPipeArgs(url){
+export function youtubePlaybackPipeArgs(url,client=''){
   const page=canonicalYouTubeVideoUrl('',url);
   if(!page)throw new Error('Für die YouTube-Wiedergabe fehlt eine gültige Video-ID.');
-  return [...youtubeRuntimeArgs,'--no-playlist','--force-ipv4','--no-progress','--retries','3','--fragment-retries','3','--retry-sleep','http:0.25','--retry-sleep','fragment:0.25','--abort-on-unavailable-fragments','-f',bestAudioFormat,'-o','-',page];
+  const clientArgs=['web_embedded','web_safari'].includes(client)?['--extractor-args','youtube:player_client='+client]:[];
+  return [...youtubeRuntimeArgs,'--no-playlist','--force-ipv4','--no-progress','--retries','3','--fragment-retries','3','--retry-sleep','http:0.25','--retry-sleep','fragment:0.25','--abort-on-unavailable-fragments',...clientArgs,'-f',bestAudioFormat,'-o','-',page];
 }
 export function youtubeSearchArtist(entry){return musicArtist(entry);}
 async function youtubeSearchData(query,limit,timeout,signal){const deadline=Date.now()+Math.max(1000,Number(timeout)||30_000),failures=[];for(const strategy of youtubeSearchStrategies){const remaining=deadline-Date.now();if(remaining<=0)break;try{const raw=await run('yt-dlp',[...youtubeRuntimeArgs,'--dump-single-json','--flat-playlist','--playlist-end',String(limit),'--force-ipv4',...strategy,youtubeSearchUrl(query)],{timeout:Math.min(youtubeAttemptTimeoutMs,remaining),signal});return JSON.parse(raw)}catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;failures.push(error.message)}}throw new Error(`YouTube-Suche konnte nicht abgeschlossen werden. ${failures.at(-1)||'Zeitüberschreitung'}`);}
@@ -78,7 +79,7 @@ export function parseResolvedYouTubeOutput(raw){const line=String(raw||'').split
 export function spotifyPlaybackDurationToleranceSeconds(duration){const target=Math.max(0,Number(duration)||0);return target?Math.max(8,Math.min(20,target*0.08)):0;}
 export function spotifyPlaybackDurationCompatible(catalogDuration,playbackDuration){const target=Math.max(0,Number(catalogDuration)||0),actual=Math.max(0,Number(playbackDuration)||0);if(!target||!actual)return true;return Math.abs(target-actual)<=spotifyPlaybackDurationToleranceSeconds(target);}
 function applyResolvedPlayback(item,resolved){if(!item||!resolved)return;const original=Math.max(0,Number(item.catalogDuration??item.duration)||0);if(item.catalogDuration==null&&original>0)item.catalogDuration=original;const duration=Math.max(0,Number(resolved.duration)||0);item.playbackDuration=duration;item.playbackProtocol=String(resolved.protocol||'');item.playbackVideoId=String(resolved.id||'');item.duration=duration;}
-async function resolveYoutube(q,signal,{deadline=Date.now()+youtubeResolveTimeoutMs}={}){const failures=[];for(const strategy of youtubeClientStrategies){const remaining=deadline-Date.now();if(remaining<=0)break;try{const out=await run('yt-dlp',[...youtubeRuntimeArgs,'--no-playlist','--print',youtubePlaybackPrintTemplate,'-f',bestAudioFormat,'--force-ipv4',...strategy,q],{signal,timeout:Math.min(youtubeAttemptTimeoutMs,remaining)}),resolved=parseResolvedYouTubeOutput(out);await assertSafeExternalUrl(resolved.url);return resolved;}catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;failures.push(error.message);if(isPermanentYouTubeResolutionError(error))break;}}throw new Error(`YouTube-Audio konnte mit keiner Clientvariante aufgelöst werden. ${failures.at(-1)||''}`.trim());}
+async function resolveYoutube(q,signal,{deadline=Date.now()+youtubeResolveTimeoutMs}={}){const failures=[];let providerFailure=null;for(const strategy of youtubeClientStrategies){const remaining=deadline-Date.now();if(remaining<=0)break;try{const out=await run('yt-dlp',[...youtubeRuntimeArgs,'--no-playlist','--print',youtubePlaybackPrintTemplate,'-f',bestAudioFormat,'--force-ipv4',...strategy,q],{signal,timeout:Math.min(youtubeAttemptTimeoutMs,remaining)}),resolved=parseResolvedYouTubeOutput(out);await assertSafeExternalUrl(resolved.url);return resolved;}catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;const outage=classifyYouTubeAudioFailure(error?.message);if(outage?.code==='YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE')providerFailure=outage;failures.push(error.message);if(isPermanentYouTubeResolutionError(error))break;}}if(providerFailure)throw providerFailure;throw new Error(`YouTube-Audio konnte mit keiner Clientvariante aufgelöst werden. ${failures.at(-1)||''}`.trim());}
 const spotifyPlaybackCacheKey=item=>String(item?.id||item?.title||'').trim().toLocaleLowerCase('de-DE');
 const spotifyRejectedPlaybackIds=item=>new Set((Array.isArray(item?._spotifyRejectedPlaybackIds)?item._spotifyRejectedPlaybackIds:[]).map(String).filter(id=>youtubeVideoIdPattern.test(id)));
 export function rejectSpotifyPlaybackMatch(item){
@@ -378,7 +379,7 @@ export function spotifyPlaybackSearchQueries(item){
   const full=String(item?.title||'').trim().slice(0,180),song=spotifySongPart(item).slice(0,180),artist=spotifyArtistCredit(item).slice(0,140),artistNames=spotifyArtistNames(artist),primaryArtist=artistNames[0]||'';
   const remix=spotifyNamedRemix(song),edit=spotifyNamedEdit(song),baseSong=(remix?.base||edit?.base||song).trim();
   const finalWord=song.match(/([\p{L}]{6,}s)$/iu)?.[1]||'',alternateSong=finalWord?song.slice(0,-finalWord.length)+finalWord+'e':'';
-  const multipleArtists=artistNames.length>1?artistNames.join(' '):'';
+  const multipleArtists=artistNames.length>1?artistNames.join(' '):'',censoredSong=/\bfuck\b/iu.test(song)?song.replace(/\bfuck\b/giu,'F*CK'):'';
   // Prioritize the album/Topic audio recording, not longer official music
   // videos. Artist + exact song stay in EVERY query, even later fallbacks.
   // The search merely proposes candidates; artist, version and verified
@@ -387,6 +388,8 @@ export function spotifyPlaybackSearchQueries(item){
     multipleArtists&&song?multipleArtists+' "'+song+'" audio':'',
     primaryArtist&&song?primaryArtist+' "'+song+'" official audio':'',
     primaryArtist&&song?primaryArtist+' "'+song+'" topic audio':'',
+    // YouTube sometimes indexes a censored upload instead of Spotify's explicit title.
+    primaryArtist&&censoredSong?primaryArtist+' "'+censoredSong+'" audio':'',
     remix&&primaryArtist?primaryArtist+' "'+remix.base+'" '+remix.names.join(' ')+' remix audio':'',
     edit&&primaryArtist?primaryArtist+' "'+edit.base+'" '+edit.editor+' edit audio':'',
     primaryArtist&&baseSong?primaryArtist+' "'+baseSong+'" provided to youtube audio':'',
@@ -471,7 +474,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
     spotifyPlaybackTitleCompatible(item,cached)&&
     (!cachedFallback||spotifyOfficialMusicVideoFallbackCandidate(item,cached))){
     try{const resolved=await resolve(canonicalYouTubeVideoUrl(cached.id),signal,{deadline});return apply(resolved,cached,{officialVideoFallback:cachedFallback})}
-    catch(error){spotifyPlaybackCache.delete(cacheKey);if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;record(resolveFailureReason(error),cached);if(!/unpassende Länge/i.test(error.message)&&!isPermanentYouTubeResolutionError(error))throw error}
+    catch(error){spotifyPlaybackCache.delete(cacheKey);if(error.name==='AbortError'||isYouTubeAccessBlocked(error)||error?.code==='YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE')throw error;record(resolveFailureReason(error),cached);if(!/unpassende Länge/i.test(error.message)&&!isPermanentYouTubeResolutionError(error))throw error}
   }
   const checked=new Set(),seen=new Set(),fallbackCandidates=[],queries=spotifyPlaybackSearchQueries(item);let resolvedCount=0,successfulSearches=0,searchFailure=null;
   for(const query of queries){
@@ -507,7 +510,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
       if(!url||checked.has(selected.id))continue;
       checked.add(selected.id);resolvedCount++;
       try{const resolved=await resolve(url,signal,{deadline});return apply(resolved,selected)}
-      catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error;record(resolveFailureReason(error),selected)}
+      catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error)||error?.code==='YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE')throw error;searchFailure=error;record(resolveFailureReason(error),selected)}
     }
   }
   // Consider the longer original video only after all viable audio releases.
@@ -520,7 +523,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
       const resolved=await resolve(url,signal,{deadline});
       return apply(resolved,selected,{officialVideoFallback:true});
     }catch(error){
-      if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;
+      if(error.name==='AbortError'||isYouTubeAccessBlocked(error)||error?.code==='YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE')throw error;
       searchFailure=error;record(resolveFailureReason(error),selected);
     }
   }

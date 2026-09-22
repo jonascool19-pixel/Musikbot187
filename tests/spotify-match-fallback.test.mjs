@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Player} from '../backend/src/player.js';
-import {rankSpotifyPlaybackCandidates,resolveSpotify,SpotifyMatchUnavailableError,spotifyMatchResolveLimit,spotifyPlaybackArtistCompatible,spotifyPlaybackMatchRejection,spotifyPlaybackSearchQueries,spotifyPlaybackTitleCompatible,spotifyOfficialMusicVideoFallbackCandidate,spotifyPlaybackWordEquivalent} from '../backend/src/media.js';
+import {rejectSpotifyPlaybackMatch,rankSpotifyPlaybackCandidates,resolveSpotify,SpotifyMatchUnavailableError,spotifyMatchResolveLimit,spotifyPlaybackArtistCompatible,spotifyPlaybackMatchRejection,spotifyPlaybackSearchQueries,spotifyPlaybackTitleCompatible,spotifyOfficialMusicVideoFallbackCandidate,spotifyPlaybackWordEquivalent} from '../backend/src/media.js';
 
 const yt=(id,title,duration)=>({id,title,duration,url:`https://www.youtube.com/watch?v=${id}`});
 const resolved=(id,duration)=>({id,duration,protocol:'https',url:`https://example.test/audio/${id}`});
@@ -625,4 +625,37 @@ test('Release - Topic and absent YouTube results do not fabricate ReCombined or 
   assert.ok(error instanceof SpotifyMatchUnavailableError);
   assert.equal(resolves,0);
   assert.equal(gpf.playbackVideoId,undefined);
+});
+
+test('Spotify re-search skips the unavailable audio video ID and only selects another fully verified version of the same title',async()=>{
+  const song={id:'spotify:recombined-audio-recovery',source:'spotify',title:'ReCombined – Hammer Down',duration:147};
+  const first={...yt('abcdefghijk','ReCombined - Hammer Down (Official Audio)',147),channel:'ReCombined'};
+  const second={...yt('lmnopqrstuv','Hammer Down',147),channel:'ReCombined - Topic'};
+  const resolvedIds=[],search=async()=>[first,second],resolve=async url=>{
+    const id=new URL(url).searchParams.get('v');resolvedIds.push(id);return resolved(id,147);
+  };
+  await resolveSpotify(song,null,{search,resolve});
+  assert.equal(song.playbackVideoId,first.id);
+  assert.equal(rejectSpotifyPlaybackMatch(song),true);
+  assert.equal(song.playbackVideoId,undefined);
+  assert.equal(song.title,'ReCombined – Hammer Down');
+  await resolveSpotify(song,null,{search,resolve});
+  assert.deepEqual(resolvedIds,[first.id,second.id]);
+  assert.equal(song.playbackVideoId,second.id);
+  assert.equal(song.playbackMatch.title,second.title);
+  assert.equal(song.catalogDuration,147);
+});
+
+test('GPF search includes artist-bound censored profanity without accepting a random video',async()=>{
+  const song={id:'spotify:gpf-censored-query',source:'spotify',title:'GPF – ALORS ON FUCK',duration:110};
+  const queries=spotifyPlaybackSearchQueries(song);
+  assert.ok(queries.some(query=>query.includes('GPF')&&query.includes('ALORS ON FUCK')));
+  assert.ok(queries.some(query=>query.includes('GPF')&&query.includes('ALORS ON F*CK')));
+  assert.ok(queries.every(query=>query.includes('GPF')),'all attempted queries stay tied to the Spotify artist');
+  const unrelated=yt('abcdefghijk','ALORS ON F*CK (Other DJ Remix)',110);
+  unrelated.channel='Unrelated uploader';
+  assert.equal(spotifyPlaybackTitleCompatible(song,unrelated),false);
+  const error=await resolveSpotify(song,null,{search:async()=>[],resolve:async()=>{assert.fail('No relevant source may be resolved')}}).catch(value=>value);
+  assert.ok(error instanceof SpotifyMatchUnavailableError,'no actual YouTube results must remain a bounded skip');
+  assert.equal(song.playbackVideoId,undefined);
 });
