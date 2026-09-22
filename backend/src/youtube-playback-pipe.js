@@ -9,7 +9,7 @@ export function createYouTubePlaybackPipeline(item,resumeSeconds,{spawnImpl=chil
   const accessGeneration=accessGuard.beginRequest();
   const pageUrl=playbackYouTubePageUrl(item);
   if(!pageUrl)throw new Error('Für den Online-Titel fehlt eine gültige YouTube-Video-ID.');
-  const downloader=spawnImpl('yt-dlp',youtubePlaybackPipeArgs(pageUrl),{windowsHide:true,stdio:['ignore','pipe','pipe']});
+  const downloader=spawnImpl('yt-dlp',youtubePlaybackPipeArgs(pageUrl,item?._youtubePlaybackClient),{windowsHide:true,stdio:['ignore','pipe','pipe']});
   const decoder=spawnImpl('ffmpeg',decoderArgs(resumeSeconds),{windowsHide:true,stdio:['pipe','pipe','pipe']});
   const pipeline=new EventEmitter(),stderr=new PassThrough();
   pipeline.stdout=decoder.stdout;
