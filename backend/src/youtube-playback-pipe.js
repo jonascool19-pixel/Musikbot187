@@ -4,6 +4,21 @@ import {PassThrough} from 'node:stream';
 import {playbackYouTubePageUrl,youtubePlaybackPipeArgs} from './media.js';
 import {sharedYouTubeAccess} from './youtube-access.js';
 
+export function classifyYouTubeAudioFailure(stderr){
+  const detail=String(stderr||'');
+  // The same yt-dlp failure can contain both the PO-token transport error and
+  // a follow-up "only images" / "requested format" message. Treat the
+  // upstream provider outage first: the video itself is not proven defective.
+  if(/pot:bgutil|po[- ]?token.*(?:provider|service)/i.test(detail)&&
+    /(?:error reaching|transporterror|connection (?:refused|failed)|unreachable|timed?\s*out|econnrefused)/i.test(detail)){
+    return Object.assign(new Error('YouTube-PO-Token-Dienst bgutil ist nicht erreichbar; Audiostream konnte nicht geladen werden. Bitte Erreichbarkeit, Netzwerk und Dienstkonfiguration prüfen.'),{code:'YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE'});
+  }
+  if(/(?:only images are available|requested format is not available|no video formats found|no audio formats found)/i.test(detail)){
+    return Object.assign(new Error('Die ausgewählte YouTube-Quelle stellt kein nutzbares Audioformat bereit.'),{code:'YOUTUBE_AUDIO_FORMAT_UNAVAILABLE'});
+  }
+  return null;
+}
+
 export function createYouTubePlaybackPipeline(item,resumeSeconds,{spawnImpl=childProcess.spawn,decoderArgs,accessGuard=sharedYouTubeAccess}={}){
   if(typeof decoderArgs!=='function')throw new TypeError('decoderArgs muss eine Funktion sein.');
   const accessGeneration=accessGuard.beginRequest();
@@ -34,7 +49,7 @@ export function createYouTubePlaybackPipeline(item,resumeSeconds,{spawnImpl=chil
   const fail=error=>{if(!closed)pipeline.emit('error',error)};
   downloader.on?.('error',error=>{fail(error);decoder.kill?.('SIGKILL')});
   decoder.on?.('error',error=>{fail(error);downloader.kill?.('SIGKILL')});
-  downloader.on?.('close',code=>{downloaderClosed=true;downloaderCode=code;if(code===0)accessGuard.recoverRequest(accessGeneration);else if(code!==null){const blocked=accessGuard.blockFromError(new Error(downloaderErrors));if(blocked)pipeline.playbackError=blocked}emitClose()});
+  downloader.on?.('close',code=>{downloaderClosed=true;downloaderCode=code;if(code===0)accessGuard.recoverRequest(accessGeneration);else if(code!==null){const blocked=accessGuard.blockFromError(new Error(downloaderErrors));if(blocked)pipeline.playbackError=blocked;else pipeline.playbackError=classifyYouTubeAudioFailure(downloaderErrors)||undefined}emitClose()});
   decoder.on?.('close',code=>{decoderClosed=true;decoderCode=code;if(Number(code)!==0&&!downloaderClosed)downloader.kill?.('SIGKILL');emitClose()});
 
   pipeline.kill=(signal='SIGTERM')=>{
