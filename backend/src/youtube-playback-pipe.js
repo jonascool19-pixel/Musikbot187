@@ -2,22 +2,7 @@ import childProcess from 'node:child_process';
 import {EventEmitter} from 'node:events';
 import {PassThrough} from 'node:stream';
 import {playbackYouTubePageUrl,youtubePlaybackPipeArgs} from './media.js';
-import {sharedYouTubeAccess} from './youtube-access.js';
-
-export function classifyYouTubeAudioFailure(stderr){
-  const detail=String(stderr||'');
-  // The same yt-dlp failure can contain both the PO-token transport error and
-  // a follow-up "only images" / "requested format" message. Treat the
-  // upstream provider outage first: the video itself is not proven defective.
-  if(/pot:bgutil|po[- ]?token.*(?:provider|service)/i.test(detail)&&
-    /(?:error reaching|transporterror|connection (?:refused|failed)|unreachable|timed?\s*out|econnrefused)/i.test(detail)){
-    return Object.assign(new Error('YouTube-PO-Token-Dienst bgutil ist nicht erreichbar; Audiostream konnte nicht geladen werden. Bitte Erreichbarkeit, Netzwerk und Dienstkonfiguration prüfen.'),{code:'YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE'});
-  }
-  if(/(?:only images are available|requested format is not available|no video formats found|no audio formats found)/i.test(detail)){
-    return Object.assign(new Error('Die ausgewählte YouTube-Quelle stellt kein nutzbares Audioformat bereit.'),{code:'YOUTUBE_AUDIO_FORMAT_UNAVAILABLE'});
-  }
-  return null;
-}
+import {sharedYouTubeAccess,classifyYouTubeAudioFailure} from './youtube-access.js';
 
 export function createYouTubePlaybackPipeline(item,resumeSeconds,{spawnImpl=childProcess.spawn,decoderArgs,accessGuard=sharedYouTubeAccess}={}){
   if(typeof decoderArgs!=='function')throw new TypeError('decoderArgs muss eine Funktion sein.');
