@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import {musicArtist,musicSlowedVersion} from './music-identity.js';
-import {isYouTubeAccessBlocked,sharedYouTubeAccess} from './youtube-access.js';
+import {classifyYouTubeAudioFailure,isYouTubeAccessBlocked,sharedYouTubeAccess} from './youtube-access.js';
 import {spawn} from 'node:child_process';
 import path from 'node:path';
 import {assertSafeExternalUrl,safeMusicPath,safeMusicRelativePath} from './security.js';
@@ -78,7 +78,7 @@ export function parseResolvedYouTubeOutput(raw){const line=String(raw||'').split
 export function spotifyPlaybackDurationToleranceSeconds(duration){const target=Math.max(0,Number(duration)||0);return target?Math.max(8,Math.min(20,target*0.08)):0;}
 export function spotifyPlaybackDurationCompatible(catalogDuration,playbackDuration){const target=Math.max(0,Number(catalogDuration)||0),actual=Math.max(0,Number(playbackDuration)||0);if(!target||!actual)return true;return Math.abs(target-actual)<=spotifyPlaybackDurationToleranceSeconds(target);}
 function applyResolvedPlayback(item,resolved){if(!item||!resolved)return;const original=Math.max(0,Number(item.catalogDuration??item.duration)||0);if(item.catalogDuration==null&&original>0)item.catalogDuration=original;const duration=Math.max(0,Number(resolved.duration)||0);item.playbackDuration=duration;item.playbackProtocol=String(resolved.protocol||'');item.playbackVideoId=String(resolved.id||'');item.duration=duration;}
-async function resolveYoutube(q,signal,{deadline=Date.now()+youtubeResolveTimeoutMs}={}){const failures=[];for(const strategy of youtubeClientStrategies){const remaining=deadline-Date.now();if(remaining<=0)break;try{const out=await run('yt-dlp',[...youtubeRuntimeArgs,'--no-playlist','--print',youtubePlaybackPrintTemplate,'-f',bestAudioFormat,'--force-ipv4',...strategy,q],{signal,timeout:Math.min(youtubeAttemptTimeoutMs,remaining)}),resolved=parseResolvedYouTubeOutput(out);await assertSafeExternalUrl(resolved.url);return resolved;}catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;failures.push(error.message);if(isPermanentYouTubeResolutionError(error))break;}}throw new Error(`YouTube-Audio konnte mit keiner Clientvariante aufgelöst werden. ${failures.at(-1)||''}`.trim());}
+async function resolveYoutube(q,signal,{deadline=Date.now()+youtubeResolveTimeoutMs}={}){const failures=[];for(const strategy of youtubeClientStrategies){const remaining=deadline-Date.now();if(remaining<=0)break;try{const out=await run('yt-dlp',[...youtubeRuntimeArgs,'--no-playlist','--print',youtubePlaybackPrintTemplate,'-f',bestAudioFormat,'--force-ipv4',...strategy,q],{signal,timeout:Math.min(youtubeAttemptTimeoutMs,remaining)}),resolved=parseResolvedYouTubeOutput(out);await assertSafeExternalUrl(resolved.url);return resolved;}catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;const outage=classifyYouTubeAudioFailure(error?.message);if(outage?.code==='YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE')throw outage;failures.push(error.message);if(isPermanentYouTubeResolutionError(error))break;}}throw new Error(`YouTube-Audio konnte mit keiner Clientvariante aufgelöst werden. ${failures.at(-1)||''}`.trim());}
 const spotifyPlaybackCacheKey=item=>String(item?.id||item?.title||'').trim().toLocaleLowerCase('de-DE');
 const spotifyRejectedPlaybackIds=item=>new Set((Array.isArray(item?._spotifyRejectedPlaybackIds)?item._spotifyRejectedPlaybackIds:[]).map(String).filter(id=>youtubeVideoIdPattern.test(id)));
 export function rejectSpotifyPlaybackMatch(item){
@@ -471,7 +471,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
     spotifyPlaybackTitleCompatible(item,cached)&&
     (!cachedFallback||spotifyOfficialMusicVideoFallbackCandidate(item,cached))){
     try{const resolved=await resolve(canonicalYouTubeVideoUrl(cached.id),signal,{deadline});return apply(resolved,cached,{officialVideoFallback:cachedFallback})}
-    catch(error){spotifyPlaybackCache.delete(cacheKey);if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;record(resolveFailureReason(error),cached);if(!/unpassende Länge/i.test(error.message)&&!isPermanentYouTubeResolutionError(error))throw error}
+    catch(error){spotifyPlaybackCache.delete(cacheKey);if(error.name==='AbortError'||isYouTubeAccessBlocked(error)||error?.code==='YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE')throw error;record(resolveFailureReason(error),cached);if(!/unpassende Länge/i.test(error.message)&&!isPermanentYouTubeResolutionError(error))throw error}
   }
   const checked=new Set(),seen=new Set(),fallbackCandidates=[],queries=spotifyPlaybackSearchQueries(item);let resolvedCount=0,successfulSearches=0,searchFailure=null;
   for(const query of queries){
@@ -507,7 +507,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
       if(!url||checked.has(selected.id))continue;
       checked.add(selected.id);resolvedCount++;
       try{const resolved=await resolve(url,signal,{deadline});return apply(resolved,selected)}
-      catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error;record(resolveFailureReason(error),selected)}
+      catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error)||error?.code==='YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE')throw error;searchFailure=error;record(resolveFailureReason(error),selected)}
     }
   }
   // Consider the longer original video only after all viable audio releases.
@@ -520,7 +520,7 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
       const resolved=await resolve(url,signal,{deadline});
       return apply(resolved,selected,{officialVideoFallback:true});
     }catch(error){
-      if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;
+      if(error.name==='AbortError'||isYouTubeAccessBlocked(error)||error?.code==='YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE')throw error;
       searchFailure=error;record(resolveFailureReason(error),selected);
     }
   }
