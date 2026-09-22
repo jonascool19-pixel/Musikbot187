@@ -379,7 +379,7 @@ export function spotifyPlaybackSearchQueries(item){
   const full=String(item?.title||'').trim().slice(0,180),song=spotifySongPart(item).slice(0,180),artist=spotifyArtistCredit(item).slice(0,140),artistNames=spotifyArtistNames(artist),primaryArtist=artistNames[0]||'';
   const remix=spotifyNamedRemix(song),edit=spotifyNamedEdit(song),baseSong=(remix?.base||edit?.base||song).trim();
   const finalWord=song.match(/([\p{L}]{6,}s)$/iu)?.[1]||'',alternateSong=finalWord?song.slice(0,-finalWord.length)+finalWord+'e':'';
-  const multipleArtists=artistNames.length>1?artistNames.join(' '):'';
+  const multipleArtists=artistNames.length>1?artistNames.join(' '):'',censoredSong=/\bfuck\b/iu.test(song)?song.replace(/\bfuck\b/giu,'F*CK'):'';
   // Prioritize the album/Topic audio recording, not longer official music
   // videos. Artist + exact song stay in EVERY query, even later fallbacks.
   // The search merely proposes candidates; artist, version and verified
@@ -388,6 +388,8 @@ export function spotifyPlaybackSearchQueries(item){
     multipleArtists&&song?multipleArtists+' "'+song+'" audio':'',
     primaryArtist&&song?primaryArtist+' "'+song+'" official audio':'',
     primaryArtist&&song?primaryArtist+' "'+song+'" topic audio':'',
+    // YouTube sometimes indexes a censored upload instead of Spotify's explicit title.
+    primaryArtist&&censoredSong?primaryArtist+' "'+censoredSong+'" audio':'',
     remix&&primaryArtist?primaryArtist+' "'+remix.base+'" '+remix.names.join(' ')+' remix audio':'',
     edit&&primaryArtist?primaryArtist+' "'+edit.base+'" '+edit.editor+' edit audio':'',
     primaryArtist&&baseSong?primaryArtist+' "'+baseSong+'" provided to youtube audio':'',
