@@ -1,3 +1,17 @@
+export function classifyYouTubeAudioFailure(stderr){
+  const detail=String(stderr||'');
+  // PO-token transport errors can be followed by "only images" errors.
+  // A service outage does not prove that this video has no audio.
+  if(/pot:bgutil|po[- ]?token.*(?:provider|service)/i.test(detail)&&
+    /(?:error reaching|transporterror|connection (?:refused|failed)|unreachable|timed?\s*out|econnrefused)/i.test(detail)){
+    return Object.assign(new Error('YouTube-PO-Token-Dienst bgutil ist nicht erreichbar; Audiostream konnte nicht geladen werden. Bitte Erreichbarkeit, Netzwerk und Dienstkonfiguration prüfen.'),{code:'YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE'});
+  }
+  if(/(?:only images are available|requested format is not available|no video formats found|no audio formats found)/i.test(detail)){
+    return Object.assign(new Error('Die ausgewählte YouTube-Quelle stellt kein nutzbares Audioformat bereit.'),{code:'YOUTUBE_AUDIO_FORMAT_UNAVAILABLE'});
+  }
+  return null;
+}
+
 export const youtubeAccessPauseMs=60_000;
 export const youtubeAccessMaxPauseMs=10*60_000;
 export function isYouTubeAccessBlocked(error){
