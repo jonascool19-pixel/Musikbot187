@@ -17,8 +17,6 @@ CI/Backendtests ausführen; bei grüner CI PR erstellen. Danach Live-Logs auf we
 ## Verification
 Implementierung und Regressionstests auf Branch `fix/youtube-agegate-and-access-recovery-1-8-37` ergänzt; CI noch ausstehend.
 
-## Verification
-
 Release 1.8.11: npm ci, npm audit, 185 Backendtests, Player-Performance-/native-Opus-Smoke-Test, First-Run-Test, Installer-Syntax und Dashboard-Browsertest in GitHub Actions erfolgreich. Noch keine Live-Prüfung des Crossfades auf dem Benutzer-Server.
 
 ## Safety note
