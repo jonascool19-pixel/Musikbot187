@@ -1,5 +1,12 @@
 # 📦 Änderungen
 
+## 1.8.38 · Spotify-YouTube-Künstlerabgleich
+
+- **Zusätzliche Co-Künstler erlaubt:** Ein YouTube-Titel darf mehr Künstler nennen als Spotify, solange alle im Spotify-Titel geforderten Künstler im expliziten YouTube-Künstlerblock vorkommen.
+- **Strenge Versionsprüfung bleibt:** Remix, Edit, Slowed, Mashup, Bootleg, Blend, Medley sowie offensichtliche „x …“-Mashups werden weiterhin getrennt erkannt und abgelehnt.
+- **Movin' To The Sun:** Der gültige YouTube-Treffer mit HUGEL, Ultra Naté und Imael Angel bei rund 142–143 Sekunden wird nicht mehr als falscher Künstler verworfen.
+- **Geprüft:** 272 Tests sowie First-Run, Performance/Opus und Browser-CI erfolgreich.
+
 ## 1.8.37 · YouTube-Altersgate, Schutzpausen und schonendere Auflösung
 
 - **Altersbeschränkte Quellen sauber erkennen:** „Sign in to confirm your age“ wird nicht mehr als allgemeiner Bot-/429-Fehler behandelt. Bei Spotify wird die betroffene YouTube-Quelle als **altersbeschränkt** diagnostiziert und der nächste bereits gefundene, unabhängig verifizierte Kandidat geprüft. Es wird kein fremder Titel als Ersatz akzeptiert.
