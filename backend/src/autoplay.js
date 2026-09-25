@@ -379,14 +379,23 @@ export class AutoplayController{
 
   async blockProfileTrack(key){const value=String(key||''),track=this.profile.tracks.find(entry=>entry.key===value);if(!track)throw new Error('Der gelernte Titel wurde nicht gefunden.');const detected=normalizeAutoplayStyles(track.styles),title=String(track.title||'').trim(),artist=title.split(/\s+[–—-]\s+/)[0]?.trim(),fallback=normalizeStyleValue(artist&&artist.length>=2?artist:title);const added=detected.length?detected:fallback?[fallback]:[];if(!added.length)throw new Error('Für diesen Titel konnte kein Sperrbegriff ermittelt werden.');const profile=await this.updateProfileStyles({preferredStyles:this.profile.preferredStyles,preferredArtists:this.profile.preferredArtists,blockedStyles:[...this.profile.blockedStyles,...added]});return {profile,added:added.filter(style=>profile.blockedStyles.some(value=>comparable(value)===comparable(style)))};}
 
-  async resetProfile(){
+  async resetProfile({full=false}={}){
     this.profile.tracks=[];
     this.profile.recentAutoplay=[];
+    if(full){
+      this.profile.preferredStyles=[];
+      this.profile.preferredArtists=[];
+      this.profile.blockedStyles=[];
+      this.profile.excludedTracks=[];
+      this.profile.excludedPlaylistIds=[];
+    }
     this.recommendationBuffer=[];
     this.recentKeys=[];
     this.recentFamilies=[];
     this.mixCounter=0;
+    this.resetRecommendationSelection({preserveQueue:true});
     await this.save();
+    if(this.settings.autoplayEnabled)this.schedule();
     return this.profileSummary();
   }
 
