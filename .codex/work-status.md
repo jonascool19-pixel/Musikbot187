@@ -1,20 +1,18 @@
 # Codex work status
 
-Last updated: 2026-09-11T21:21:49.000Z
-Status: published
-Base: GitHub main 2e42118; Version 1.8.11
+Last updated: 2026-09-25T22:47:00.000Z
+Status: in progress
+Base: GitHub main b12b939; Version 1.8.36
 
 ## Currently working on
-
-Version 1.8.11 ist über den normalen Dashboard-Updatepfad veröffentlicht. Der Player besitzt einen gepufferten zweiten Audio-Deck für sanfte Equal-Power-Crossfades und einen kurzen Übergang bei Skip/Play-now.
+Version 1.8.37: YouTube-Altersbeschränkung, moderne yt-dlp-Clientstrategie und Schutzpausen-Recovery anhand der Produktionslogs vom 23.–25.09.2026.
 
 ## Last completed
 
 PR #32 wurde nach vollständig erfolgreicher GitHub-CI in main gemergt. `backend/package.json` steht auf 1.8.11, sodass bestehende 1.8.10-Installationen die neue Version über **System → Update** erkennen. Die Update-Regressionstests prüfen zusätzlich, dass 1.8.10 < 1.8.11 und ein bereits aktueller 1.8.11-Server kein Phantom-Update erhält.
 
 ## Next
-
-Das echte Bot-Update auf dem Benutzer-Server über **System → Update** ausführen. Anschließend Crossfade im Discord-Livebetrieb hören und die 403-Wiederaufnahme weiter beobachten.
+Altersbeschränkte Quellen als konkrete Quelle ablehnen statt Client-Schleifen; bei Spotify sauber mit dem nächsten verifizierten Treffer fortfahren; YouTube-Schutzpausen nicht durch denselben Titel endlos festhalten; Regressionstests und CI ausführen.
 
 ## Verification
 
