@@ -1,6 +1,6 @@
 # Codex work status
 
-Last updated: 2026-09-25T23:35:00.000Z
+Last updated: 2026-09-25T23:55:00.000Z
 Status: in progress
 Base: GitHub main b12b939; Version 1.8.36
 
@@ -15,7 +15,7 @@ PR #32 wurde nach vollständig erfolgreicher GitHub-CI in main gemergt. `backend
 CI/Backendtests ausführen; bei grüner CI PR erstellen. Danach Live-Logs auf weniger Schutzpausen, saubere Altersgate-Diagnosen und weiterhin korrekte Spotify-Titel-/Künstlerauswahl prüfen.
 
 ## Verification
-Implementierung und Regressionstests auf Branch `fix/youtube-agegate-and-access-recovery-1-8-37` ergänzt; CI-Lauf 36188378535 schlug zunächst wegen erwarteter Versions-/Testfixtures fehl; die betroffenen Assertions wurden auf v1.8.37 bzw. den neuen YouTube-Client-/Pacing-Vertrag aktualisiert. Neuer CI-Lauf ausstehend.
+Implementierung und Regressionstests auf Branch `fix/youtube-agegate-and-access-recovery-1-8-37` ergänzt; CI-Lauf 36188378535 schlug zunächst wegen erwarteter Versions-/Testfixtures fehl; die betroffenen Assertions wurden auf v1.8.37 bzw. den neuen YouTube-Client-/Pacing-Vertrag aktualisiert. Zweiter CI-Lauf 36188614884 schlug nur noch bei zwei alten Testverträgen fehl; API-Update-Fixture und Security-Assertion wurden korrigiert. Dritter CI-Lauf ausstehend.
 
 Release 1.8.11: npm ci, npm audit, 185 Backendtests, Player-Performance-/native-Opus-Smoke-Test, First-Run-Test, Installer-Syntax und Dashboard-Browsertest in GitHub Actions erfolgreich. Noch keine Live-Prüfung des Crossfades auf dem Benutzer-Server.
 
