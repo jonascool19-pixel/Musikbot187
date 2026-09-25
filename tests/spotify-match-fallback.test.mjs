@@ -146,6 +146,17 @@ test('A credited Topic-channel video keeps its artist evidence when cached for l
 
 const namedRemixTrack=()=>({id:'spotify:brief-an-die-zukunft-named-remix',source:'spotify',title:'Shirukid, Cy_He, NoCheats – brief an die zukunft - Cy_He, NoCheats Remix',duration:202});
 
+test('Spotify accepts a fuller YouTube collaboration credit with extra co-artist',()=>{
+  const song={id:'spotify:hugel-movin-sun-extra-collaborator',source:'spotify',title:'HUGEL, Ultra Naté – Movin\' To The Sun',duration:142};
+  const matching=yt('abcdefghijk','HUGEL, Ultra Nate, Imael Angel - Movin’ To The Sun [Make The Girls Dance Records]',143);
+  const wrongMashup=yt('lmnopqrstuv','HUGEL, Ultra Nate, Imael Angel, Kylie Minogue - MOVIN TO THE SUN x CONFIDE IN ME',143);
+  const wrongRemix=yt('wxyz1234567','HUGEL, Ultra Nate, Imael Angel - Movin’ To The Sun (DJ Dark Remix)',143);
+  assert.equal(spotifyPlaybackArtistCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,wrongMashup),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,wrongRemix),false);
+});
+
 test('named Spotify remix accepts main artist in YouTube credit and both remixers in reordered suffix',async()=>{
   const song=namedRemixTrack(),queries=[],resolutions=[];
   const matching=yt('abcdefghijk','Shirukid – brief an die zukunft (NoCheats & Cy He Remix)',202);

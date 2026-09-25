@@ -174,6 +174,13 @@ const spotifyCandidateArtistEvidence=candidate=>{
   if(!prefix&&channel)names.push(...spotifyArtistAliases(spotifyChannelArtist(channel)));
   return {names:new Set(names),prefix,topic:/\s*-\s*Topic$/iu.test(channel),channelArtist:spotifyCanonicalArtist(spotifyChannelArtist(channel))};
 };
+const spotifyExplicitCandidateArtistNames=candidate=>{
+  const parts=spotifyCandidateTitleParts(candidate);
+  if(parts.length<2)return[];
+  const prefix=String(parts[0]||'').trim();
+  if(!prefix||/\b(?:official|audio|video|lyrics?|music\s+video)\b/iu.test(prefix))return[];
+  return [...new Set(spotifyArtistNames(prefix).map(spotifyCanonicalArtist).filter(Boolean))];
+};
 const spotifyArtistAliasMap=track=>{
   const names=spotifyRequestedArtists(track),aliases=new Map(names.map(name=>[name,new Set([name])]));
   const features=spotifyFeaturedArtists(spotifySongPart(track));
@@ -254,6 +261,16 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const fusedPrefix=evidence.prefix&&spotifyArtistNames(evidence.prefix).length===1&&spotifyCanonicalArtist(evidence.prefix)===expected.join('');
   const known=name=>fusedPrefix||[...(aliases.get(name)||[])].some(alias=>evidence.names.has(alias));
   const matches=expected.map(known);
+  // YouTube uploads can expose a fuller collaboration credit than Spotify.
+  // Accept an explicit title prefix when every Spotify artist is present,
+  // while leaving version/title/duration checks independent and mandatory.
+  const explicitPrefixArtists=spotifyExplicitCandidateArtistNames(candidate);
+  if(explicitPrefixArtists.length>expected.length&&expected.every(name=>explicitPrefixArtists.includes(name))){
+    const sourceSong=spotifyPlainSong(spotifySongPart(track));
+    const candidateSong=spotifyPlainSong(spotifyCandidateSong(candidate));
+    const wanted=spotifySongWords(sourceSong),seen=spotifySongWords(candidateSong),coverage=spotifySongCoverage(wanted,seen);
+    if(wanted.size&&coverage.matches>=Math.max(1,Math.ceil(wanted.size*0.8)))return true;
+  }
   // An uploader credited as ONE of the catalog artists can publish a clean,
   // title-only release without repeating every collaborator in its title.
   // Accept this weaker channel evidence ONLY alongside a complete exact
@@ -333,7 +350,9 @@ export function spotifyPlaybackMatchRejection(track,candidate){
   if([...actualVariants].some(value=>!expectedVariants.has(value))||
     [...expectedVariants].some(value=>!actualVariants.has(value))||
     /\b(?:super|ultra)\s+slowed\b/iu.test(label)&&!/\b(?:super|ultra)\s+slowed\b/iu.test(song)||
-    /(?:[\[(]\s*live\s*[\])]|[–—-]\s+live\s*$)/iu.test(label)&&!/(?:[\[(]\s*live\s*[\])]|[–—-]\s+live\s*$)/iu.test(song))return 'version';
+    /(?:[\[(]\s*live\s*[\])]|[–—-]\s+live\s*$)/iu.test(label)&&!/(?:[\[(]\s*live\s*[\])]|[–—-]\s+live\s*$)/iu.test(song)||
+    /\b(?:mashup|bootleg|blend|medley|versus|vs\.?)\b/iu.test(rawCandidateSong)&&!/\b(?:mashup|bootleg|blend|medley|versus|vs\.?)\b/iu.test(song)||
+    /\s+x\s+/iu.test(rawCandidateSong)&&!/\s+x\s+/iu.test(song))return 'version';
   if(requestedRemix&&(!candidateRemix||candidateRemix.credits.size!==requestedRemix.credits.size||
     [...requestedRemix.credits].some(name=>!candidateRemix.credits.has(name))||
     /\bremix\b/iu.test(candidateRemix.base)))return 'version';
