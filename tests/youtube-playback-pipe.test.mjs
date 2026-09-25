@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {PassThrough} from 'node:stream';
 import {Player,ffmpegPipeArgs,isYouTubeTokenProviderUnavailable,isYouTubeAudioFormatUnavailable} from '../backend/src/player.js';
-import {playbackYouTubePageUrl,youtubePlaybackPipeArgs} from '../backend/src/media.js';
+import {playbackYouTubePageUrl,youtubeAuthenticationArgs,youtubeClientStrategies,youtubePlaybackPipeArgs} from '../backend/src/media.js';
 import {createYouTubePlaybackPipeline} from '../backend/src/youtube-playback-pipe.js';
 import {classifyYouTubeAudioFailure} from '../backend/src/youtube-access.js';
 
@@ -170,4 +170,23 @@ test('only a genuinely no-audio Spotify video is rejected and re-searched, not a
   direct.generation=3;direct.next=()=>{};
   direct.finish(3,1,failure,0,direct.current,null);
   assert.equal(direct.reconnecting,false,'a manually selected YouTube upload must not be replaced with another song');
+});
+
+test('YouTube playback uses current client fallbacks, request pacing and optional cookie authentication',()=>{
+  assert.ok(youtubeClientStrategies.some(strategy=>strategy.includes('youtube:player_client=mweb,default')));
+  assert.ok(youtubeClientStrategies.some(strategy=>strategy.includes('youtube:player_client=web_embedded')));
+  const args=youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk');
+  assert.deepEqual(args.slice(args.indexOf('--sleep-requests'),args.indexOf('--sleep-requests')+2),['--sleep-requests','2']);
+  const previousCookies=process.env.YOUTUBE_COOKIES_FILE,previousAgent=process.env.YOUTUBE_USER_AGENT;
+  try{
+    process.env.YOUTUBE_COOKIES_FILE='/etc/yt-dlp/cookies.txt';
+    process.env.YOUTUBE_USER_AGENT='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/153.0.0.0 Safari/537.36';
+    assert.deepEqual(youtubeAuthenticationArgs(),['--cookies','/etc/yt-dlp/cookies.txt','--user-agent',process.env.YOUTUBE_USER_AGENT]);
+    const authenticated=youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk');
+    assert.ok(authenticated.includes('/etc/yt-dlp/cookies.txt'));
+    assert.ok(authenticated.includes(process.env.YOUTUBE_USER_AGENT));
+  }finally{
+    if(previousCookies===undefined)delete process.env.YOUTUBE_COOKIES_FILE;else process.env.YOUTUBE_COOKIES_FILE=previousCookies;
+    if(previousAgent===undefined)delete process.env.YOUTUBE_USER_AGENT;else process.env.YOUTUBE_USER_AGENT=previousAgent;
+  }
 });
