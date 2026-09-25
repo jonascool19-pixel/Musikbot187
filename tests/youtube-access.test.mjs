@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {YouTubeAccessGuard,isYouTubeAccessBlocked} from '../backend/src/youtube-access.js';
+import {YouTubeAccessGuard,classifyYouTubeAudioFailure,isYouTubeAccessBlocked,isYouTubeAgeRestricted} from '../backend/src/youtube-access.js';
 import {Player,ffmpegArgs,safePlaybackMessage} from '../backend/src/player.js';
 
 const denied=()=>{throw new Error("Sign in to confirm you're not a bot");};
@@ -80,4 +80,14 @@ test('seeking in shuffle mode explicitly resumes the same track',()=>{
   player.current={id:'active',source:'local',duration:200};player.elapsedSeconds=20;player.queue=[{id:'later'}];
   let args;player.next=(...values)=>{args=values;};player.seekBy(10);
   assert.deepEqual(args,[0,30,false,true]);assert.equal(player.queue[0].id,'active');player.stop();
+});
+
+test('age-gate is classified separately from the shared YouTube bot protection',()=>{
+  const failure=classifyYouTubeAudioFailure('ERROR: [youtube] Cf27Q2bfftQ: Sign in to confirm your age. This video may be inappropriate for some users.');
+  assert.equal(failure?.code,'YOUTUBE_AGE_RESTRICTED');
+  assert.equal(isYouTubeAgeRestricted(failure),true);
+  assert.equal(isYouTubeAccessBlocked(failure),false);
+  assert.match(failure.message,/altersbeschränkt/i);
+  const mixed=classifyYouTubeAudioFailure('WARNING: [youtube] [pot:bgutil:http] Error reaching GET (caused by TransportError)\nERROR: Sign in to confirm your age.');
+  assert.equal(mixed?.code,'YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE','upstream PO-token outage still has priority when both messages occur');
 });

@@ -659,3 +659,22 @@ test('GPF search includes artist-bound censored profanity without accepting a ra
   assert.ok(error instanceof SpotifyMatchUnavailableError,'no actual YouTube results must remain a bounded skip');
   assert.equal(song.playbackVideoId,undefined);
 });
+
+test('Spotify matching records an age-restricted YouTube source and continues to other verified candidates',async()=>{
+  const song={id:'spotify:age-gate-recovery',source:'spotify',title:'Alligatoah – Stay In Touch',duration:220};
+  const candidate=yt('abcdefghijk','Alligatoah - Stay In Touch (Official Audio)',220);
+  const error=Object.assign(new Error('Die YouTube-Quelle ist altersbeschränkt und benötigt eine authentifizierte YouTube-Sitzung.'),{code:'YOUTUBE_AGE_RESTRICTED'});
+  let calls=0;
+  await assert.rejects(
+    resolveSpotify(song,null,{search:async()=>[candidate],resolve:async()=>{calls++;throw error}}),
+    value=>{
+      assert.equal(value.code,'SPOTIFY_MATCH_UNAVAILABLE');
+      assert.equal(value.diagnostics.age,1);
+      assert.equal(value.diagnostics.source||0,0);
+      assert.match(value.message,/altersbeschränkte Quelle/);
+      return true;
+    }
+  );
+  assert.equal(calls,1);
+  assert.equal(song.playbackVideoId,undefined);
+});

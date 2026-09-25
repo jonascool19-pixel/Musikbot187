@@ -1,22 +1,21 @@
 # Codex work status
 
-Last updated: 2026-09-11T21:21:49.000Z
-Status: published
-Base: GitHub main 2e42118; Version 1.8.11
+Last updated: 2026-09-25T23:55:00.000Z
+Status: in progress
+Base: GitHub main b12b939; Version 1.8.36
 
 ## Currently working on
-
-Version 1.8.11 ist über den normalen Dashboard-Updatepfad veröffentlicht. Der Player besitzt einen gepufferten zweiten Audio-Deck für sanfte Equal-Power-Crossfades und einen kurzen Übergang bei Skip/Play-now.
+Version 1.8.37: YouTube-Altersgate, aktualisierte yt-dlp-Clientstrategie, Request-Pacing und optionale authentifizierte YouTube-Auflösung anhand der Produktionslogs vom 23.–25.09.2026.
 
 ## Last completed
 
 PR #32 wurde nach vollständig erfolgreicher GitHub-CI in main gemergt. `backend/package.json` steht auf 1.8.11, sodass bestehende 1.8.10-Installationen die neue Version über **System → Update** erkennen. Die Update-Regressionstests prüfen zusätzlich, dass 1.8.10 < 1.8.11 und ein bereits aktueller 1.8.11-Server kein Phantom-Update erhält.
 
 ## Next
-
-Das echte Bot-Update auf dem Benutzer-Server über **System → Update** ausführen. Anschließend Crossfade im Discord-Livebetrieb hören und die 403-Wiederaufnahme weiter beobachten.
+CI/Backendtests ausführen; bei grüner CI PR erstellen. Danach Live-Logs auf weniger Schutzpausen, saubere Altersgate-Diagnosen und weiterhin korrekte Spotify-Titel-/Künstlerauswahl prüfen.
 
 ## Verification
+Implementierung und Regressionstests auf Branch `fix/youtube-agegate-and-access-recovery-1-8-37` ergänzt; CI-Lauf 36188378535 schlug zunächst wegen erwarteter Versions-/Testfixtures fehl; die betroffenen Assertions wurden auf v1.8.37 bzw. den neuen YouTube-Client-/Pacing-Vertrag aktualisiert. Zweiter CI-Lauf 36188614884 schlug nur noch bei zwei alten Testverträgen fehl; API-Update-Fixture und Security-Assertion wurden korrigiert. Dritter CI-Lauf ausstehend.
 
 Release 1.8.11: npm ci, npm audit, 185 Backendtests, Player-Performance-/native-Opus-Smoke-Test, First-Run-Test, Installer-Syntax und Dashboard-Browsertest in GitHub Actions erfolgreich. Noch keine Live-Prüfung des Crossfades auf dem Benutzer-Server.
 

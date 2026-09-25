@@ -1,3 +1,5 @@
+export function isYouTubeAgeRestricted(error){return error?.code==='YOUTUBE_AGE_RESTRICTED'||/(?:sign in to confirm your age|this video may be inappropriate|age[- ]restricted|age[_ ]verification[_ ]required|age[_ ]check[_ ]required)/i.test(String(error?.message||error||''));}
+
 export function classifyYouTubeAudioFailure(stderr){
   const detail=String(stderr||'');
   // PO-token transport errors can be followed by "only images" errors.
@@ -5,6 +7,9 @@ export function classifyYouTubeAudioFailure(stderr){
   if(/pot:bgutil|po[- ]?token.*(?:provider|service)/i.test(detail)&&
     /(?:error reaching|transporterror|connection (?:refused|failed)|unreachable|timed?\s*out|econnrefused)/i.test(detail)){
     return Object.assign(new Error('YouTube-PO-Token-Dienst bgutil ist nicht erreichbar; Audiostream konnte nicht geladen werden. Bitte Erreichbarkeit, Netzwerk und Dienstkonfiguration prüfen.'),{code:'YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE'});
+  }
+  if(isYouTubeAgeRestricted(detail)){
+    return Object.assign(new Error('Die YouTube-Quelle ist altersbeschränkt und benötigt eine authentifizierte YouTube-Sitzung.'),{code:'YOUTUBE_AGE_RESTRICTED'});
   }
   if(/(?:only images are available|requested format is not available|no video formats found|no audio formats found)/i.test(detail)){
     return Object.assign(new Error('Die ausgewählte YouTube-Quelle stellt kein nutzbares Audioformat bereit.'),{code:'YOUTUBE_AUDIO_FORMAT_UNAVAILABLE'});
