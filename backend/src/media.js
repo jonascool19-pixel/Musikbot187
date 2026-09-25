@@ -350,7 +350,9 @@ export function spotifyPlaybackMatchRejection(track,candidate){
   if([...actualVariants].some(value=>!expectedVariants.has(value))||
     [...expectedVariants].some(value=>!actualVariants.has(value))||
     /\b(?:super|ultra)\s+slowed\b/iu.test(label)&&!/\b(?:super|ultra)\s+slowed\b/iu.test(song)||
-    /(?:[\[(]\s*live\s*[\])]|[–—-]\s+live\s*$)/iu.test(label)&&!/(?:[\[(]\s*live\s*[\])]|[–—-]\s+live\s*$)/iu.test(song))return 'version';
+    /(?:[\[(]\s*live\s*[\])]|[–—-]\s+live\s*$)/iu.test(label)&&!/(?:[\[(]\s*live\s*[\])]|[–—-]\s+live\s*$)/iu.test(song)||
+    /\b(?:mashup|bootleg|blend|medley|versus|vs\.?)\b/iu.test(rawCandidateSong)&&!/\b(?:mashup|bootleg|blend|medley|versus|vs\.?)\b/iu.test(song)||
+    /\s+x\s+/iu.test(rawCandidateSong)&&!/\s+x\s+/iu.test(song))return 'version';
   if(requestedRemix&&(!candidateRemix||candidateRemix.credits.size!==requestedRemix.credits.size||
     [...requestedRemix.credits].some(name=>!candidateRemix.credits.has(name))||
     /\bremix\b/iu.test(candidateRemix.base)))return 'version';
