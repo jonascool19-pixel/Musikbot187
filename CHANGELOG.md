@@ -1,5 +1,15 @@
 # 📦 Änderungen
 
+## 1.8.37 · YouTube-Altersgate, Schutzpausen und schonendere Auflösung
+
+- **Altersbeschränkte Quellen sauber erkennen:** „Sign in to confirm your age“ wird nicht mehr als allgemeiner Bot-/429-Fehler behandelt. Bei Spotify wird die betroffene YouTube-Quelle als **altersbeschränkt** diagnostiziert und der nächste bereits gefundene, unabhängig verifizierte Kandidat geprüft. Es wird kein fremder Titel als Ersatz akzeptiert.
+- **Direkte YouTube-Titel:** Eine altersbeschränkte Quelle wird als erwartbar nicht abspielbar protokolliert statt als generischer harter Player-Fehler. Eine Authentifizierung ist nur möglich, wenn der Server sie ausdrücklich über YOUTUBE_COOKIES_FILE und optional YOUTUBE_USER_AGENT bereitstellt.
+- **Aktuellere yt-dlp-Strategie:** Neben dem Standard-Client wird mweb,default als begrenzter Fallback versucht; web_embedded bleibt als weiterer, nicht automatisch authentifizierter Fallback erhalten. web_safari wird nicht mehr als fest verdrahteter Zwischenversuch erzwungen.
+- **Weniger YouTube-Rate-Limits:** yt-dlp erhält zwei Sekunden Abstand zwischen Extraktionsanfragen. Reine Audiodownloads verwenden zusätzlich eine begrenzte Wartezeit vor dem Download. Damit werden die in den Logs sichtbaren 429-/Schutzpausen nicht durch unnötige Request-Bursts verschärft.
+- **Authentifizierung ohne Geheimnisse im Code:** Cookie-Datei und User-Agent werden ausschließlich über Umgebungsvariablen eingebunden. Die Werte werden nicht in Diagnosemeldungen geschrieben.
+- **bgutil bleibt getrennt:** Ein nicht erreichbarer PO-Token-Dienst wird weiterhin als Infrastrukturstörung behandelt und nicht als falscher Song. Die erfolgreiche Wiederaufnahme nach dem NEEK – WAR-Fehler bleibt erhalten.
+- **Geprüft:** Regressionstests für Altersgate, PO-Token-Fehler, aktuelle Clientstrategie, Request-Pacing, optionale Cookies und Spotify-Fallback-Diagnose ergänzt.
+
 ## 1.8.11 · Sanfte Übergänge zwischen Titeln
 
 - **Echter Crossfade:** Normale Titelwechsel blenden über drei Sekunden mit einer Equal-Power-Kurve ineinander, statt den laufenden Song hart abzuschneiden.
