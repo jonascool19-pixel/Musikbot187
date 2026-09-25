@@ -39,7 +39,7 @@ export function youtubePlaybackPipeArgs(url,client=''){
   const page=canonicalYouTubeVideoUrl('',url);
   if(!page)throw new Error('Für die YouTube-Wiedergabe fehlt eine gültige Video-ID.');
   const clientArgs=['web_embedded','web_safari'].includes(client)?['--extractor-args','youtube:player_client='+client]:[];
-  return [...youtubeRuntimeArgs,'--no-playlist','--force-ipv4','--no-progress','--retries','3','--fragment-retries','3','--retry-sleep','http:0.25','--retry-sleep','fragment:0.25','--abort-on-unavailable-fragments',...clientArgs,'-f',bestAudioFormat,'-o','-',page];
+  return [...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),'--no-playlist','--force-ipv4','--no-progress','--retries','3','--fragment-retries','3','--retry-sleep','http:0.25','--retry-sleep','fragment:0.25','--abort-on-unavailable-fragments',...clientArgs,'-f',bestAudioFormat,'-o','-',page];
 }
 export function youtubeSearchArtist(entry){return musicArtist(entry);}
 async function youtubeSearchData(query,limit,timeout,signal){const deadline=Date.now()+Math.max(1000,Number(timeout)||30_000),failures=[];for(const strategy of youtubeSearchStrategies){const remaining=deadline-Date.now();if(remaining<=0)break;try{const raw=await run('yt-dlp',[...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),'--dump-single-json','--flat-playlist','--playlist-end',String(limit),'--force-ipv4',...strategy,youtubeSearchUrl(query)],{timeout:Math.min(youtubeAttemptTimeoutMs,remaining),signal});return JSON.parse(raw)}catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;failures.push(error.message)}}throw new Error(`YouTube-Suche konnte nicht abgeschlossen werden. ${failures.at(-1)||'Zeitüberschreitung'}`);}
