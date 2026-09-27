@@ -296,7 +296,10 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const genreMarked=/[\[(]\s*(?:uptempo|hardstyle|hardtekk|rawstyle|frenchcore|hardcore|techno|trance)\s*[\])]\s*$/iu.test(spotifySongPart(track));
   const distinctiveCollaboratorSong=channelName!==expected[0]&&wanted.size===1&&[...wanted][0].length>=8;
   const prefixIsCreditedSubset=evidence.prefix&&spotifyArtistAliases(evidence.prefix).every(name=>expected.includes(name));
-  const channelCreditAllowed=(expected.length===1||genreMarked||genericRemix||distinctiveCollaboratorSong)&&
+  const creditedPrimaryChannelExact=channelIsCredited&&!evidence.prefix&&!String(candidate?.artist||'').trim()&&
+    catalog>0&&reported>0&&spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
+    exact.matches===wanted.size&&exact.extra.length===0;
+  const channelCreditAllowed=(expected.length===1||genreMarked||genericRemix||distinctiveCollaboratorSong||creditedPrimaryChannelExact)&&
     (!evidence.prefix||prefixIsCreditedSubset)&&!String(candidate?.artist||'').trim()&&
     (channelIsCredited||oneArtistRapChannel)&&catalog>0&&reported>0&&
     spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
