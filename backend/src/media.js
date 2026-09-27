@@ -392,8 +392,8 @@ export function spotifyPlaybackMatchRejection(track,candidate){
   const candidateRadioVersion=/\bradio\s+(?:edit|mix|version)\b/iu.test(rawCandidateSong);
   if(requestedEdit&&(!candidateEdit&&!requestedRadioEdit||candidateEdit&&normalizeEditEditor(requestedEdit.editor)!==normalizeEditEditor(candidateEdit.editor)&&!(requestedRadioEdit&&candidateRadioVersion)))return 'version';
   if(!requestedEdit&&candidateEdit)return 'version';
-  if(/\bedit\b/iu.test(song)&&!/\bedit\b/iu.test(rawCandidateSong))return 'version';
-  if(!/\bedit\b/iu.test(song)&&/\bedit\b/iu.test(rawCandidateSong))return 'version';
+  if(/\bedit\b/iu.test(song)&&!/\bedit\b/iu.test(rawCandidateSong)&&!(/\bradio\s+(?:edit|mix|version)\b/iu.test(song)&&/\bradio\s+(?:edit|mix|version)\b/iu.test(rawCandidateSong)))return 'version';
+  if(!/\bedit\b/iu.test(song)&&/\bedit\b/iu.test(rawCandidateSong)&&!(/\bradio\s+(?:edit|mix|version)\b/iu.test(song)&&/\bradio\s+(?:edit|mix|version)\b/iu.test(rawCandidateSong)))return 'version';
   if(!spotifyPlaybackArtistCompatible(track,candidate))return 'artist';
   const genericRemix=!requestedRemix&&/\bremix\b/iu.test(song);
   const removeGenericRemix=value=>String(value||'').replace(/(?:\s+[–—-]\s+remix|\s*[\[(]\s*remix\s*[\])])\s*$/iu,'').trim();
