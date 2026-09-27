@@ -207,7 +207,6 @@ const spotifyNamedEdit=value=>{
   const suffix=title.match(/(?:\s+[–—-]\s+|[\[(]\s*)([^()[\]]+?)\s+edit\s*[\])]?$/iu);
   if(!suffix)return null;
   const editor=spotifyCanonicalArtist(suffix[1]),base=title.slice(0,suffix.index).trim();
-  if(editor==='radio')return null;
   return editor&&base?{base,editor}:null;
 };
 const spotifyCandidateSong=candidate=>{
