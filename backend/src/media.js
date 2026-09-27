@@ -207,6 +207,7 @@ const spotifyNamedEdit=value=>{
   const suffix=title.match(/(?:\s+[–—-]\s+|[\[(]\s*)([^()[\]]+?)\s+edit\s*[\])]?$/iu);
   if(!suffix)return null;
   const editor=spotifyCanonicalArtist(suffix[1]),base=title.slice(0,suffix.index).trim();
+  if(editor==='radio')return null;
   return editor&&base?{base,editor}:null;
 };
 const spotifyCandidateSong=candidate=>{
@@ -304,6 +305,17 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
     (!oneArtistRapChannel||Math.abs(catalog-reported)<=2)&&
     (!genericRemix||channelName===expected[0]&&Math.abs(catalog-reported)<=2);
   if(channelCreditAllowed)return true;
+  // Generic Release - Topic uploads can omit the artist from the title.
+  // When the search itself was explicitly constrained to every requested
+  // artist, accept only an exact song title with a verified catalog duration.
+  // This does not weaken standalone title-only matching because searchQuery
+  // is attached only by resolveSpotify to an actual artist-scoped search.
+  const searchQuery=String(candidate?.searchQuery||'');
+  const queryHasAllArtists=expected.every(name=>searchQuery.split(/[^\\p{L}\\p{N}]+/u).filter(Boolean).some(token=>spotifyCanonicalArtist(token)===name));
+  const topicTitleOnly=!evidence.prefix&&!String(candidate?.artist||'').trim()&&evidence.topic;
+  if(topicTitleOnly&&queryHasAllArtists&&catalog>0&&reported>0&&
+    spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
+    exact.matches===wanted.size&&exact.extra.length===0)return true;
   if(!matches[0])return false;
   // An explicitly conflicting performer prefix must not be made credible by
   // a matching YouTube channel or a collaborator mentioned elsewhere.
@@ -372,8 +384,8 @@ export function spotifyPlaybackMatchRejection(track,candidate){
   }
   if(requestedEdit&&(!candidateEdit||requestedEdit.editor!==candidateEdit.editor))return 'version';
   if(!requestedEdit&&candidateEdit)return 'version';
-  if(/\bedit\b/iu.test(song)&&!/\bedit\b/iu.test(rawCandidateSong))return 'version';
-  if(!/\bedit\b/iu.test(song)&&/\bedit\b/iu.test(rawCandidateSong))return 'version';
+  if(/\bedit\b/iu.test(normalizeRadioVariant(song))&&!/\bedit\b/iu.test(normalizeRadioVariant(rawCandidateSong)))return 'version';
+  if(!/\bedit\b/iu.test(normalizeRadioVariant(song))&&/\bedit\b/iu.test(normalizeRadioVariant(rawCandidateSong)))return 'version';
   if(!spotifyPlaybackArtistCompatible(track,candidate))return 'artist';
   const genericRemix=!requestedRemix&&/\bremix\b/iu.test(song);
   const removeGenericRemix=value=>String(value||'').replace(/(?:\s+[–—-]\s+remix|\s*[\[(]\s*remix\s*[\])])\s*$/iu,'').trim();
@@ -517,7 +529,8 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
     catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error;record('search');continue}
     successfulSearches++;
     const newlyFound=[];
-    for(const candidate of candidates){
+    for(const rawCandidate of candidates){
+      const candidate={...rawCandidate,searchQuery:query};
       const url=canonicalYouTubeVideoUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';
       if(!id){record('source',candidate);continue}
       if(seen.has(id))continue;
