@@ -297,7 +297,7 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const prefixIsCreditedSubset=evidence.prefix&&spotifyArtistAliases(evidence.prefix).every(name=>expected.includes(name));
   const creditedPrimaryChannelExact=channelIsCredited&&expected.length>1&&
     spotifyCanonicalArtist(candidate?.channel||'')===expected[0]&&
-    (genreMarked||/\b(?:extended|remix|edit|radio)\b/iu.test(rawCandidateSong))&&
+    (genreMarked||/\b(?:extended|remix|edit|radio)\b/iu.test(spotifyCandidateSong(candidate)))&&
     !evidence.prefix&&!String(candidate?.artist||'').trim()&&
     catalog>0&&reported>0&&spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
     exact.matches===wanted.size&&exact.extra.length===0;
@@ -369,12 +369,9 @@ export function spotifyPlaybackMatchRejection(track,candidate){
   // Version checks come before artist rejection so a missing remix can be
   // diagnosed accurately even when the video omits collaborator credits.
   const label=String(candidate?.title||'');
-  const normalizeRadioVariant=value=>String(value||'').replace(/\bradio\s+(?:edit|mix|version)\b/giu,'radio');
-  const normalizedRequestedPlain=normalizeRadioVariant(requestedPlain);
-  const normalizedLabel=normalizeRadioVariant(label);
-  const variants=/\b(?:remix|slowed|nightcore|cover|karaoke|instrumental|extended|reverb|sped\s*up|radio)\b/giu;
-  const expectedVariants=new Set([...normalizedRequestedPlain.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
-  const actualVariants=new Set([...normalizedLabel.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
+  const variants=/\b(?:remix|slowed|nightcore|cover|karaoke|instrumental|extended|reverb|sped\s*up)\b/giu;
+  const expectedVariants=new Set([...requestedPlain.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
+  const actualVariants=new Set([...label.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
   if([...actualVariants].some(value=>!expectedVariants.has(value))||
     [...expectedVariants].some(value=>!actualVariants.has(value))||
     /\b(?:super|ultra)\s+slowed\b/iu.test(label)&&!/\b(?:super|ultra)\s+slowed\b/iu.test(song)||
@@ -389,7 +386,9 @@ export function spotifyPlaybackMatchRejection(track,candidate){
     if([...candidateRemix.credits].some(name=>!expected.includes(name)))return 'version';
   }
   const normalizeEditEditor=value=>String(value||'').replace(/\bradio\s+(?:edit|mix|version)\b/giu,'radio');
-  if(requestedEdit&&(!candidateEdit||normalizeEditEditor(requestedEdit.editor)!==normalizeEditEditor(candidateEdit.editor)))return 'version';
+  const requestedRadioEdit=requestedEdit&&requestedEdit.editor==='radio';
+  const candidateRadioVersion=/\bradio\s+(?:edit|mix|version)\b/iu.test(rawCandidateSong);
+  if(requestedEdit&&(!candidateEdit&&!requestedRadioEdit||candidateEdit&&normalizeEditEditor(requestedEdit.editor)!==normalizeEditEditor(candidateEdit.editor)&&!(requestedRadioEdit&&candidateRadioVersion)))return 'version';
   if(!requestedEdit&&candidateEdit)return 'version';
   if(/\bedit\b/iu.test(normalizeRadioVariant(song))&&!/\bedit\b/iu.test(normalizeRadioVariant(rawCandidateSong)))return 'version';
   if(!/\bedit\b/iu.test(normalizeRadioVariant(song))&&/\bedit\b/iu.test(normalizeRadioVariant(rawCandidateSong)))return 'version';
