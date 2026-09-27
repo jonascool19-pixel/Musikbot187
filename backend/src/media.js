@@ -151,7 +151,10 @@ const spotifySongPart=track=>{
   const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/);
   return parts.length>1?parts.slice(1).join(' – '):full;
 };
-const spotifyArtistNames=value=>String(value||'').split(/\s*(?:,|;|&|\+|\b(?:feat\.?|featuring|ft\.?|and|und)\b\.?|\s+[x×]\s+)\s*/iu).map(name=>name.trim()).filter(Boolean);
+const spotifyArtistNames=value=>String(value||'')
+  .replace(/\b(?:presents?|pres\.?)\b/giu,' x ')
+  .split(/\s*(?:,|;|&|\+|\b(?:feat\.?|featuring|ft\.?|and|und)\b\.?|\s+[x×]\s+)/iu)
+  .map(name=>name.trim()).filter(Boolean);
 const spotifyCanonicalArtist=value=>String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/\p{M}/gu,'').replace(/[øØ]/g,'o').replace(/[łŁ]/g,'l').replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,'');
 const spotifyArtistAliases=value=>{
   // A visible alias in "[Moe Phoenix]" is a second explicit artist credit.
@@ -265,7 +268,9 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   // Accept an explicit title prefix when every Spotify artist is present,
   // while leaving version/title/duration checks independent and mandatory.
   const explicitPrefixArtists=spotifyExplicitCandidateArtistNames(candidate);
-  if(explicitPrefixArtists.length>expected.length&&expected.every(name=>explicitPrefixArtists.includes(name))){
+  const explicitArtistMatchesExpected=expected.every(name=>explicitPrefixArtists.includes(name));
+  const explicitArtistHasAbbreviatedExpected=expected.every(name=>explicitPrefixArtists.some(candidateName=>candidateName===name||candidateName.startsWith(name)||name.startsWith(candidateName)));
+  if(explicitPrefixArtists.length>=expected.length&&(explicitArtistMatchesExpected||explicitArtistHasAbbreviatedExpected)){
     const sourceSong=spotifyPlainSong(spotifySongPart(track));
     const candidateSong=spotifyPlainSong(spotifyCandidateSong(candidate));
     const wanted=spotifySongWords(sourceSong),seen=spotifySongWords(candidateSong),coverage=spotifySongCoverage(wanted,seen);
@@ -289,7 +294,9 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const genericRemix=/\bremix\b/iu.test(requestedExactSong)&&!spotifyNamedRemix(requestedExactSong);
   const genreMarked=/[\[(]\s*(?:uptempo|hardstyle|hardtekk|rawstyle|frenchcore|hardcore|techno|trance)\s*[\])]\s*$/iu.test(spotifySongPart(track));
   const distinctiveCollaboratorSong=channelName!==expected[0]&&wanted.size===1&&[...wanted][0].length>=8;
-  const channelCreditAllowed=(expected.length===1||genreMarked||genericRemix||distinctiveCollaboratorSong)&&!evidence.prefix&&!String(candidate?.artist||'').trim()&&
+  const prefixIsCreditedSubset=evidence.prefix&&spotifyArtistAliases(evidence.prefix).every(name=>expected.includes(name));
+  const channelCreditAllowed=(expected.length===1||genreMarked||genericRemix||distinctiveCollaboratorSong)&&
+    (!evidence.prefix||prefixIsCreditedSubset)&&!String(candidate?.artist||'').trim()&&
     (channelIsCredited||oneArtistRapChannel)&&catalog>0&&reported>0&&
     spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
     exact.matches===wanted.size&&exact.extra.length===0&&
@@ -344,9 +351,12 @@ export function spotifyPlaybackMatchRejection(track,candidate){
   // Version checks come before artist rejection so a missing remix can be
   // diagnosed accurately even when the video omits collaborator credits.
   const label=String(candidate?.title||'');
-  const variants=/\b(?:remix|slowed|nightcore|cover|karaoke|instrumental|extended|reverb|sped\s*up)\b/giu;
-  const expectedVariants=new Set([...requestedPlain.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
-  const actualVariants=new Set([...label.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
+  const normalizeRadioVariant=value=>String(value||'').replace(/\bradio\s+(?:edit|mix|version)\b/giu,'radio');
+  const normalizedRequestedPlain=normalizeRadioVariant(requestedPlain);
+  const normalizedLabel=normalizeRadioVariant(label);
+  const variants=/\b(?:remix|slowed|nightcore|cover|karaoke|instrumental|extended|reverb|sped\s*up|radio)\b/giu;
+  const expectedVariants=new Set([...normalizedRequestedPlain.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
+  const actualVariants=new Set([...normalizedLabel.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
   if([...actualVariants].some(value=>!expectedVariants.has(value))||
     [...expectedVariants].some(value=>!actualVariants.has(value))||
     /\b(?:super|ultra)\s+slowed\b/iu.test(label)&&!/\b(?:super|ultra)\s+slowed\b/iu.test(song)||
