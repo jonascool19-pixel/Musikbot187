@@ -297,6 +297,7 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const prefixIsCreditedSubset=evidence.prefix&&spotifyArtistAliases(evidence.prefix).every(name=>expected.includes(name));
   const creditedPrimaryChannelExact=channelIsCredited&&expected.length>1&&
     spotifyCanonicalArtist(candidate?.channel||'')===expected[0]&&
+    (genreMarked||/\b(?:extended|remix|edit|radio)\b/iu.test(rawCandidateSong))&&
     !evidence.prefix&&!String(candidate?.artist||'').trim()&&
     catalog>0&&reported>0&&spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
     exact.matches===wanted.size&&exact.extra.length===0;
@@ -387,7 +388,8 @@ export function spotifyPlaybackMatchRejection(track,candidate){
     const expected=spotifyRequestedArtists(track);
     if([...candidateRemix.credits].some(name=>!expected.includes(name)))return 'version';
   }
-  if(requestedEdit&&(!candidateEdit||requestedEdit.editor!==candidateEdit.editor))return 'version';
+  const normalizeEditEditor=value=>String(value||'').replace(/\bradio\s+(?:edit|mix|version)\b/giu,'radio');
+  if(requestedEdit&&(!candidateEdit||normalizeEditEditor(requestedEdit.editor)!==normalizeEditEditor(candidateEdit.editor)))return 'version';
   if(!requestedEdit&&candidateEdit)return 'version';
   if(/\bedit\b/iu.test(normalizeRadioVariant(song))&&!/\bedit\b/iu.test(normalizeRadioVariant(rawCandidateSong)))return 'version';
   if(!/\bedit\b/iu.test(normalizeRadioVariant(song))&&/\bedit\b/iu.test(normalizeRadioVariant(rawCandidateSong)))return 'version';
