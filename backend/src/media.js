@@ -386,7 +386,6 @@ export function spotifyPlaybackMatchRejection(track,candidate){
     if([...candidateRemix.credits].some(name=>!expected.includes(name)))return 'version';
   }
   const normalizeEditEditor=value=>String(value||'').replace(/\bradio\s+(?:edit|mix|version)\b/giu,'radio');
-  const normalizeEditEditor=value=>String(value||'').replace(/\bradio\s+(?:edit|mix|version)\b/giu,'radio');
   const requestedRadioEdit=requestedEdit&&normalizeEditEditor(requestedEdit.editor)==='radio';
   const candidateRadioVersion=/\bradio\s+(?:edit|mix|version)\b/iu.test(rawCandidateSong);
   if(requestedEdit&&(!candidateEdit&&!requestedRadioEdit||candidateEdit&&normalizeEditEditor(requestedEdit.editor)!==normalizeEditEditor(candidateEdit.editor)&&!(requestedRadioEdit&&candidateRadioVersion)))return 'version';
