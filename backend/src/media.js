@@ -269,7 +269,7 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   // while leaving version/title/duration checks independent and mandatory.
   const explicitPrefixArtists=spotifyExplicitCandidateArtistNames(candidate);
   const explicitArtistMatchesExpected=expected.every(name=>explicitPrefixArtists.includes(name));
-  const explicitArtistHasAbbreviatedExpected=expected.every(name=>explicitPrefixArtists.some(candidateName=>candidateName===name||candidateName.startsWith(name)||name.startsWith(candidateName)));
+  const explicitArtistHasAbbreviatedExpected=expected.every(name=>explicitPrefixArtists.some(candidateName=>candidateName===name||(candidateName.length>=8&&name.startsWith(candidateName))||(name.length>=8&&candidateName.startsWith(name))));
   if(explicitPrefixArtists.length>=expected.length&&(explicitArtistMatchesExpected||explicitArtistHasAbbreviatedExpected)){
     const sourceSong=spotifyPlainSong(spotifySongPart(track));
     const candidateSong=spotifyPlainSong(spotifyCandidateSong(candidate));
@@ -372,6 +372,8 @@ export function spotifyPlaybackMatchRejection(track,candidate){
   const variants=/\b(?:remix|slowed|nightcore|cover|karaoke|instrumental|extended|reverb|sped\s*up)\b/giu;
   const expectedVariants=new Set([...requestedPlain.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
   const actualVariants=new Set([...label.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
+  if(expectedVariants.has('radio'))expectedVariants.delete('edit');
+  if(actualVariants.has('radio'))actualVariants.delete('edit');
   if([...actualVariants].some(value=>!expectedVariants.has(value))||
     [...expectedVariants].some(value=>!actualVariants.has(value))||
     /\b(?:super|ultra)\s+slowed\b/iu.test(label)&&!/\b(?:super|ultra)\s+slowed\b/iu.test(song)||
