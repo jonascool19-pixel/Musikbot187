@@ -151,7 +151,10 @@ const spotifySongPart=track=>{
   const full=String(track?.title||'').trim(),parts=full.split(/\s+[–—-]\s+/);
   return parts.length>1?parts.slice(1).join(' – '):full;
 };
-const spotifyArtistNames=value=>String(value||'').split(/\s*(?:,|;|&|\+|\b(?:feat\.?|featuring|ft\.?|and|und)\b\.?|\s+[x×]\s+)\s*/iu).map(name=>name.trim()).filter(Boolean);
+const spotifyArtistNames=value=>String(value||'')
+  .replace(/\b(?:presents?|pres\.?)\b/giu,' x ')
+  .split(/\s*(?:,|;|&|\+|\b(?:feat\.?|featuring|ft\.?|and|und)\b\.?|\s+[x×]\s+)/iu)
+  .map(name=>name.trim()).filter(Boolean);
 const spotifyCanonicalArtist=value=>String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD').replace(/\p{M}/gu,'').replace(/[øØ]/g,'o').replace(/[łŁ]/g,'l').replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,'');
 const spotifyArtistAliases=value=>{
   // A visible alias in "[Moe Phoenix]" is a second explicit artist credit.
@@ -265,7 +268,9 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   // Accept an explicit title prefix when every Spotify artist is present,
   // while leaving version/title/duration checks independent and mandatory.
   const explicitPrefixArtists=spotifyExplicitCandidateArtistNames(candidate);
-  if(explicitPrefixArtists.length>expected.length&&expected.every(name=>explicitPrefixArtists.includes(name))){
+  const explicitArtistMatchesExpected=expected.every(name=>explicitPrefixArtists.includes(name));
+  const explicitArtistHasAbbreviatedExpected=expected.every(name=>explicitPrefixArtists.some(candidateName=>candidateName===name||(candidateName.length>=8&&name.startsWith(candidateName))||(name.length>=8&&candidateName.startsWith(name))));
+  if(explicitPrefixArtists.length>=expected.length&&(explicitArtistMatchesExpected||explicitArtistHasAbbreviatedExpected)){
     const sourceSong=spotifyPlainSong(spotifySongPart(track));
     const candidateSong=spotifyPlainSong(spotifyCandidateSong(candidate));
     const wanted=spotifySongWords(sourceSong),seen=spotifySongWords(candidateSong),coverage=spotifySongCoverage(wanted,seen);
@@ -289,7 +294,15 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const genericRemix=/\bremix\b/iu.test(requestedExactSong)&&!spotifyNamedRemix(requestedExactSong);
   const genreMarked=/[\[(]\s*(?:uptempo|hardstyle|hardtekk|rawstyle|frenchcore|hardcore|techno|trance)\s*[\])]\s*$/iu.test(spotifySongPart(track));
   const distinctiveCollaboratorSong=channelName!==expected[0]&&wanted.size===1&&[...wanted][0].length>=8;
-  const channelCreditAllowed=(expected.length===1||genreMarked||genericRemix||distinctiveCollaboratorSong)&&!evidence.prefix&&!String(candidate?.artist||'').trim()&&
+  const prefixIsCreditedSubset=evidence.prefix&&spotifyArtistAliases(evidence.prefix).every(name=>expected.includes(name));
+  const creditedPrimaryChannelExact=channelIsCredited&&expected.length>1&&
+    spotifyCanonicalArtist(candidate?.channel||'')===expected[0]&&
+    (genreMarked||/\b(?:extended|remix|edit|radio)\b/iu.test(spotifyCandidateSong(candidate)))&&
+    !evidence.prefix&&!String(candidate?.artist||'').trim()&&
+    catalog>0&&reported>0&&spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
+    exact.matches===wanted.size&&exact.extra.length===0;
+  const channelCreditAllowed=(expected.length===1||genreMarked||genericRemix||distinctiveCollaboratorSong||creditedPrimaryChannelExact)&&
+    (!evidence.prefix||prefixIsCreditedSubset)&&!String(candidate?.artist||'').trim()&&
     (channelIsCredited||oneArtistRapChannel)&&catalog>0&&reported>0&&
     spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
     exact.matches===wanted.size&&exact.extra.length===0&&
@@ -297,6 +310,18 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
     (!oneArtistRapChannel||Math.abs(catalog-reported)<=2)&&
     (!genericRemix||channelName===expected[0]&&Math.abs(catalog-reported)<=2);
   if(channelCreditAllowed)return true;
+  // Generic Release - Topic uploads can omit the artist from the title.
+  // When the search itself was explicitly constrained to every requested
+  // artist, accept only an exact song title with a verified catalog duration.
+  // This does not weaken standalone title-only matching because searchQuery
+  // is attached only by resolveSpotify to an actual artist-scoped search.
+  const searchQuery=String(candidate?.searchQuery||'');
+  const normalizedSearchQuery=spotifyCanonicalArtist(searchQuery);
+  const queryHasAllArtists=expected.every(name=>normalizedSearchQuery.includes(name));
+  const topicTitleOnly=!evidence.prefix&&!String(candidate?.artist||'').trim()&&evidence.topic;
+  if(topicTitleOnly&&queryHasAllArtists&&catalog>0&&reported>0&&
+    spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
+    exact.matches===wanted.size&&exact.extra.length===0)return true;
   if(!matches[0])return false;
   // An explicitly conflicting performer prefix must not be made credible by
   // a matching YouTube channel or a collaborator mentioned elsewhere.
@@ -341,12 +366,23 @@ export function spotifyPlaybackMatchRejection(track,candidate){
   const rawCandidateSong=embeddedCredit?.song||spotifyCandidateSong(candidate);
   const requestedRemix=spotifyNamedRemix(song),requestedEdit=spotifyNamedEdit(song),candidateRemix=spotifyNamedRemix(rawCandidateSong),candidateEdit=spotifyNamedEdit(rawCandidateSong);
   const requestedPlain=spotifyPlainSong(song),candidatePlain=spotifyPlainSong(rawCandidateSong);
+  const radioEditEquivalent=spotifyNamedEdit(song)?.editor==='radio'&&/\bradio\s+(?:edit|mix|version)\b/iu.test(rawCandidateSong);
+  if(radioEditEquivalent){
+    const explicit=spotifyExplicitCandidateArtistNames(candidate),expected=spotifyRequestedArtists(track);
+    const allArtistsPresent=expected.every(name=>explicit.includes(name));
+    const baseWanted=spotifySongWords(spotifyPlainSong(spotifyNamedEdit(song)?.base||song));
+    const baseSeen=spotifySongWords(spotifyPlainSong(rawCandidateSong.replace(/\s*[\[(]\s*radio\s+(?:edit|mix|version)\s*[\])]/iu,'')));
+    const coverage=spotifySongCoverage(baseWanted,baseSeen);
+    if(allArtistsPresent&&baseWanted.size&&coverage.matches===baseWanted.size&&coverage.extra.length===0)return null;
+  }
   // Version checks come before artist rejection so a missing remix can be
   // diagnosed accurately even when the video omits collaborator credits.
   const label=String(candidate?.title||'');
   const variants=/\b(?:remix|slowed|nightcore|cover|karaoke|instrumental|extended|reverb|sped\s*up)\b/giu;
   const expectedVariants=new Set([...requestedPlain.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
   const actualVariants=new Set([...label.matchAll(variants)].map(match=>match[0].toLowerCase().replace(/\s+/g,' ')));
+  if(expectedVariants.has('radio'))expectedVariants.delete('edit');
+  if(actualVariants.has('radio'))actualVariants.delete('edit');
   if([...actualVariants].some(value=>!expectedVariants.has(value))||
     [...expectedVariants].some(value=>!actualVariants.has(value))||
     /\b(?:super|ultra)\s+slowed\b/iu.test(label)&&!/\b(?:super|ultra)\s+slowed\b/iu.test(song)||
@@ -360,10 +396,13 @@ export function spotifyPlaybackMatchRejection(track,candidate){
     const expected=spotifyRequestedArtists(track);
     if([...candidateRemix.credits].some(name=>!expected.includes(name)))return 'version';
   }
-  if(requestedEdit&&(!candidateEdit||requestedEdit.editor!==candidateEdit.editor))return 'version';
+  const normalizeEditEditor=value=>String(value||'').replace(/\bradio\s+(?:edit|mix|version)\b/giu,'radio');
+  const requestedRadioEdit=requestedEdit&&normalizeEditEditor(requestedEdit.editor)==='radio';
+  const candidateRadioVersion=/\bradio\s+(?:edit|mix|version)\b/iu.test(rawCandidateSong);
+  if(requestedEdit&&(!candidateEdit&&!requestedRadioEdit||candidateEdit&&normalizeEditEditor(requestedEdit.editor)!==normalizeEditEditor(candidateEdit.editor)&&!(requestedRadioEdit&&candidateRadioVersion)))return 'version';
   if(!requestedEdit&&candidateEdit)return 'version';
-  if(/\bedit\b/iu.test(song)&&!/\bedit\b/iu.test(rawCandidateSong))return 'version';
-  if(!/\bedit\b/iu.test(song)&&/\bedit\b/iu.test(rawCandidateSong))return 'version';
+  if(/\bedit\b/iu.test(song)&&!/\bedit\b/iu.test(rawCandidateSong)&&!(/\bradio\s+(?:edit|mix|version)\b/iu.test(song)&&/\bradio\s+(?:edit|mix|version)\b/iu.test(rawCandidateSong)))return 'version';
+  if(!/\bedit\b/iu.test(song)&&/\bedit\b/iu.test(rawCandidateSong)&&!(/\bradio\s+(?:edit|mix|version)\b/iu.test(song)&&/\bradio\s+(?:edit|mix|version)\b/iu.test(rawCandidateSong)))return 'version';
   if(!spotifyPlaybackArtistCompatible(track,candidate))return 'artist';
   const genericRemix=!requestedRemix&&/\bremix\b/iu.test(song);
   const removeGenericRemix=value=>String(value||'').replace(/(?:\s+[–—-]\s+remix|\s*[\[(]\s*remix\s*[\])])\s*$/iu,'').trim();
@@ -507,7 +546,8 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
     catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;searchFailure=error;record('search');continue}
     successfulSearches++;
     const newlyFound=[];
-    for(const candidate of candidates){
+    for(const rawCandidate of candidates){
+      const candidate={...rawCandidate,searchQuery:query};
       const url=canonicalYouTubeVideoUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';
       if(!id){record('source',candidate);continue}
       if(seen.has(id))continue;

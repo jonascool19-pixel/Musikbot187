@@ -689,3 +689,42 @@ test('Spotify matching records an age-restricted YouTube source and continues to
   assert.equal(calls,1);
   assert.equal(song.playbackVideoId,undefined);
 });
+
+
+test('Spotify collaboration prefixes accept presents/pres, abbreviated collaborator names and subset channel credits',()=>{
+  const nvitral={id:'spotify:game-of-hate-collab',source:'spotify',title:'N-Vitral, BOMBSQUAD, Barber – Game Of Hate',duration:181};
+  const gpf={id:'spotify:lucky-lucky-collab',source:'spotify',title:'GPF, Unicorn on K – Lucky Lucky',duration:192};
+  const revenge={id:'spotify:revenge-collab',source:'spotify',title:'1HXSX, wnorg17 – Revenge - Extended',duration:178};
+  assert.equal(spotifyPlaybackTitleCompatible(nvitral,yt('aaaaabbbbb1','N-Vitral presents BOMBSQUAD x Barber - Game of Hate (Official Videoclip)',183)),true);
+  assert.equal(spotifyPlaybackTitleCompatible(gpf,yt('cccccdddd1','GPF x Unicorn On Ketamine - Lucky Lucky (Official Video)',193)),true);
+  assert.equal(spotifyPlaybackTitleCompatible(revenge,{...yt('eeeeefffff1','Revenge (Extended)',178),channel:'1HXSX'}),true);
+  assert.equal(spotifyPlaybackTitleCompatible(gpf,yt('ggggghhhhh1','Lucky Lucky - Random Artist Remix',193)),false);
+});
+
+test('Radio Edit and Radio Mix are treated as the same radio version but other versions remain blocked',()=>{
+  const song={id:'spotify:radio-edit-mix-regression',source:'spotify',title:"Pat B, Franky Dux, The Mindplayer – What's a Girl to Do - Radio Edit",duration:126};
+  const matching=yt('iiiiijjjjj1',"Pat B x Franky Dux x The MIndplayer - What's A Girl To Do (Radio Mix)",123);
+  assert.equal(spotifyPlaybackTitleCompatible(song,matching),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,yt('kkkkklllll1',"Pat B x Franky Dux x The MIndplayer - What's A Girl To Do (Extended Mix)",126)),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,yt('mmmmnnnnn1',"Pat B x Franky Dux x The MIndplayer - What's A Girl To Do",126)),false);
+});
+
+test('Artist-scoped searches may accept an exact title-only Release Topic upload with matching duration',async()=>{
+  const song={id:'spotify:topic-title-only-regression',source:'spotify',title:'HXLLGANG, VLNCRSH – WAITING FOR TONIGHT (HARDTEKK)',duration:170};
+  const candidate=yt('oooooppppp1','WAITING FOR TONIGHT (HARDTEKK)',171);
+  candidate.channel='Release - Topic';
+  const queries=[],search=async query=>{queries.push(query);return [candidate]};
+  const resolve=async()=>resolved(candidate.id,171);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...candidate,searchQuery:'HXLLGANG VLNCRSH "WAITING FOR TONIGHT (HARDTEKK)" audio'}),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...candidate,searchQuery:'OTHER ARTIST "WAITING FOR TONIGHT (HARDTEKK)" audio'}),false);
+  await resolveSpotify(song,null,{search,resolve});
+  assert.equal(queries.length,1);
+  assert.equal(song.playbackVideoId,candidate.id);
+});
+
+test('Topic title-only matching still rejects slowed/sped-up variants',()=>{
+  const song={id:'spotify:topic-version-guard-regression',source:'spotify',title:'HXLLGANG, VLNCRSH – WAITING FOR TONIGHT (HARDTEKK)',duration:170};
+  const base={channel:'Release - Topic',searchQuery:'HXLLGANG VLNCRSH "WAITING FOR TONIGHT (HARDTEKK)" audio',duration:188};
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...base,title:'WAITING FOR TONIGHT (HARDTEKK) (SLOWED)'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...base,title:'WAITING FOR TONIGHT (HARDTEKK) (SPED UP)'}),false);
+});
