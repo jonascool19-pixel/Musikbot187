@@ -366,6 +366,15 @@ export function spotifyPlaybackMatchRejection(track,candidate){
   const rawCandidateSong=embeddedCredit?.song||spotifyCandidateSong(candidate);
   const requestedRemix=spotifyNamedRemix(song),requestedEdit=spotifyNamedEdit(song),candidateRemix=spotifyNamedRemix(rawCandidateSong),candidateEdit=spotifyNamedEdit(rawCandidateSong);
   const requestedPlain=spotifyPlainSong(song),candidatePlain=spotifyPlainSong(rawCandidateSong);
+  const radioEditEquivalent=spotifyNamedEdit(song)?.editor==='radio'&&/\bradio\s+(?:edit|mix|version)\b/iu.test(rawCandidateSong);
+  if(radioEditEquivalent){
+    const explicit=spotifyExplicitCandidateArtistNames(candidate),expected=spotifyRequestedArtists(track);
+    const allArtistsPresent=expected.every(name=>explicit.includes(name));
+    const baseWanted=spotifySongWords(spotifyPlainSong(spotifyNamedEdit(song)?.base||song));
+    const baseSeen=spotifySongWords(spotifyPlainSong(rawCandidateSong.replace(/\s*[\[(]\s*radio\s+(?:edit|mix|version)\s*[\])]/iu,'')));
+    const coverage=spotifySongCoverage(baseWanted,baseSeen);
+    if(allArtistsPresent&&baseWanted.size&&coverage.matches===baseWanted.size&&coverage.extra.length===0)return null;
+  }
   // Version checks come before artist rejection so a missing remix can be
   // diagnosed accurately even when the video omits collaborator credits.
   const label=String(candidate?.title||'');
