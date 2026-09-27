@@ -296,7 +296,9 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const genreMarked=/[\[(]\s*(?:uptempo|hardstyle|hardtekk|rawstyle|frenchcore|hardcore|techno|trance)\s*[\])]\s*$/iu.test(spotifySongPart(track));
   const distinctiveCollaboratorSong=channelName!==expected[0]&&wanted.size===1&&[...wanted][0].length>=8;
   const prefixIsCreditedSubset=evidence.prefix&&spotifyArtistAliases(evidence.prefix).every(name=>expected.includes(name));
-  const creditedPrimaryChannelExact=channelIsCredited&&!evidence.prefix&&!String(candidate?.artist||'').trim()&&
+  const creditedPrimaryChannelExact=channelIsCredited&&expected.length>1&&
+    spotifyCanonicalArtist(candidate?.channel||'')===expected[0]&&
+    !evidence.prefix&&!String(candidate?.artist||'').trim()&&
     catalog>0&&reported>0&&spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
     exact.matches===wanted.size&&exact.extra.length===0;
   const channelCreditAllowed=(expected.length===1||genreMarked||genericRemix||distinctiveCollaboratorSong||creditedPrimaryChannelExact)&&
@@ -314,7 +316,8 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   // This does not weaken standalone title-only matching because searchQuery
   // is attached only by resolveSpotify to an actual artist-scoped search.
   const searchQuery=String(candidate?.searchQuery||'');
-  const queryHasAllArtists=expected.every(name=>searchQuery.split(/[^\\p{L}\\p{N}]+/u).filter(Boolean).some(token=>spotifyCanonicalArtist(token)===name));
+  const normalizedSearchQuery=spotifyCanonicalArtist(searchQuery);
+  const queryHasAllArtists=expected.every(name=>normalizedSearchQuery.includes(name));
   const topicTitleOnly=!evidence.prefix&&!String(candidate?.artist||'').trim()&&evidence.topic;
   if(topicTitleOnly&&queryHasAllArtists&&catalog>0&&reported>0&&
     spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
