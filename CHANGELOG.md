@@ -1,5 +1,15 @@
 # 📦 Änderungen
 
+## 1.8.39 · Spotify-YouTube-Matching-Release
+
+- **Persistente Logfälle abgesichert:** Regressionen für Pat B, Franky Dux, The Mindplayer – What's a Girl to Do - Radio Edit, GPF, Unicorn on K – Lucky Lucky, 1HXSX, wnorg17 – Revenge - Extended, HUGEL, SOLTO (FR) – Jamaican (Bam Bam), HXLLGANG, VLNCRSH – WAITING FOR TONIGHT (HARDTEKK) und N-Vitral, BOMBSQUAD, Barber – Game Of Hate.
+- **Radio-Varianten:** Radio Edit, Radio Mix und Radio Version bleiben untereinander kompatibel; Extended, Remix, Slowed, Sped Up und andere abweichende Versionen werden weiterhin getrennt behandelt.
+- **Kollaborationen:** Explizite YouTube-Künstlerblöcke dürfen zusätzliche Credits enthalten, solange alle Spotify-Künstler eindeutig enthalten sind; presents/pres. und ausgeschriebene Kollaboratornamen werden berücksichtigt.
+- **Topic-Uploads:** Titelgleiche Release - Topic-Treffer werden nur bei artist-gebundener Suche, exaktem Titel und kompatibler verifizierter Dauer akzeptiert. Slowed/Sped-Up-Varianten bleiben ausgeschlossen.
+- **Keine Ersatzsongs:** Ein nicht passender Treffer wird weiterhin übersprungen, statt durch ein ähnliches Lied ersetzt zu werden.
+- **Geprüft:** Neue Release-Regressionen plus bestehende Backend-, First-Run-, Performance/Opus- und Browser-Prüfungen.
+
+
 ## 1.8.38 · Spotify-YouTube-Künstlerabgleich
 
 - **Zusätzliche Co-Künstler erlaubt:** Ein YouTube-Titel darf mehr Künstler nennen als Spotify, solange alle im Spotify-Titel geforderten Künstler im expliziten YouTube-Künstlerblock vorkommen.
