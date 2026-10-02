@@ -8,6 +8,7 @@
 - **Topic-Uploads:** Titelgleiche Release - Topic-Treffer werden nur bei artist-gebundener Suche, exaktem Titel und kompatibler verifizierter Dauer akzeptiert. Slowed/Sped-Up-Varianten bleiben ausgeschlossen.
 - **Keine Ersatzsongs:** Ein nicht passender Treffer wird weiterhin übersprungen, statt durch ein ähnliches Lied ersetzt zu werden.
 - **Geprüft:** Neue Release-Regressionen plus bestehende Backend-, First-Run-, Performance/Opus- und Browser-Prüfungen.
+- **Abhängigkeiten gehärtet:** Fastify auf 5.12.5 sowie gepatchte `fast-uri`, `undici` und `brace-expansion`-Stände aktualisiert, damit die CI-Sicherheitsprüfung wieder ohne bekannte High-Severity-Funde durchläuft.
 
 
 ## 1.8.38 · Spotify-YouTube-Künstlerabgleich
