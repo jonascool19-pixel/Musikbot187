@@ -112,3 +112,18 @@ test('explicitly learned tracks retain positive automix signal without a listen 
   assert.equal(listeningSignalWeight({title:'Learned Favorite',learnedConfirmed:true,listens:0,completed:0,earlySkips:0,rating:0}),1);
   assert.equal(listeningSignalWeight({title:'Legacy Confirmation',tasteConfirmed:true,listens:0,completed:0,earlySkips:0,rating:0}),0);
 });
+
+
+test('learned personal mixes reject generic classic or melody discoveries but keep matching artist discoveries',async()=>{
+  const tracks=learned().slice(0,12),profile={tracks,preferredStyles:[],preferredArtists:[],blockedStyles:[]};
+  const {player,controller}=fixture(profile,async()=>[
+    {id:'classic',title:'Old Classic Melody',artist:'Unrelated Artist',source:'youtube',duration:200,styles:['Uptempo']},
+    {id:'good',title:'Artist 0 – Fresh Uptempo Track',artist:'Artist 0',source:'youtube',duration:200,styles:['Uptempo']},
+    {id:'old-good',title:'Artist 1 – Classic Track',artist:'Artist 1',source:'youtube',duration:200,styles:['Uptempo']}
+  ]);
+  await controller.setEnabled(true);
+  const all=[player.current,...player.queue].filter(Boolean);
+  assert.ok(all.some(track=>track.id==='good'||track.id==='old-good'));
+  assert.equal(all.some(track=>track.id==='classic'),false);
+  controller.close();
+});
