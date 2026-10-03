@@ -1,5 +1,11 @@
 # 📦 Änderungen
 
+## 1.8.41 · Persönlicher Automix-Lernfix
+
+- **Explizit gelernte Tracks:** Tracks, die über das ausgewählte Lern-/Playlist-Signal ausdrücklich bestätigt wurden, erhalten auch ohne bisherige Wiedergabe ein positives persönliches Automix-Signal.
+- **Legacy-Schutz:** Das ältere `tasteConfirmed`-Feld wird nicht pauschal als positives Geschmackssignal gewertet, damit reine Playlist-Zugehörigkeit oder alte Bestätigungszustände den Automix nicht verfälschen.
+- **Regressionen:** Der neue Lernpfad ist gegen bestehende Listening-, Completion-, Skip- und Feedback-Gewichte abgesichert; Backend-, First-Run-, Player/Opus- und Browser-CI bleiben Bestandteil der Prüfung.
+
 ## 1.8.40 · Autoplay- und Spotify-Wiedergabe-Härtung
 
 - **Spotify-Wiedergabe:** Exakte Original-Mix-/Original-Version-Treffer werden nicht mehr als abweichende Titel verworfen; Extended, Remix, Slowed, Sped Up und andere echte Varianten bleiben getrennt.
