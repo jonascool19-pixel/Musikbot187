@@ -1,5 +1,15 @@
 # 📦 Änderungen
 
+## 1.8.40 · Autoplay- und Spotify-Wiedergabe-Härtung
+
+- **Spotify-Wiedergabe:** Exakte Original-Mix-/Original-Version-Treffer werden nicht mehr als abweichende Titel verworfen; Extended, Remix, Slowed, Sped Up und andere echte Varianten bleiben getrennt.
+- **Kollaborationen:** Artist-scoped Topic-Treffer mit vollständiger Spotify-Künstlerabdeckung werden über eine gezielte Kollaboratoren-Suche wiedergefunden; ein echter „Release - Topic“-Kanal eines beteiligten Spotify-Künstlers darf bei exaktem Titel und verifizierter Dauer ebenfalls als Quelle dienen.
+- **Aktuelle Logfälle:** Die Regeln decken insbesondere specialsadism (hardstyle), BASS DOWN LOW - DOWNTEMPO, Retsen Detsen, Detonation, Jamaican (Bam Bam) und mehr sauberer ab, ohne fremde Gleichnamige als Ersatz zu akzeptieren.
+- **Persönlicher Musikmix:** Das Lernprofil wertet Playlist-Zugehörigkeit allein nicht mehr als positive Geschmacksspur; eine Playlist wird nur durch bestätigtes Lernen, echtes Hören oder Feedback relevant.
+- **Genrefilter:** Klassik wird als eigene Stilrichtung erkannt und kann bei Hardstyle/Uptempo/Hardtekk-Profilen nicht mehr als unpassender Suchtreffer durchrutschen. Die Suchanfragen schließen zusätzlich typische Klassik-/Schlager-Suchartefakte aus.
+- **Metadaten-Lernen:** Vorhandene Genre-/Style-Metadaten werden beim Erkennen des persönlichen Musikprofils mit ausgewertet.
+- **Geprüft:** Neue Regressionen für Topic-/Kollaborationsfälle, Original Mix, Klassik-Filter und Lernsignal sowie die bestehende Test-/Browser-/Performance-Prüfung.
+
 ## 1.8.39 · Spotify-YouTube-Matching-Release
 
 - **Persistente Logfälle abgesichert:** Regressionen für Pat B, Franky Dux, The Mindplayer – What's a Girl to Do - Radio Edit, GPF, Unicorn on K – Lucky Lucky, 1HXSX, wnorg17 – Revenge - Extended, HUGEL, SOLTO (FR) – Jamaican (Bam Bam), HXLLGANG, VLNCRSH – WAITING FOR TONIGHT (HARDTEKK) und N-Vitral, BOMBSQUAD, Barber – Game Of Hate.
