@@ -466,7 +466,7 @@ export function spotifyPlaybackSearchQueries(item){
     artist&&song?song+' '+artist:'',
     full
   ];
-  return [...new Set(queries.map(value=>value.trim()).filter(Boolean))].slice(0,11);
+  return [...new Set(queries.map(value=>value.trim()).filter(Boolean))].slice(0,12);
 }
 export function spotifyOfficialMusicVideoFallbackCandidate(track,candidate){
   const catalog=Math.max(0,Number(track?.catalogDuration??track?.duration)||0),reported=Math.max(0,Number(candidate?.duration)||0);
