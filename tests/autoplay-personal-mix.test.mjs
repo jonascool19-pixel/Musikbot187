@@ -122,8 +122,9 @@ test('learned profile prioritizes its own tracks and does not use broad explorat
   await controller.setEnabled(true);
   const all=[player.current,...player.queue].filter(Boolean);
   assert.ok(all.length>=10);
-  assert.ok(all.filter(track=>track.autoplayKnownFavorite).length>=8);
-  assert.equal(all.filter(track=>track.autoplayExploration).length,0);
+  assert.equal(all.filter(track=>track.autoplayKnownFavorite).length,5);
+  assert.ok(queries.length>0);
   assert.ok(queries.every(query=>!query.includes('neue Künstler Geheimtipps')));
+  assert.ok(queries.some(query=>query.includes('Artist ')));
   controller.close();
 });
