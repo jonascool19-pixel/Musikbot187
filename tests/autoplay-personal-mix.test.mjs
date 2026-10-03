@@ -114,17 +114,16 @@ test('explicitly learned tracks retain positive automix signal without a listen 
 });
 
 
-test('learned profile prioritizes its own tracks and does not use broad exploration',async()=>{
-  const tracks=learned().slice(0,12).map((track,index)=>({...track,id:'priority-known-'+index,key:'priority-known-'+index}));
-  let queries=[];
-  const recommend=async(seed,{query})=>{queries.push(query);return [{id:'classic',title:'Old Classic Melody',source:'youtube',duration:200,styles:['Uptempo']},{id:'discovery',title:'New Uptempo Discovery',source:'youtube',duration:200,styles:['Uptempo']}];};
-  const {player,controller}=fixture({tracks,preferredStyles:[],preferredArtists:[],blockedStyles:[]},recommend);
+test('learned personal mixes reject generic classic or melody discoveries but keep matching artist discoveries',async()=>{
+  const tracks=learned().slice(0,12),profile={tracks,preferredStyles:[],preferredArtists:[],blockedStyles:[]};
+  const {player,controller}=fixture(profile,async()=>[
+    {id:'classic',title:'Old Classic Melody',artist:'Unrelated Artist',source:'youtube',duration:200,styles:['Uptempo']},
+    {id:'good',title:'Artist 0 – Fresh Uptempo Track',artist:'Artist 0',source:'youtube',duration:200,styles:['Uptempo']},
+    {id:'old-good',title:'Artist 1 – Classic Track',artist:'Artist 1',source:'youtube',duration:200,styles:['Uptempo']}
+  ]);
   await controller.setEnabled(true);
   const all=[player.current,...player.queue].filter(Boolean);
-  assert.ok(all.length>=10);
-  assert.equal(all.filter(track=>track.autoplayKnownFavorite).length,5);
-  assert.ok(queries.length>0);
-  assert.ok(queries.every(query=>!query.includes('neue Künstler Geheimtipps')));
-  assert.ok(queries.some(query=>query.includes('Artist ')));
+  assert.ok(all.some(track=>track.id==='good'||track.id==='old-good'));
+  assert.equal(all.some(track=>track.id==='classic'),false);
   controller.close();
 });

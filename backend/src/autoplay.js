@@ -24,6 +24,7 @@ const historicallyUnrelatedPattern=/\b(?:symphon(?:y|ie)|orchestra|orchester|phi
 const oldYearPattern=/\b(?:18\d{2}|19[0-7]\d)\b/;
 const definiteNonMusicPattern=/\b(?:how\s+to|so\s+(?:nutzt|nutzen|benutzt|benutzen|verwendet|verwenden)\s+(?:man|sie)|tutorials?|anleitung|einrichtung|setup|guide|erklärt|erklärung|explained|review|reaction|unboxing|interview|podcast|dokumentation|documentary|web\s+player|walkthrough|gameplay|let'?s\s+play|trailer|behind\s+the\s+scenes|making\s+of|nachrichten|news|top\s*\d+|best(?:e|en)?\s*\d+|best\s+of|greatest\s+hits|playlists?|compilations?|zusammenstellung|(?:songs?|lieder|hits)\s+(?:mix|sammlung))\b/i;
 const likelyNonMusicPattern=/\b(?:study|studying|distracting|productivity|konzentrieren|lern(?:en|video)|tipps?|tips?|vergleich|comparison|episode|folge|vlog|shorts?)\b/i;
+const genericClassicPattern=/\b(?:classic(?:s)?|oldies?|evergreens?|greatest\s+hits|best\s+of|golden\s+old(?:ies)?|instrumental|instrumentals?|melody|melodies|piano\s+version|orchestral|orchestra|symphon(?:y|ies)|lounge\s+music|beautiful\s+music)\b/i;
 const musicMarkerPattern=/\b(?:official\s+(?:music\s+)?(?:video|audio)|lyrics?|lyric\s+video|visuali[sz]er|remix|radio\s+edit|extended\s+mix|music\s+video|official\s+song|feat\.?|ft\.?)\b/i;
 export const autoplaySlowedVersion=musicSlowedVersion;
 
@@ -623,7 +624,10 @@ export class AutoplayController{
         for(const [rank,track] of (Array.isArray(found)?found:[]).slice(0,24).entries()){
           inspectedCandidates++;
           const key=autoplayTrackKey(track),options={...matchOptions,rank};
-          if(!key||candidateKeys.has(key)||this.profile.excludedTracks.some(item=>item.key===key)||dislikedKeys.has(key)||dislikedProfile.some(item=>sameRecommendationFamily(item,track))||!autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)||!autoplayCandidateMatchesPreferences(track,options)||familyReferences.some(item=>sameRecommendationFamily(item,track))||acceptedReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>autoplayTrackKey(item)===key||sameRecommendationFamily(item,track)))continue;
+          const candidateArtist=learnedArtistCandidate(track);
+          const learnedArtistMatch=preferredArtists.some(artist=>containsMusicTerm(candidateArtist,artist));
+          const genericClassic=genericClassicPattern.test(String(track?.title||''));
+          if(!key||candidateKeys.has(key)||this.profile.excludedTracks.some(item=>item.key===key)||dislikedKeys.has(key)||dislikedProfile.some(item=>sameRecommendationFamily(item,track))||!autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)||!autoplayCandidateMatchesPreferences(track,options)||(positiveProfile.length&&genericClassic&&!learnedArtistMatch)||familyReferences.some(item=>sameRecommendationFamily(item,track))||acceptedReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>autoplayTrackKey(item)===key||sameRecommendationFamily(item,track)))continue;
           const tagged={...track,autoplayCategory:spec.style||spec.artist||'',autoplayCategoryKind:spec.style?'genre':spec.artist?'artist':'',autoplayExploration:Boolean(spec.explore)};
           if(profileKeys.has(key)||positiveProfile.some(item=>sameRecommendationFamily(item,track))){candidateKeys.add(key);continue}
           fresh.push(tagged);
