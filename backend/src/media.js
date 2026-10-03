@@ -449,8 +449,8 @@ export function spotifyPlaybackSearchQueries(item){
   const collaboratorPair=artistNames.length>1?artistNames.slice(0,2):[];
   const collaboratorPairQuery=collaboratorPair.length===2&&song?collaboratorPair.map(name=>'"'+name+'"').join(' ')+' "'+song+'" audio':'';
   const queries=[
-    collaboratorPairQuery,
     multipleArtists&&song?multipleArtists+' "'+song+'" audio':'',
+    collaboratorPairQuery,
     primaryArtist&&song?primaryArtist+' "'+song+'" official audio':'',
     primaryArtist&&song?primaryArtist+' "'+song+'" topic audio':'',
     // YouTube sometimes indexes a censored upload instead of Spotify's explicit title.
