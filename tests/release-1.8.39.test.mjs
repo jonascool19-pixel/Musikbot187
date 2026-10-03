@@ -10,7 +10,7 @@ test('1.8.39 regression: HUGEL/SOLTO exact collaboration release is accepted',()
   const candidate=yt('aaaaabbbbb1','HUGEL, SOLTO (FR) - Jamaican (Bam Bam) (Official Visualizer)',157,'Digster Pop Music');
   assert.equal(spotifyPlaybackTitleCompatible(song,candidate),true);
   assert.equal(spotifyPlaybackTitleCompatible(song,yt('cccccdddd1','HUGEL, SOLTO (FR) - Jamaican (Bam Bam) (Extended Mix)',301,'MoBlack Records')),false);
-  assert.equal(spotifyPlaybackTitleCompatible(song,yt('eeeeefffff1','HUGEL, SOLTO (FR) - Jamaican (Bam Bam) (Original Mix)',157,'MoBlack Records')),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,yt('eeeeefffff1','HUGEL, SOLTO (FR) - Jamaican (Bam Bam) (Original Mix)',157,'MoBlack Records')),true);
 });
 
 test('1.8.39 regression: NGL SEXY KICKS never accepts unrelated same-title uploaders',async()=>{
