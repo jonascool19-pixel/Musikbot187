@@ -219,6 +219,8 @@ const spotifyPlainSong=value=>String(value||'').normalize('NFKC')
   .replace(/\s*[|｜]\s*(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*$/iu,'')
   .replace(/\s*[\[(]\s*(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*[\])]\s*$/iu,'')
   .replace(/\s*[\[(]\s*(?:feat(?:uring)?\.?|ft\.?)\s+[^\])]+\s*[\])]\s*$/iu,'')
+  .replace(/\s*[\[(]\s*original(?:\s+(?:mix|version))?\s*[\])]\s*$/iu,'')
+  .replace(/\s+[–—-]\s+original(?:\s+(?:mix|version))?\s*$/iu,'')
   .trim();
 const spotifyMaskedWordEquivalent=(expected,actual)=>{
   if(!['fuck','fick','fucking'].includes(expected)||!actual.includes('*')&&!actual.includes('#'))return false;
@@ -301,7 +303,8 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
     !evidence.prefix&&!String(candidate?.artist||'').trim()&&
     catalog>0&&reported>0&&spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
     exact.matches===wanted.size&&exact.extra.length===0;
-  const channelCreditAllowed=(expected.length===1||genreMarked||genericRemix||distinctiveCollaboratorSong||creditedPrimaryChannelExact)&&
+  const creditedTopicCollaboration=expected.length>1&&evidence.topic&&channelIsCredited;
+  const channelCreditAllowed=(expected.length===1||genreMarked||genericRemix||distinctiveCollaboratorSong||creditedPrimaryChannelExact||creditedTopicCollaboration)&&
     (!evidence.prefix||prefixIsCreditedSubset)&&!String(candidate?.artist||'').trim()&&
     (channelIsCredited||oneArtistRapChannel)&&catalog>0&&reported>0&&
     spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
@@ -443,8 +446,11 @@ export function spotifyPlaybackSearchQueries(item){
   // videos. Artist + exact song stay in EVERY query, even later fallbacks.
   // The search merely proposes candidates; artist, version and verified
   // source duration are independent mandatory checks before playback.
+  const collaboratorPair=artistNames.length>1?artistNames.slice(0,2):[];
+  const collaboratorPairQuery=collaboratorPair.length===2&&song?collaboratorPair.map(name=>'"'+name+'"').join(' ')+' "'+song+'" audio':'';
   const queries=[
     multipleArtists&&song?multipleArtists+' "'+song+'" audio':'',
+    collaboratorPairQuery,
     primaryArtist&&song?primaryArtist+' "'+song+'" official audio':'',
     primaryArtist&&song?primaryArtist+' "'+song+'" topic audio':'',
     // YouTube sometimes indexes a censored upload instead of Spotify's explicit title.
@@ -460,7 +466,7 @@ export function spotifyPlaybackSearchQueries(item){
     artist&&song?song+' '+artist:'',
     full
   ];
-  return [...new Set(queries.map(value=>value.trim()).filter(Boolean))].slice(0,11);
+  return [...new Set(queries.map(value=>value.trim()).filter(Boolean))].slice(0,12);
 }
 export function spotifyOfficialMusicVideoFallbackCandidate(track,candidate){
   const catalog=Math.max(0,Number(track?.catalogDuration??track?.duration)||0),reported=Math.max(0,Number(candidate?.duration)||0);

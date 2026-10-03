@@ -7,7 +7,7 @@ export const autoplayDiscoveryQueries=Object.freeze([
   'neue Musik entdecken Mix verschiedene Künstler'
 ]);
 export const autoplaySearchVariants=Object.freeze(['neue Releases','Underground Tracks','Festival Tracks','aktuelle Songs','Label Releases']);
-export const autoplayNonMusicSearchSuffix='-tutorial -anleitung -guide -review -reaction -interview -podcast -documentary -trailer -gameplay -playlist -compilation -"top 10" -"top 100" -slowed -"slow version" -"slow edit" -"slow remix" -verlangsamt';
+export const autoplayNonMusicSearchSuffix='-tutorial -anleitung -guide -review -reaction -interview -podcast -documentary -trailer -gameplay -playlist -compilation -"top 10" -"top 100" -slowed -"slow version" -"slow edit" -"slow remix" -verlangsamt -classical -"classical music" -klassik -schlager';
 export const listeningProfileLimit=200;
 export const autoplayMaxDurationSeconds=6*60;
 export const autoplayProfileStyleLimit=20;
@@ -16,7 +16,7 @@ const listeningThresholdMs=30_000;
 const styleMatchers=Object.freeze([
   ['Uptempo',/\bup[\s-]?tempo\b/i],['Hardcore',/\b(?:hardcore|gabber)\b/i],['Hardstyle',/\b(?:hardstyle|rawstyle)\b/i],['Hardtekk',/\b(?:hardtekk?|hardtech|tekk)\b/i],
   ['Techno',/\btechno\b/i],['House',/\bhouse\b/i],['Trance',/\btrance\b/i],['Drum & Bass',/\b(?:drum\s*(?:&|and|n)\s*bass|dnb)\b/i],
-  ['Rap & Hip-Hop',/\b(?:rap|hip[ -]?hop|trap)\b/i],['Rock',/\brock\b/i],['Metal',/\bmetal\b/i],['Pop',/\bpop\b/i],['Schlager',/\bschlager\b/i]
+  ['Rap & Hip-Hop',/\b(?:rap|hip[ -]?hop|trap)\b/i],['Rock',/\brock\b/i],['Metal',/\bmetal\b/i],['Pop',/\bpop\b/i],['Classical',/\b(?:classical|klass(?:ik|ische(?:r|s|n)?))\b/i],['Schlager',/\bschlager\b/i]
 ]);
 const hardDanceStyles=new Set(['Uptempo','Hardcore','Hardstyle']);
 const modernElectronicStyles=new Set(['Uptempo','Hardcore','Hardstyle','Hardtekk','Techno','House','Trance','Drum & Bass']);
@@ -67,8 +67,13 @@ export function recommendationFamily(track){const clean=String(track?.title||'')
 export function sameRecommendationFamily(left,right){const a=recommendationFamily(left),b=recommendationFamily(right);if(!a||!b)return false;if(a===b)return true;const aa=new Set(a.split('|')),bb=new Set(b.split('|')),intersection=[...aa].filter(token=>bb.has(token)).length,union=new Set([...aa,...bb]).size;return intersection>=4&&intersection/union>=.8;}
 
 export function inferTrackStyles(track){
-  const text=String(track?.title||'');
-  return styleMatchers.filter(([,pattern])=>pattern.test(text)).map(([label])=>label);
+  const metadata=[
+    track?.title,
+    track?.genre,
+    ...(Array.isArray(track?.genres)?track.genres:[]),
+    ...(Array.isArray(track?.styles)?track.styles:[])
+  ].filter(Boolean).join(' ');
+  return styleMatchers.filter(([,pattern])=>pattern.test(metadata)).map(([label])=>label);
 }
 
 const normalizeStyleValue=value=>String(value||'').normalize('NFKC').replace(/[\u0000-\u001f<>]/g,' ').replace(/\s+/g,' ').trim().slice(0,40);
@@ -78,7 +83,7 @@ const stylesIn=value=>styleMatchers.filter(([,pattern])=>pattern.test(String(val
 const compatibleStyle=(candidate,preferred)=>candidate===preferred||hardDanceStyles.has(candidate)&&hardDanceStyles.has(preferred);
 const containsMusicTerm=(text,term)=>{const value=comparableMusicTerm(text),needle=comparableMusicTerm(term);return Boolean(needle&&` ${value} `.includes(` ${needle} `));};
 export function listeningSignalWeight(track){
-  const confirmed=track?.tasteConfirmed===true||Number(track?.listens)>0||track?.playlistIds?.length>0||Number(track?.rating)>0;
+  const confirmed=track?.tasteConfirmed===true||Number(track?.listens)>0||Number(track?.rating)>0;
   if(!confirmed)return 0;
   return Math.max(0,(Number(track?.listens)||0)+(Number(track?.completed)||0)*2-(Number(track?.earlySkips)||0)*2+(Number(track?.rating)||0)*4);
 }
