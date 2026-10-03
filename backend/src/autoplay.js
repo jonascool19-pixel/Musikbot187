@@ -83,9 +83,19 @@ const stylesIn=value=>styleMatchers.filter(([,pattern])=>pattern.test(String(val
 const compatibleStyle=(candidate,preferred)=>candidate===preferred||hardDanceStyles.has(candidate)&&hardDanceStyles.has(preferred);
 const containsMusicTerm=(text,term)=>{const value=comparableMusicTerm(text),needle=comparableMusicTerm(term);return Boolean(needle&&` ${value} `.includes(` ${needle} `));};
 export function listeningSignalWeight(track){
-  const confirmed=track?.tasteConfirmed===true||Number(track?.listens)>0||Number(track?.rating)>0;
+  const explicitlyConfirmed=track?.tasteConfirmed===true;
+  const listens=Number(track?.listens)||0;
+  const completed=Number(track?.completed)||0;
+  const earlySkips=Number(track?.earlySkips)||0;
+  const rating=Number(track?.rating)||0;
+  const confirmed=explicitlyConfirmed||listens>0||rating>0;
   if(!confirmed)return 0;
-  return Math.max(0,(Number(track?.listens)||0)+(Number(track?.completed)||0)*2-(Number(track?.earlySkips)||0)*2+(Number(track?.rating)||0)*4);
+  // A manually/automatically confirmed learned title is itself a positive
+  // signal. Previously tasteConfirmed alone still produced weight 0, which
+  // made confirmed favorites disappear from the personal automix until they
+  // happened to accumulate a listen or rating.
+  const confirmationBonus=explicitlyConfirmed?1:0;
+  return Math.max(0,confirmationBonus+listens+completed*2-earlySkips*2+rating*4);
 }
 const learnedPreferenceStyles=tracks=>{const counts=new Map();for(const track of Array.isArray(tracks)?tracks:[]){const weight=listeningSignalWeight(track);if(weight<=0)continue;for(const style of normalizeAutoplayStyles([...(track?.styles||[]),...inferTrackStyles(track)]))counts.set(style,(counts.get(style)||0)+weight)}return [...counts].sort((left,right)=>right[1]-left[1]).slice(0,6).map(([style])=>style);};
 export function autoplayCandidateMatchesPreferences(track,{preferredStyles=[],preferredArtists=[],queryStyle='',queryArtist='',strictStyle=false}={}){
