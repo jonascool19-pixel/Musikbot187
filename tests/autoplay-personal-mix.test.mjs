@@ -106,3 +106,9 @@ test('a learned library without reliable genre or artist metadata does not fall 
   assert.ok(player.queue.every(track=>track.autoplayKnownFavorite));
   controller.close();
 });
+
+
+test('confirmed learned tracks retain positive automix signal without a listen count',()=>{
+  assert.equal(listeningSignalWeight({title:'Confirmed Favorite',tasteConfirmed:true,listens:0,completed:0,earlySkips:0,rating:0}),1);
+  assert.ok(listeningSignalWeight({title:'Confirmed Favorite',tasteConfirmed:true})>0);
+});
