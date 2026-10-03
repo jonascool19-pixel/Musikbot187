@@ -596,10 +596,15 @@ export class AutoplayController{
             ?{...category,explore:false,query:[category.style,variant,'verschiedene Künstler official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')}
             :{...category,explore:false,query:[category.artist,variant,'Songs ähnliche Künstler official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')});
         }
-        const exploreCategory=rotated[(mixIndex+3)%rotated.length];
-        if(exploreCategory)queryCandidates.push(exploreCategory.style
-          ?{...exploreCategory,explore:true,query:[exploreCategory.style,'neue Künstler Geheimtipps','official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')}
-          :{...exploreCategory,explore:true,query:[exploreCategory.artist,'ähnliche neue Künstler Geheimtipps','official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')});
+        // Broad exploration is useful only before a personal profile exists.
+        // With learned tracks it can surface generic old classics or melodies
+        // that merely share a broad genre keyword.
+        if(!positiveProfile.length){
+          const exploreCategory=rotated[(mixIndex+3)%rotated.length];
+          if(exploreCategory)queryCandidates.push(exploreCategory.style
+            ?{...exploreCategory,explore:true,query:[exploreCategory.style,'neue Künstler Geheimtipps','aktuelle Songs 2026','official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')}
+            :{...exploreCategory,explore:true,query:[exploreCategory.artist,'ähnliche neue Künstler Geheimtipps','aktuelle Songs 2026','official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')}); 
+        }
       }
       const querySpecs=[],queryKeys=new Set();
       for(const spec of queryCandidates){const query=String(spec.query||'').trim(),key=query.toLocaleLowerCase('de-DE');if(!query||queryKeys.has(key))continue;queryKeys.add(key);querySpecs.push({...spec,query});}
@@ -663,11 +668,12 @@ export class AutoplayController{
       for(let index=0;buckets.some(bucket=>index<bucket.length);index++)for(const bucket of buckets)if(bucket[index])core.push(bucket[index]);
       for(let index=0;explorationBuckets.some(bucket=>index<bucket.length);index++)for(const bucket of explorationBuckets)if(bucket[index])exploration.push(bucket[index]);
       if(generation!==this.generation||!this.settings.autoplayEnabled)return [];
-      // Both search kinds are discoveries. Known songs come directly from the
-      // learned library, never from hoping YouTube returns an old favorite.
-      while(core.length||exploration.length){
-        if(core.length)this.recommendationBuffer.push(core.shift());
-        if(exploration.length)this.recommendationBuffer.push(exploration.shift());
+      // The learned library is the primary source of a personal mix. Search
+      // results are only a supplement; exploration must never displace known
+      // favorites when the profile has enough learned material.
+      while(core.length)this.recommendationBuffer.push(core.shift());
+      if(!positiveProfile.length){
+        while(exploration.length)this.recommendationBuffer.push(exploration.shift());
       }
       // Keep a bounded, artist-balanced reserve, including lower-ranked results
       // when other query buckets were empty. Do not accumulate one-artist pages.
@@ -680,7 +686,11 @@ export class AutoplayController{
       if(!this.recommendationBuffer.length&&!familiar.length&&failures.length>=querySpecs.length)throw new Error('YouTube-Suche für den Musikmix fehlgeschlagen: '+failures.at(-1));
     }
     const items=[],selected=[...queued];
-    const targetKnown=Math.ceil(config.queueTarget/2)+(!current&&this.player.queue.length===0?1:0);
+    // Once the profile contains enough positive history, the mix should feel
+    // like the user's music. Keep about 80% learned favorites and reserve only
+    // a small slot for fresh discoveries.
+    const learnedTarget=Math.min(config.queueTarget,Math.max(5,Math.ceil(config.queueTarget*0.8)));
+    const targetKnown=Math.min(learnedTarget,Math.max(0,familiar.length+this.player.queue.filter(track=>track.autoplayKnownFavorite).length))+(!current&&this.player.queue.length===0?1:0);
     let knownNeeded=Math.max(0,targetKnown-this.player.queue.filter(track=>track.autoplayKnownFavorite).length);
     const take=(list,options)=>{
       for(let index=list.length-1;index>=0;index--)if(selected.some(item=>autoplayTrackKey(item)===autoplayTrackKey(list[index])||sameRecommendationFamily(item,list[index])))list.splice(index,1);
