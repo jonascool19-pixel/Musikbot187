@@ -20,6 +20,22 @@ function fixture(profile,recommend){
   return {player,controller};
 }
 
+test('reset invalidates an in-flight search before it can restore old recommendations',async t=>{
+  let release,started;
+  const gate=new Promise(resolve=>{release=resolve}),entered=new Promise(resolve=>{started=resolve});
+  const {player,controller}=fixture({tracks:learned(),preferredStyles:['Uptempo']},async()=>{
+    started();await gate;return [{id:'stale',title:'Old DJ – Uptempo Stale',source:'youtube',duration:200}];
+  });
+  t.after(()=>controller.close());
+  controller.settings.autoplayEnabled=true;
+  const pending=controller.fill();await entered;
+  await controller.resetProfile({full:true});release();await pending;
+  assert.deepEqual(player.queue,[]);assert.equal(player.current,null);
+  assert.deepEqual(controller.recommendationBuffer,[]);
+  assert.deepEqual(controller.profile.recentAutoplay,[]);
+  assert.equal(controller.profileSummary().learnedTracks,0);
+});
+
 test('search rank and a shared uploader cannot authorize unrelated songs',()=>{
   const profile={preferredStyles:['Uptempo'],preferredArtists:['Trusted DJ'],queryArtist:'Trusted DJ',strictStyle:true};
   for(const title of ['Other Artist – Schlager Party','Other Artist – Rap Hit','Gershwin – Oh Kay 1926','Other Artist – Mystery Track']){
@@ -34,7 +50,7 @@ test('search rank and a shared uploader cannot authorize unrelated songs',()=>{
   assert.deepEqual(inferTrackStyles({title:'Up-Tempo Hardtekk Remix'}),['Uptempo','Hardtekk']);
 });
 
-test('ten queued songs stay five learned favorites and five relevant discoveries through repeated refills and restart',async()=>{
+test('ten queued songs stay eight learned favorites and two relevant discoveries through repeated refills and restart',async()=>{
   const profile={tracks:learned(),preferredStyles:[],preferredArtists:[],blockedStyles:[]};
   let searches=0;
   const recommend=async(seed,{query})=>{
@@ -51,7 +67,7 @@ test('ten queued songs stay five learned favorites and five relevant discoveries
   const played=[],fresh=new Set(),known=new Set();
   for(let step=0;step<70;step++){
     assert.equal(player.queue.length,10,'refill '+step);
-    assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,5,'known share '+step);
+    assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,8,'known share '+step);
     assert.equal(new Set([player.current,...player.queue].map(track=>track.id)).size,11);
     assert.ok(player.queue.every(track=>!track.title.includes('Schlager')));
     const track=player.current;
@@ -61,11 +77,11 @@ test('ten queued songs stay five learned favorites and five relevant discoveries
     player.skip();await controller.fill();
   }
   assert.ok(known.size>=20,'favorites rotate across the library');
-  assert.ok(fresh.size>=30);
+  assert.ok(fresh.size>=10);
   controller.close();
   ({player,controller}=fixture(JSON.parse(JSON.stringify(profile)),recommend));
   await controller.setEnabled(true);
-  assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,5);
+  assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,8);
   assert.ok(player.queue.filter(track=>!track.autoplayKnownFavorite).every(track=>!fresh.has(track.id)));
   controller.close();
 });
@@ -111,4 +127,19 @@ test('a learned library without reliable genre or artist metadata does not fall 
 test('explicitly learned tracks retain positive automix signal without a listen count',()=>{
   assert.equal(listeningSignalWeight({title:'Learned Favorite',learnedConfirmed:true,listens:0,completed:0,earlySkips:0,rating:0}),1);
   assert.equal(listeningSignalWeight({title:'Legacy Confirmation',tasteConfirmed:true,listens:0,completed:0,earlySkips:0,rating:0}),0);
+});
+
+
+test('learned personal mixes reject generic classic or melody discoveries but keep matching artist discoveries',async()=>{
+  const tracks=learned().slice(0,12),profile={tracks,preferredStyles:[],preferredArtists:[],blockedStyles:[]};
+  const {player,controller}=fixture(profile,async()=>[
+    {id:'classic',title:'Old Classic Melody',artist:'Unrelated Artist',source:'youtube',duration:200,styles:['Uptempo']},
+    {id:'good',title:'Artist 0 – Fresh Uptempo Track',artist:'Artist 0',source:'youtube',duration:200,styles:['Uptempo']},
+    {id:'old-good',title:'Artist 1 – Classic Track',artist:'Artist 1',source:'youtube',duration:200,styles:['Uptempo']}
+  ]);
+  await controller.setEnabled(true);
+  const all=[player.current,...player.queue].filter(Boolean);
+  assert.ok(all.some(track=>track.id==='good'||track.id==='old-good'));
+  assert.equal(all.some(track=>track.id==='classic'),false);
+  controller.close();
 });
