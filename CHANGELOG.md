@@ -1,5 +1,11 @@
 # 📦 Änderungen
 
+## 1.8.42 · Spotify-Zuordnung für Topic-Kanäle und „- Slowed“-Titel
+
+- **Topic-Kanäle:** Der von YouTube-Suchergebnissen gesetzte Künstlername „Release“ bei „Release - Topic“-Uploads gilt nicht mehr als fremde Künstlerangabe. Der Treffer wird wie vorgesehen über die künstlerbezogene Suche, den exakten Titel und die passende Dauer akzeptiert.
+- **Versionssuffix mit Bindestrich:** Titel wie „GodFall - Slowed“ werden als ein Song mit Versionszusatz gelesen und nicht mehr als Künstler „GodFall“ mit dem Song „Slowed“.
+- **Unverändert streng:** Falsche Versionen (Super/Ultra Slowed, Sped Up, Remix), fremde Kanäle, fehlende künstlerbezogene Suche und abweichende Längen bleiben abgelehnt; neue Regressionstests sichern das ab.
+
 ## 1.8.41 · Persönlicher Automix-Lernfix
 
 - **Explizit gelernte Tracks:** Tracks, die über das ausgewählte Lern-/Playlist-Signal ausdrücklich bestätigt wurden, erhalten auch ohne bisherige Wiedergabe ein positives persönliches Automix-Signal.

@@ -728,3 +728,38 @@ test('Topic title-only matching still rejects slowed/sped-up variants',()=>{
   assert.equal(spotifyPlaybackTitleCompatible(song,{...base,title:'WAITING FOR TONIGHT (HARDTEKK) (SLOWED)'}),false);
   assert.equal(spotifyPlaybackTitleCompatible(song,{...base,title:'WAITING FOR TONIGHT (HARDTEKK) (SPED UP)'}),false);
 });
+
+test('production-shaped Release - Topic candidates (artist echoes the channel) match only with artist-scoped search, exact title and duration',()=>{
+  // youtubeSearch() sets candidate.artist from the Topic channel name, so the
+  // real candidate carries artist:'Release', unlike the artist:'' fixtures above.
+  const song={id:'spotify:topic-echo-regression',source:'spotify',title:'LXSTURY, PHORZE, KXWVCH – TEKK 2 - SLOWED',duration:133};
+  const base={...yt('topicecho01','TEKK 2 (SLOWED)',134),channel:'Release - Topic',artist:'Release',searchQuery:'LXSTURY PHORZE KXWVCH "TEKK 2 – SLOWED" audio'};
+  assert.equal(spotifyPlaybackTitleCompatible(song,base),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...base,searchQuery:'OTHER ARTIST "TEKK 2 – SLOWED" audio'}),false,'query must contain every requested artist');
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...base,searchQuery:undefined}),false,'no artist-scoped search, no identity');
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...base,title:'TEKK 2 (SUPER SLOWED)',duration:150}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...base,title:'TEKK 2 (SPED UP)',duration:120}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...base,title:'ALLES TEKK 2 (SLOWED)'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...base,duration:170}),false);
+  // A named performer Topic channel is never "generic": a different artist stays rejected.
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...base,channel:'Someone Else - Topic',artist:'Someone Else'}),false);
+});
+
+test('"Song - Slowed" in a YouTube title is one song with a version suffix, not an artist prefix',async()=>{
+  const song={id:'spotify:dash-slowed-regression',source:'spotify',title:'Crxptic – GodFall - Slowed',duration:128};
+  const good={...yt('dashslow001','GodFall - Slowed',128),channel:'Crxptic - Topic',artist:'GodFall'};
+  assert.equal(spotifyPlaybackTitleCompatible(song,good),true);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...good,title:'GodFall - Super Slowed',duration:136}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...good,title:'GodFall',duration:128}),false,'plain original is a different version');
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...good,channel:'Someone Else - Topic'}),false);
+  // Duration is a separate mandatory guard in resolveSpotify, so a 160 s upload
+  // of the same title still never plays for a 128 s catalog track.
+  const wrongLength={...good,duration:160};
+  let resolutions=0;
+  const error=await resolveSpotify({...song},null,{search:async()=>[wrongLength],resolve:async()=>{resolutions++;return resolved(wrongLength.id,160)}}).catch(value=>value);
+  assert.ok(error instanceof SpotifyMatchUnavailableError);
+  assert.equal(resolutions,0);
+  // The same title for a song that is NOT slowed keeps rejecting slowed uploads.
+  const original={id:'spotify:dash-slowed-original',source:'spotify',title:'Crxptic – GodFall',duration:128};
+  assert.equal(spotifyPlaybackTitleCompatible(original,{...good,title:'GodFall - Slowed'}),false);
+});

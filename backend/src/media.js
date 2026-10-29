@@ -124,6 +124,10 @@ const spotifyCandidateTitleParts=candidate=>{
   const subtitle=title.match(/^(.+?)\s*[\[(]\s*(?:w\/|with)\s*english\s*subtitles!?\s*[\])]\s+(.+?)\s*[\[(]\s*music\s+video\s*[\])]\s*$/iu);
   const parts=subtitle?[subtitle[1],subtitle[2]+' [Music Video]']:
     title.split(/\s+[–—✖×-]\uFE0F?\s+/u);
+  // "GodFall - Slowed" is ONE song with a version suffix, not the credit
+  // "GodFall" followed by a song called "Slowed". Keep it as a single segment so
+  // the version suffix stays part of the song and no fake artist prefix appears.
+  if(parts.length===2&&/^(?:(?:super|ultra)\s+)?(?:slowed|sped\s*up|nightcore)(?:\s*\+\s*reverb)?$/iu.test(parts[1].trim()))return [title];
   // Decorative segments never supply artist evidence or a different recording.
   while(parts.length>1&&/^(?:[\[(]\s*)?(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)(?:\s*[\])])?(?:\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_ -]+)?$/iu.test(parts.at(-1).trim()))parts.pop();
   // Some official videos list production credits after the second separator:
@@ -321,7 +325,12 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const searchQuery=String(candidate?.searchQuery||'');
   const normalizedSearchQuery=spotifyCanonicalArtist(searchQuery);
   const queryHasAllArtists=expected.every(name=>normalizedSearchQuery.includes(name));
-  const topicTitleOnly=!evidence.prefix&&!String(candidate?.artist||'').trim()&&evidence.topic;
+  // youtubeSearch() fills candidate.artist from the Topic channel name
+  // ("Release - Topic" -> "Release"). That echo is not a competing performer
+  // credit, so it must not disable this generic-label path.
+  const candidateArtist=spotifyCanonicalArtist(candidate?.artist);
+  const genericTopicChannel=evidence.topic&&['release','variousartists'].includes(evidence.channelArtist);
+  const topicTitleOnly=!evidence.prefix&&evidence.topic&&(!candidateArtist||genericTopicChannel&&candidateArtist===evidence.channelArtist);
   if(topicTitleOnly&&queryHasAllArtists&&catalog>0&&reported>0&&
     spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
     exact.matches===wanted.size&&exact.extra.length===0)return true;
