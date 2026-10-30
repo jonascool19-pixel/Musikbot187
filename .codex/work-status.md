@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-10-30T13:16:32.628Z
-Status: in progress
-Base: main 9004e5b6e64f059fd741f250b1bdabf16c8a22d5
+Last updated: 2026-10-30T17:06:11.491Z
+Status: complete
+Base: main 0ddb9fa3dd24b0873f975072cc7e45b7b98faa9e
 
 ## Currently working on
 
-Version 1.8.43 low-latency YouTube and Discord playback fix
+Version 1.8.43 merged in PR #70
 
 ## Last completed
 
-Removed duplicate direct-YouTube extraction, fixed read-only HLS fragment writes, shortened bounded client fallback and reduced stacked player/Discord buffers
+Fixed slow skip, delayed volume, slow starts, read-only HLS fragment writes, duplicate YouTube extraction and bounded client failover
 
 ## Next
 
-Commit, open pull request, verify Linux CI and merge
+Validate audible response on the live bot after the dashboard update to 1.8.43
 
 ## Verification
 
-296 backend tests, 2 Playwright tests, npm audit and PCM benchmark pass locally; native Opus remains Linux-CI verified because the local Windows prebuild is unavailable
+296 backend tests, 2 Playwright tests, npm audit, PCM benchmark and Linux CI run 41095499022 pass; native Opus and installer checks pass in CI
 
 ## Safety note
 
