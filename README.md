@@ -101,7 +101,9 @@ So richtest du deinen persönlichen Mix ein:
 3. Die erkannten **Stilrichtungen und Künstler** im Profil kontrollieren. Unerwünschte Begriffe lassen sich sperren; einzelne Titel oder ganze Playlists können vom Lernen ausgeschlossen werden.
 4. Mit **Mehr davon**, **Weniger davon** und deinem Hörverhalten den Geschmack weiter anpassen. Bewusst gehörte Titel, ausgewählte Lern-Playlists und deine Bewertungen prägen das Profil. Automatische Vorschläge erzeugen durch bloßes Zu-Ende-Spielen keinen neuen Musikgeschmack.
 
-**Der Mix zielt auf fünf bekannte und fünf neue Titel pro zehn Wartetitel.** Bekannte Songs kommen direkt aus deinem Lernprofil und wechseln sich ab. Neue Songs benötigen passende Künstler- oder Stilbelege; ihre Position in der YouTube-Suche genügt nicht. Falls geprüfte Neuentdeckungen fehlen, ergänzen verfügbare gelernte Favoriten den Mix. Bei zu wenigen passenden Titeln kann die Warteschlange kürzer bleiben.
+**Der Mix zielt auf acht bekannte und zwei neue Titel pro zehn Wartetitel.** Bekannte Songs kommen direkt aus deinem Lernprofil und wechseln sich ab. Neue Songs benötigen passende Künstler- oder Stilbelege; ihre Position in der YouTube-Suche genügt nicht. Falls geprüfte Neuentdeckungen fehlen, ergänzen verfügbare gelernte Favoriten den Mix. Bei zu wenigen passenden Titeln kann die Warteschlange kürzer bleiben.
+
+**Profil zurücksetzen:** „Gelernte Titel zurücksetzen“ entfernt Lernhistorie und bisherige Vorschläge, behält aber deine Vorlieben und Ausschlüsse. „Lernprofil komplett zurücksetzen“ entfernt zusätzlich Künstler, Musikrichtungen, Sperrbegriffe sowie Titel- und Playlist-Lernausschlüsse. Gespeicherte Playlists und deren Spotify-Synchronisierung bleiben erhalten.
 
 **Mehr Künstlerwechsel:** Bekannte und neue Songs teilen sich eine gemeinsame Künstlerverteilung. Bei zehn Wartetiteln sind höchstens zwei Titel je Künstler und keine direkten Wiederholungen desselben Künstlers das Ziel. Auch gemeinsame Credits wie „A feat. B“ zählen mit. Nur wenn keine passende Künstleralternative verfügbar ist, wird diese Häufigkeitsgrenze gelockert, damit ein kleines Musikprofil weiter abspielen kann.
 

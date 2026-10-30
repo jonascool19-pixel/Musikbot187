@@ -1,4 +1,5 @@
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 const dataDir = path.resolve(process.env.MUSIKBOT187_DATA_DIR || '/var/lib/musikbot187');
 export const config = Object.freeze({
@@ -12,12 +13,11 @@ export const config = Object.freeze({
   bugReportRelayUrl:
     process.env.MUSIKBOT187_BUG_REPORT_RELAY_URL ||
     'https://musikbot187-support-relay.jonascool19.workers.dev/reports',
-  frontendDir: path.resolve(process.env.MUSIKBOT187_FRONTEND_DIR || new URL('../../frontend', import.meta.url).pathname),
+  frontendDir: path.resolve(process.env.MUSIKBOT187_FRONTEND_DIR || fileURLToPath(new URL('../../frontend', import.meta.url))),
   controlSocket: process.env.MUSIKBOT187_CONTROL_SOCKET || '/run/musikbot187/control.sock',
   spotifyRelayUri: process.env.MUSIKBOT187_SPOTIFY_RELAY_URI || 'https://jonascool19-pixel.github.io/Musikbot187/spotify-callback/',
   sessionTtlMs: 12 * 60 * 60 * 1000,
   maxSessions: 5,
-  maxQueue: 100,
   maxPlaylist: 500,
   maxUpload: 128 * 1024 * 1024,
   musicQuota: 10 * 1024 ** 3,

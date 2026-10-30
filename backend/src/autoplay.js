@@ -24,6 +24,7 @@ const historicallyUnrelatedPattern=/\b(?:symphon(?:y|ie)|orchestra|orchester|phi
 const oldYearPattern=/\b(?:18\d{2}|19[0-7]\d)\b/;
 const definiteNonMusicPattern=/\b(?:how\s+to|so\s+(?:nutzt|nutzen|benutzt|benutzen|verwendet|verwenden)\s+(?:man|sie)|tutorials?|anleitung|einrichtung|setup|guide|erklärt|erklärung|explained|review|reaction|unboxing|interview|podcast|dokumentation|documentary|web\s+player|walkthrough|gameplay|let'?s\s+play|trailer|behind\s+the\s+scenes|making\s+of|nachrichten|news|top\s*\d+|best(?:e|en)?\s*\d+|best\s+of|greatest\s+hits|playlists?|compilations?|zusammenstellung|(?:songs?|lieder|hits)\s+(?:mix|sammlung))\b/i;
 const likelyNonMusicPattern=/\b(?:study|studying|distracting|productivity|konzentrieren|lern(?:en|video)|tipps?|tips?|vergleich|comparison|episode|folge|vlog|shorts?)\b/i;
+const genericClassicPattern=/\b(?:classic(?:s)?|oldies?|evergreens?|greatest\s+hits|best\s+of|golden\s+old(?:ies)?|instrumental|instrumentals?|melody|melodies|piano\s+version|orchestral|orchestra|symphon(?:y|ies)|lounge\s+music|beautiful\s+music)\b/i;
 const musicMarkerPattern=/\b(?:official\s+(?:music\s+)?(?:video|audio)|lyrics?|lyric\s+video|visuali[sz]er|remix|radio\s+edit|extended\s+mix|music\s+video|official\s+song|feat\.?|ft\.?)\b/i;
 export const autoplaySlowedVersion=musicSlowedVersion;
 
@@ -394,14 +395,25 @@ export class AutoplayController{
 
   async blockProfileTrack(key){const value=String(key||''),track=this.profile.tracks.find(entry=>entry.key===value);if(!track)throw new Error('Der gelernte Titel wurde nicht gefunden.');const detected=normalizeAutoplayStyles(track.styles),title=String(track.title||'').trim(),artist=title.split(/\s+[–—-]\s+/)[0]?.trim(),fallback=normalizeStyleValue(artist&&artist.length>=2?artist:title);const added=detected.length?detected:fallback?[fallback]:[];if(!added.length)throw new Error('Für diesen Titel konnte kein Sperrbegriff ermittelt werden.');const profile=await this.updateProfileStyles({preferredStyles:this.profile.preferredStyles,preferredArtists:this.profile.preferredArtists,blockedStyles:[...this.profile.blockedStyles,...added]});return {profile,added:added.filter(style=>profile.blockedStyles.some(value=>comparable(value)===comparable(style)))};}
 
-  async resetProfile(){
+  async resetProfile({full=false}={}){
+    const prior=this.pending;
+    this.resetRuntime();
     this.profile.tracks=[];
     this.profile.recentAutoplay=[];
+    if(full){
+      this.profile.preferredStyles=[];
+      this.profile.preferredArtists=[];
+      this.profile.blockedStyles=[];
+      this.profile.excludedTracks=[];
+      this.profile.excludedPlaylistIds=[];
+    }
     this.recommendationBuffer=[];
     this.recentKeys=[];
     this.recentFamilies=[];
-    this.mixCounter=0;
+    this.resetRecommendationSelection({preserveQueue:true});
     await this.save();
+    if(prior)prior.catch(()=>{}).finally(()=>{if(this.settings.autoplayEnabled)this.schedule()});
+    else if(this.settings.autoplayEnabled)this.schedule();
     return this.profileSummary();
   }
 
@@ -510,7 +522,7 @@ export class AutoplayController{
     this.detail=config.mode==='playlists'
       ?'Ausgewählte Playlists laufen der Reihe nach in Endlosschleife.'
       :preferenceNames.length
-        ?`Bekannte Favoriten und neue Titel passend zu ${preferences.label} (${preferenceNames.join(', ')}) werden gemischt. Ziel: 5 bekannte + 5 neue pro 10 Titel, soweit passende Titel verfügbar sind.`
+        ?`Bekannte Favoriten und neue Titel passend zu ${preferences.label} (${preferenceNames.join(', ')}) werden gemischt. Ziel: 8 bekannte + 2 neue pro 10 Titel, soweit passende Titel verfügbar sind.`
         :`Ähnliche Titel zu „${this.lastSeedTitle}“ werden automatisch ergänzt.`;
     return this.state();
   }
@@ -554,8 +566,8 @@ export class AutoplayController{
       return [];
     }
     const preferences=autoplayPreferenceContext(this.profile),seedStyles=!preferences.styles.length&&!preferences.artists.length&&current&&current.autoplayMode!=='similar'?inferTrackStyles(current):[],preferredStyles=normalizeAutoplayStyles([...preferences.styles,...seedStyles]),preferredArtists=preferences.artists,hasMusicPreferences=Boolean(preferredStyles.length||preferredArtists.length),currentKey=autoplayTrackKey(current),profileSeeds=[...this.profile.tracks].sort((a,b)=>listeningSignalWeight(b)-listeningSignalWeight(a)||Number(b.lastPlayed||0)-Number(a.lastPlayed||0)).filter(track=>listeningSignalWeight(track)>0&&autoplayTrackKey(track)!==currentKey&&!this.profileTrackExcluded(track)&&autoplayTrackAllowed(track,this.profile.blockedStyles)),librarySeeds=this.getPlaylists().filter(playlist=>!this.profile.excludedPlaylistIds.includes(String(playlist.id||''))).flatMap(playlist=>(playlist.items||[]).map(track=>({...track,playlistOriginId:playlist.id}))).filter(track=>track&&track.source!=='radio'&&!this.profileTrackExcluded(track)&&autoplayTrackAllowed(track,this.profile.blockedStyles)),mixIndex=this.mixCounter;
-    let useProfile=false,seed=current,discovery=false;
-    if(!seed){if(profileSeeds.length){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}else if(librarySeeds.length)seed=librarySeeds[this.mixCounter%librarySeeds.length];else{discovery=true;seed={id:'musikbot187-discovery',title:'Startmix',source:'youtube'};}}
+    let useProfile=false,seed=current;
+    if(!seed){if(profileSeeds.length){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}else if(librarySeeds.length)seed=librarySeeds[this.mixCounter%librarySeeds.length];else{seed={id:'musikbot187-discovery',title:'Startmix',source:'youtube'};}}
     else if(profileSeeds.length>0&&(current?.autoplayMode==='similar'||this.mixCounter%3===2)){useProfile=true;seed=profileSeeds[this.mixCounter%profileSeeds.length]}
     this.mixCounter++;
     const seedKey=autoplayTrackKey(seed);
@@ -582,7 +594,7 @@ export class AutoplayController{
     }
     let inspectedCandidates=0;
     if(reserveCount<needed&&hasMusicPreferences){
-      const blockedSuffix=this.profile.blockedStyles.map(style=>'-'+(/\s/.test(style)?'"'+style.replaceAll('"','')+'"':style)).join(' '),searchVariant=autoplaySearchVariants[mixIndex%autoplaySearchVariants.length],queryCandidates=[];
+      const blockedSuffix=this.profile.blockedStyles.map(style=>'-'+(/\s/.test(style)?'"'+style.replaceAll('"','')+'"':style)).join(' '),queryCandidates=[];
       if(hasMusicPreferences){
         const categories=[],categoryLength=Math.max(preferredStyles.length,preferredArtists.length);
         for(let index=0;index<categoryLength;index++){
@@ -596,10 +608,15 @@ export class AutoplayController{
             ?{...category,explore:false,query:[category.style,variant,'verschiedene Künstler official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')}
             :{...category,explore:false,query:[category.artist,variant,'Songs ähnliche Künstler official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')});
         }
-        const exploreCategory=rotated[(mixIndex+3)%rotated.length];
-        if(exploreCategory)queryCandidates.push(exploreCategory.style
-          ?{...exploreCategory,explore:true,query:[exploreCategory.style,'neue Künstler Geheimtipps','official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')}
-          :{...exploreCategory,explore:true,query:[exploreCategory.artist,'ähnliche neue Künstler Geheimtipps','official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')});
+        // Broad exploration is useful only before a personal profile exists.
+        // With learned tracks it can surface generic old classics or melodies
+        // that merely share a broad genre keyword.
+        if(!positiveProfile.length){
+          const exploreCategory=rotated[(mixIndex+3)%rotated.length];
+          if(exploreCategory)queryCandidates.push(exploreCategory.style
+            ?{...exploreCategory,explore:true,query:[exploreCategory.style,'neue Künstler Geheimtipps','official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')}
+            :{...exploreCategory,explore:true,query:[exploreCategory.artist,'ähnliche neue Künstler Geheimtipps','official audio music',blockedSuffix,autoplayNonMusicSearchSuffix].filter(Boolean).join(' ')});
+        }
       }
       const querySpecs=[],queryKeys=new Set();
       for(const spec of queryCandidates){const query=String(spec.query||'').trim(),key=query.toLocaleLowerCase('de-DE');if(!query||queryKeys.has(key))continue;queryKeys.add(key);querySpecs.push({...spec,query});}
@@ -618,7 +635,10 @@ export class AutoplayController{
         for(const [rank,track] of (Array.isArray(found)?found:[]).slice(0,24).entries()){
           inspectedCandidates++;
           const key=autoplayTrackKey(track),options={...matchOptions,rank};
-          if(!key||candidateKeys.has(key)||this.profile.excludedTracks.some(item=>item.key===key)||dislikedKeys.has(key)||dislikedProfile.some(item=>sameRecommendationFamily(item,track))||!autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)||!autoplayCandidateMatchesPreferences(track,options)||familyReferences.some(item=>sameRecommendationFamily(item,track))||acceptedReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>autoplayTrackKey(item)===key||sameRecommendationFamily(item,track)))continue;
+          const candidateArtist=learnedArtistCandidate(track);
+          const learnedArtistMatch=preferredArtists.some(artist=>containsMusicTerm(candidateArtist,artist));
+          const genericClassic=genericClassicPattern.test(String(track?.title||''));
+          if(!key||candidateKeys.has(key)||this.profile.excludedTracks.some(item=>item.key===key)||dislikedKeys.has(key)||dislikedProfile.some(item=>sameRecommendationFamily(item,track))||!autoplayMusicCandidateAllowed(track,this.profile.blockedStyles)||!autoplayCandidateMatchesPreferences(track,options)||(positiveProfile.length&&genericClassic&&!learnedArtistMatch)||familyReferences.some(item=>sameRecommendationFamily(item,track))||acceptedReferences.some(item=>sameRecommendationFamily(item,track))||fresh.some(item=>autoplayTrackKey(item)===key||sameRecommendationFamily(item,track)))continue;
           const tagged={...track,autoplayCategory:spec.style||spec.artist||'',autoplayCategoryKind:spec.style?'genre':spec.artist?'artist':'',autoplayExploration:Boolean(spec.explore)};
           if(profileKeys.has(key)||positiveProfile.some(item=>sameRecommendationFamily(item,track))){candidateKeys.add(key);continue}
           fresh.push(tagged);
@@ -651,23 +671,17 @@ export class AutoplayController{
           try{buckets.push(processResults({...spec,query},await this.recommend(seed,{query,limit:Math.max(8,Math.min(24,bucketLimit*4))})))}
           catch(error){failures.push(String(error?.message||error))}
         }
-      }else{
-        for(const spec of querySpecs){
-          let found=[];
-          try{found=await this.recommend(seed,{query:spec.query,limit:Math.max(8,Math.min(24,bucketLimit*4))})}catch(error){failures.push(String(error?.message||error));continue}
-          const bucket=processResults(spec,found);buckets.push(bucket);
-          if(bucket.length)break;
-        }
       }
       const core=[],exploration=[];
       for(let index=0;buckets.some(bucket=>index<bucket.length);index++)for(const bucket of buckets)if(bucket[index])core.push(bucket[index]);
       for(let index=0;explorationBuckets.some(bucket=>index<bucket.length);index++)for(const bucket of explorationBuckets)if(bucket[index])exploration.push(bucket[index]);
       if(generation!==this.generation||!this.settings.autoplayEnabled)return [];
-      // Both search kinds are discoveries. Known songs come directly from the
-      // learned library, never from hoping YouTube returns an old favorite.
-      while(core.length||exploration.length){
-        if(core.length)this.recommendationBuffer.push(core.shift());
-        if(exploration.length)this.recommendationBuffer.push(exploration.shift());
+      // The learned library is the primary source of a personal mix. Search
+      // results are only a supplement; exploration must never displace known
+      // favorites when the profile has enough learned material.
+      while(core.length)this.recommendationBuffer.push(core.shift());
+      if(!positiveProfile.length){
+        while(exploration.length)this.recommendationBuffer.push(exploration.shift());
       }
       // Keep a bounded, artist-balanced reserve, including lower-ranked results
       // when other query buckets were empty. Do not accumulate one-artist pages.
@@ -680,7 +694,11 @@ export class AutoplayController{
       if(!this.recommendationBuffer.length&&!familiar.length&&failures.length>=querySpecs.length)throw new Error('YouTube-Suche für den Musikmix fehlgeschlagen: '+failures.at(-1));
     }
     const items=[],selected=[...queued];
-    const targetKnown=Math.ceil(config.queueTarget/2)+(!current&&this.player.queue.length===0?1:0);
+    // Once the profile contains enough positive history, the mix should feel
+    // like the user's music. Keep about 80% learned favorites and reserve only
+    // a small slot for fresh discoveries.
+    const learnedTarget=Math.ceil(config.queueTarget*0.8);
+    const targetKnown=Math.min(learnedTarget,Math.max(0,familiar.length+this.player.queue.filter(track=>track.autoplayKnownFavorite).length))+(!current&&this.player.queue.length===0?1:0);
     let knownNeeded=Math.max(0,targetKnown-this.player.queue.filter(track=>track.autoplayKnownFavorite).length);
     const take=(list,options)=>{
       for(let index=list.length-1;index>=0;index--)if(selected.some(item=>autoplayTrackKey(item)===autoplayTrackKey(list[index])||sameRecommendationFamily(item,list[index])))list.splice(index,1);

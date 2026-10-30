@@ -1,23 +1,24 @@
 # Codex work status
 
-Last updated: 2026-09-25T23:55:00.000Z
-Status: in progress
-Base: GitHub main b12b939; Version 1.8.36
+Last updated: 2026-10-30T11:45:46.916Z
+Status: complete
+Base: PR #69 head f581d8c88aefd7302d0a48394fec2f3c70de752f
 
 ## Currently working on
-Version 1.8.37: YouTube-Altersgate, aktualisierte yt-dlp-Clientstrategie, Request-Pacing und optionale authentifizierte YouTube-Auflösung anhand der Produktionslogs vom 23.–25.09.2026.
+
+Version 1.8.42 consolidation verified in PR #69
 
 ## Last completed
 
-PR #32 wurde nach vollständig erfolgreicher GitHub-CI in main gemergt. `backend/package.json` steht auf 1.8.11, sodass bestehende 1.8.10-Installationen die neue Version über **System → Update** erkennen. Die Update-Regressionstests prüfen zusätzlich, dass 1.8.10 < 1.8.11 und ein bereits aktueller 1.8.11-Server kein Phantom-Update erhält.
+Consolidated PRs 59/67/68; fixed Spotify Topic/Slowed matching, 80/20 personal mix consistency, reset controls and races, early crossfades, dead configuration, path handling and dependency findings
 
 ## Next
-CI/Backendtests ausführen; bei grüner CI PR erstellen. Danach Live-Logs auf weniger Schutzpausen, saubere Altersgate-Diagnosen und weiterhin korrekte Spotify-Titel-/Künstlerauswahl prüfen.
+
+After merge, validate audible transitions and authenticated Spotify/YouTube behavior on the live bot when convenient
 
 ## Verification
-Implementierung und Regressionstests auf Branch `fix/youtube-agegate-and-access-recovery-1-8-37` ergänzt; CI-Lauf 36188378535 schlug zunächst wegen erwarteter Versions-/Testfixtures fehl; die betroffenen Assertions wurden auf v1.8.37 bzw. den neuen YouTube-Client-/Pacing-Vertrag aktualisiert. Zweiter CI-Lauf 36188614884 schlug nur noch bei zwei alten Testverträgen fehl; API-Update-Fixture und Security-Assertion wurden korrigiert. Dritter CI-Lauf ausstehend.
 
-Release 1.8.11: npm ci, npm audit, 185 Backendtests, Player-Performance-/native-Opus-Smoke-Test, First-Run-Test, Installer-Syntax und Dashboard-Browsertest in GitHub Actions erfolgreich. Noch keine Live-Prüfung des Crossfades auf dem Benutzer-Server.
+294 backend tests, 2 Playwright tests, npm audit, installer syntax, native Opus benchmark all pass; GitHub CI runs 40963469863 and 41050138258 succeeded
 
 ## Safety note
 

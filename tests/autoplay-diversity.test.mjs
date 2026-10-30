@@ -88,7 +88,7 @@ test('artist-heavy search pages and learned favorites share one artist budget ac
   await controller.setEnabled(true);
   for(let step=0;step<35;step++){
     assert.equal(player.queue.length,10,'queue at '+step);
-    assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,5,'5+5 at '+step);
+    assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,8,'8+2 at '+step);
     const all=[player.current,...player.queue],byArtist=counts(all);
     assert.ok(Math.max(...byArtist.values())<=2,'artist counts at '+step+': '+JSON.stringify([...byArtist]));
     assert.ok(new Set(player.queue.flatMap(musicArtistKeys)).size>=5);
@@ -98,7 +98,7 @@ test('artist-heavy search pages and learned favorites share one artist budget ac
   controller.close();
   ({controller,player}=fixture(JSON.parse(JSON.stringify(profile)),recommend));
   await controller.setEnabled(true);
-  assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,5);
+  assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,8);
   assert.ok(Math.max(...counts([player.current,...player.queue]).values())<=2);
 });
 

@@ -1,5 +1,16 @@
 # 📦 Änderungen
 
+## 1.8.42 · Spotify-Zuordnung, persönlicher Mix und saubere Übergänge
+
+- **Übergänge:** Ein vorbereitetes Deck startet erst am tatsächlichen Ende des laufenden Titels. Ein kleiner Puffer verkürzt den laufenden Titel nicht mehr vorzeitig.
+- **Persönlicher Mix:** Zielverteilung von acht gelernten Favoriten und zwei passenden Neuentdeckungen bei zehn Wartetiteln; Oberfläche, Dokumentation und Regressionstests sind vereinheitlicht. Keine breite Exploration bei vorhandenem Lernprofil und kein fest eingebautes Suchjahr.
+- **Reset:** Vollständiger Profil-Reset einschließlich Vorlieben, Sperrliste und Lernausschlüssen. Laufende Suchanfragen können nach dem Reset keine alten Vorschläge mehr übernehmen.
+- **Wartung:** Unerreichbaren Suchpfad und unbenutzte Suchvariablen entfernt; Fastify, fast-uri und undici auf korrigierte Versionen aktualisiert.
+
+- **Topic-Kanäle:** Der von YouTube-Suchergebnissen gesetzte Künstlername „Release“ bei „Release - Topic“-Uploads gilt nicht mehr als fremde Künstlerangabe. Der Treffer wird wie vorgesehen über die künstlerbezogene Suche, den exakten Titel und die passende Dauer akzeptiert.
+- **Versionssuffix mit Bindestrich:** Titel wie „GodFall - Slowed“ werden als ein Song mit Versionszusatz gelesen und nicht mehr als Künstler „GodFall“ mit dem Song „Slowed“.
+- **Unverändert streng:** Falsche Versionen (Super/Ultra Slowed, Sped Up, Remix), fremde Kanäle, fehlende künstlerbezogene Suche und abweichende Längen bleiben abgelehnt; neue Regressionstests sichern das ab.
+
 ## 1.8.41 · Persönlicher Automix-Lernfix
 
 - **Explizit gelernte Tracks:** Tracks, die über das ausgewählte Lern-/Playlist-Signal ausdrücklich bestätigt wurden, erhalten auch ohne bisherige Wiedergabe ein positives persönliches Automix-Signal.
