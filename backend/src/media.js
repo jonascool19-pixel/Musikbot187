@@ -30,17 +30,6 @@ export function normalizeDownloadedFilename(raw){const original=path.basename(St
 export async function downloadYouTubeAudio(raw,downloadsDir,{maxBytes=128*1024*1024}={}){const url=parseYouTubeDownloadUrl(raw);await fs.mkdir(downloadsDir,{recursive:true});const temp=await fs.mkdtemp(path.join(downloadsDir,'.incoming-'));try{const template=path.join(temp,'%(title).100B_[%(id)s].%(ext)s');await run('yt-dlp',youtubeDownloadArgs(url,template,maxBytes),{timeout:10*60_000,max:64*1024});const candidates=(await fs.readdir(temp,{withFileTypes:true})).filter(entry=>entry.isFile()&&audioExtensions.has(path.extname(entry.name).toLowerCase()));if(candidates.length!==1)throw new Error(candidates.length?'YouTube hat mehrere unerwartete Audiodateien geliefert.':'YouTube hat keine herunterladbare Audiodatei geliefert.');const originalName=candidates[0].name,name=normalizeDownloadedFilename(originalName),resolved=path.join(temp,originalName),stat=await fs.stat(resolved);if(stat.size<=0||stat.size>maxBytes)throw new Error('Der YouTube-Download überschreitet die erlaubte Dateigröße.');await validateAudioFile(resolved);const target=safeMusicPath(downloadsDir,name);try{await fs.link(resolved,target)}catch(error){if(error.code!=='EEXIST')throw error}const finalStat=await fs.stat(target);return {id:`local:Downloads/${name}`,title:name,source:'local',path:`Downloads/${name}`,size:finalStat.size,downloaded:true};}finally{await fs.rm(temp,{recursive:true,force:true});}}
 export function youtubeSearchUrl(query){const value=String(query||'').trim().slice(0,300);if(!value)throw new Error('YouTube-Suchbegriff fehlt.');return `https://www.youtube.com/results?search_query=${encodeURIComponent(value)}`;}
 export function canonicalYouTubeVideoUrl(id,raw=''){const direct=String(id||'').replace(/^yt:/i,'');if(youtubeVideoIdPattern.test(direct))return `https://www.youtube.com/watch?v=${direct}`;try{const url=new URL(String(raw||'')),host=url.hostname.toLowerCase(),candidate=host==='youtu.be'?url.pathname.split('/').filter(Boolean)[0]:['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com'].includes(host)?url.pathname==='/watch'?url.searchParams.get('v'):url.pathname.match(/^\/(?:shorts|live|embed)\/([A-Za-z0-9_-]{11})(?:\/|$)/)?.[1]:'';return youtubeVideoIdPattern.test(String(candidate||''))?`https://www.youtube.com/watch?v=${candidate}`:''}catch{return''}}
-export function playbackYouTubePageUrl(item){
-  if(item?.source==='youtube')return canonicalYouTubeVideoUrl(item.id,item.url);
-  if(item?.source==='spotify')return canonicalYouTubeVideoUrl(item.playbackVideoId||item.playbackMatch?.id);
-  return '';
-}
-export function youtubePlaybackPipeArgs(url,client='web_embedded'){
-  const page=canonicalYouTubeVideoUrl('',url);
-  if(!page)throw new Error('Für die YouTube-Wiedergabe fehlt eine gültige Video-ID.');
-  const selectedClient=['web_embedded','web_safari','mweb'].includes(client)?client:'web_embedded',clientArgs=['--extractor-args','youtube:player_client='+selectedClient];
-  return [...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),'--no-playlist','--force-ipv4','--no-progress','--retries','3','--fragment-retries','3','--retry-sleep','http:0.25','--retry-sleep','fragment:0.25','--abort-on-unavailable-fragments','--downloader','ffmpeg',...clientArgs,'-f',bestAudioFormat,'-o','-',page];
-}
 export function youtubeSearchArtist(entry){return musicArtist(entry);}
 async function youtubeSearchData(query,limit,timeout,signal){const deadline=Date.now()+Math.max(1000,Number(timeout)||30_000),failures=[];for(const strategy of youtubeSearchStrategies){const remaining=deadline-Date.now();if(remaining<=0)break;try{const raw=await run('yt-dlp',[...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),'--dump-single-json','--flat-playlist','--playlist-end',String(limit),'--force-ipv4',...strategy,youtubeSearchUrl(query)],{timeout:Math.min(youtubeAttemptTimeoutMs,remaining),signal});return JSON.parse(raw)}catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;failures.push(error.message)}}throw new Error(`YouTube-Suche konnte nicht abgeschlossen werden. ${failures.at(-1)||'Zeitüberschreitung'}`);}
 export async function youtubeSearch(query,{limit=searchResultLimit,timeout=30_000,signal}={}){limit=Math.max(1,Math.min(searchResultLimit,Number(limit)||searchResultLimit));const json=await youtubeSearchData(query,limit,timeout,signal);return (json.entries||[]).map(x=>{const url=canonicalYouTubeVideoUrl(x.id,x.url);return url?{id:new URL(url).searchParams.get('v'),title:x.title,artist:youtubeSearchArtist(x),channel:String(x.channel||x.uploader||''),url,source:'youtube',duration:x.duration,thumbnail:x.thumbnail,quality:'Beste verfügbare Audioqualität'}:null}).filter(Boolean).slice(0,limit);}
@@ -129,7 +118,7 @@ const spotifyCandidateTitleParts=candidate=>{
   // the version suffix stays part of the song and no fake artist prefix appears.
   if(parts.length===2&&/^(?:(?:super|ultra)\s+)?(?:slowed|sped\s*up|nightcore)(?:\s*\+\s*reverb)?$/iu.test(parts[1].trim()))return [title];
   // Decorative segments never supply artist evidence or a different recording.
-  while(parts.length>1&&/^(?:[\[(]\s*)?(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)(?:\s*[\])])?(?:\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_ -]+)?$/iu.test(parts.at(-1).trim()))parts.pop();
+  while(parts.length>1&&/^(?:[\[(]\s*)?(?:official\s+)?(?:audio|video(?:clip)?|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)(?:\s*[\])])?(?:\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_ -]+)?$/iu.test(parts.at(-1).trim()))parts.pop();
   // Some official videos list production credits after the second separator:
   // "KC Rebell ✖ PAPER ✖ [official Video] GEE..., Nikki ...".
   // A separate artist and song segment must precede these production credits.
@@ -220,8 +209,8 @@ const spotifyCandidateSong=candidate=>{
 const spotifyPlainSong=value=>String(value||'').normalize('NFKC')
   .replace(/\s*[\[(]\s*prod(?:uced)?\.?\s+by\s+[^\])]+[\])]\s*$/iu,'')
   .replace(/\s+prod(?:uced)?\.?\s+by\s+[\p{L}\p{N}_. -]+$/iu,'')
-  .replace(/\s*[|｜]\s*(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*$/iu,'')
-  .replace(/\s*[\[(]\s*(?:official\s+)?(?:audio|video|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*[\])]\s*$/iu,'')
+  .replace(/\s*[|｜]\s*(?:official\s+)?(?:audio|video(?:clip)?|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*$/iu,'')
+  .replace(/\s*[\[(]\s*(?:official\s+)?(?:audio|video(?:clip)?|lyric(?:s)?(?:\s+video)?|music\s+video|visuali[sz]er)\s*[\])]\s*$/iu,'')
   .replace(/\s*[\[(]\s*(?:feat(?:uring)?\.?|ft\.?)\s+[^\])]+\s*[\])]\s*$/iu,'')
   .replace(/\s*[\[(]\s*original(?:\s+(?:mix|version))?\s*[\])]\s*$/iu,'')
   .replace(/\s+[–—-]\s+original(?:\s+(?:mix|version))?\s*$/iu,'')
@@ -238,7 +227,7 @@ const spotifyMaskedWordEquivalent=(expected,actual)=>{
 };
 const spotifySongWords=value=>new Set(String(value||'').toLocaleLowerCase('de-DE').normalize('NFKD')
   .replace(/\p{M}/gu,'').replace(/[øØ]/g,'o').replace(/ß/g,'ss')
-  .match(/[\p{L}\p{N}*#]+/gu)?.filter(word=>word.length>1&&!['official','video','audio','lyrics','lyric','topic','musik','music'].includes(word))||[]);
+  .match(/[\p{L}\p{N}*#]+/gu)?.filter(word=>word.length>1&&!['official','video','videoclip','audio','lyrics','lyric','topic','musik','music'].includes(word))||[]);
 const spotifySongCoverage=(expected,actual)=>{
   const wanted=[...expected],seen=[...actual],masked=[];
   let matches=0;
@@ -301,9 +290,11 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   const genreMarked=/[\[(]\s*(?:uptempo|hardstyle|hardtekk|rawstyle|frenchcore|hardcore|techno|trance)\s*[\])]\s*$/iu.test(spotifySongPart(track));
   const distinctiveCollaboratorSong=channelName!==expected[0]&&wanted.size===1&&[...wanted][0].length>=8;
   const prefixIsCreditedSubset=evidence.prefix&&spotifyArtistAliases(evidence.prefix).every(name=>expected.includes(name));
+  const primaryExactQuery=spotifyCanonicalArtist(candidate?.searchQuery||'');
+  const primaryExactQueryHasAllArtists=expected.every(name=>primaryExactQuery.includes(name));
   const creditedPrimaryChannelExact=channelIsCredited&&expected.length>1&&
     spotifyCanonicalArtist(candidate?.channel||'')===expected[0]&&
-    (genreMarked||/\b(?:extended|remix|edit|radio)\b/iu.test(spotifyCandidateSong(candidate)))&&
+    (genreMarked||/\b(?:extended|remix|edit|radio)\b/iu.test(spotifyCandidateSong(candidate))||primaryExactQueryHasAllArtists)&&
     !evidence.prefix&&!String(candidate?.artist||'').trim()&&
     catalog>0&&reported>0&&spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
     exact.matches===wanted.size&&exact.extra.length===0;
@@ -607,4 +598,4 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
   diagnostics.examples=exampleCandidates.map(example=>example.label);
   throw new SpotifyMatchUnavailableError(item,diagnostics);
 }
-export async function resolveInput(item,musicDir,{signal}={}){if(signal?.aborted){const error=new Error('Medienauflösung abgebrochen');error.name='AbortError';throw error;}if(item.source==='local')return safeMusicRelativePath(musicDir,item.path);if(item.source==='youtube'){const url=canonicalYouTubeVideoUrl(item.id,item.url);if(!url)throw new Error('Der gespeicherte YouTube-Titel enthält keine gültige Video-ID.');return url}if(item.source==='spotify')return resolveSpotify(item,signal);const url=normalizeRadioUrl(item.url);await assertSafeExternalUrl(url);return url;}
+export async function resolveInput(item,musicDir,{signal}={}){if(signal?.aborted){const error=new Error('Medienauflösung abgebrochen');error.name='AbortError';throw error;}if(item.source==='local')return safeMusicRelativePath(musicDir,item.path);if(item.source==='youtube'){const url=canonicalYouTubeVideoUrl(item.id,item.url);if(!url)throw new Error('Der gespeicherte YouTube-Titel enthält keine gültige Video-ID.');const resolved=await resolveYoutube(url,signal);applyResolvedPlayback(item,resolved);return resolved.url}if(item.source==='spotify')return resolveSpotify(item,signal);const url=normalizeRadioUrl(item.url);await assertSafeExternalUrl(url);return url;}

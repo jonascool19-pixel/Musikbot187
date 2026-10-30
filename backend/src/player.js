@@ -4,7 +4,6 @@ import {isSpotifyMatchUnavailableError,rejectSpotifyPlaybackMatch,resolveInput} 
 import {isYouTubeAccessBlocked,isYouTubeAgeRestricted,youtubeAccessPauseMs,youtubeAccessMaxPauseMs} from './youtube-access.js';
 import {PcmJitterBuffer,pcmBytesPerSecond,pcmFrameBytes} from './pcm-buffer.js';
 import {EqualPowerCrossfade,chooseCrossfadeMs,crossfadePrepareLeadMs,crossfadeReserveMs,defaultCrossfadeMs,fallbackFadeInMs,manualTransitionMs,pcmBytesForMs} from './crossfade.js';
-import {createYouTubePlaybackPipeline} from './youtube-playback-pipe.js';
 export const queueLimit=500;
 export const playbackDrainDelays=Object.freeze({local:300,youtube:1500,spotify:2000});
 export const onDemandEndToleranceSeconds=12;
@@ -40,15 +39,7 @@ export function isTransientPlaybackError(error){return /(?:network|timed?\s*out|
 export function isPersistentNetworkLoss(error){return /(?:econn(?:reset|refused|aborted)|enotfound|eai_again|temporary failure in name resolution|network is unreachable|no route to host)/i.test(String(error||''));}
 export function isUnexplainedOnlineFfmpegExit(track,code,error){return Number(code)===255&&!String(error||'').trim()&&['youtube','spotify','radio'].includes(track?.source);}
 export function ffmpegArgs(input,resumeSeconds=0,live=false){const args=['-nostdin','-hide_banner','-loglevel','warning'],network=/^https?:/.test(input);if(network){args.push('-reconnect','1','-reconnect_streamed','1','-reconnect_on_network_error','1','-reconnect_on_http_error',live?'403,408,425,429,5xx':'408,425,429,5xx','-reconnect_delay_max','5','-rw_timeout','10000000','-thread_queue_size','8192');if(live)args.push('-reconnect_at_eof','1','-fflags','+genpts+discardcorrupt');}const seekSeconds=Math.max(0,Number(resumeSeconds)||0);if(seekSeconds>=1)args.push('-ss',String(Math.round(seekSeconds*1000)/1000));args.push('-i',input,'-vn');if(!live)args.push('-af',playbackLoudnessFilter);args.push('-ar','48000','-ac','2','-f','s16le','pipe:1');return args;}
-export function ffmpegPipeArgs(resumeSeconds=0){
-  const args=['-nostdin','-hide_banner','-loglevel','warning','-i','pipe:0'],seekSeconds=Math.max(0,Number(resumeSeconds)||0);
-  if(seekSeconds>=1)args.push('-ss',String(Math.round(seekSeconds*1000)/1000));
-  args.push('-vn','-af',playbackLoudnessFilter,'-ar','48000','-ac','2','-f','s16le','pipe:1');
-  return args;
-}
-export function usesYtDlpPlaybackPipe(item){return ['youtube','spotify'].includes(item?.source)}
 export function spawnPlaybackChild(item,input,resumeSeconds=0,live=false){
-  if(usesYtDlpPlaybackPipe(item))return createYouTubePlaybackPipeline(item,resumeSeconds,{decoderArgs:ffmpegPipeArgs});
   return spawn('ffmpeg',ffmpegArgs(input,resumeSeconds,live),{stdio:['ignore','pipe','pipe']});
 }
 export function isPlayback403Error(error){return /(?:http error 403|server returned 403|403 forbidden)/i.test(String(error?.message||error||''));}
