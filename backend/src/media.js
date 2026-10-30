@@ -330,7 +330,7 @@ export function spotifyPlaybackArtistCompatible(track,candidate){
   // credit, so it must not disable this generic-label path.
   const candidateArtist=spotifyCanonicalArtist(candidate?.artist);
   const genericTopicChannel=evidence.topic&&['release','variousartists'].includes(evidence.channelArtist);
-  const topicTitleOnly=!evidence.prefix&&evidence.topic&&(!candidateArtist||genericTopicChannel&&candidateArtist===evidence.channelArtist);
+  const topicTitleOnly=!evidence.prefix&&genericTopicChannel&&(!candidateArtist||candidateArtist===evidence.channelArtist);
   if(topicTitleOnly&&queryHasAllArtists&&catalog>0&&reported>0&&
     spotifyPlaybackDurationCompatible(catalog,reported)&&wanted.size>0&&
     exact.matches===wanted.size&&exact.extra.length===0)return true;

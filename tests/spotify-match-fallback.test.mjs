@@ -743,6 +743,7 @@ test('production-shaped Release - Topic candidates (artist echoes the channel) m
   assert.equal(spotifyPlaybackTitleCompatible(song,{...base,duration:170}),false);
   // A named performer Topic channel is never "generic": a different artist stays rejected.
   assert.equal(spotifyPlaybackTitleCompatible(song,{...base,channel:'Someone Else - Topic',artist:'Someone Else'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(song,{...base,channel:'Someone Else - Topic',artist:''}),false,'missing artist metadata must not authorize an unrelated named Topic channel');
 });
 
 test('"Song - Slowed" in a YouTube title is one song with a version suffix, not an artist prefix',async()=>{
