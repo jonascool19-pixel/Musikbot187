@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {PassThrough} from 'node:stream';
 import {Player,ffmpegPipeArgs,isYouTubeTokenProviderUnavailable,isYouTubeAudioFormatUnavailable} from '../backend/src/player.js';
-import {playbackYouTubePageUrl,youtubeAuthenticationArgs,youtubeClientStrategies,youtubePlaybackPipeArgs} from '../backend/src/media.js';
+import {playbackYouTubePageUrl,resolveInput,youtubeAuthenticationArgs,youtubeClientStrategies,youtubePlaybackPipeArgs} from '../backend/src/media.js';
 import {createYouTubePlaybackPipeline} from '../backend/src/youtube-playback-pipe.js';
 import {classifyYouTubeAudioFailure} from '../backend/src/youtube-access.js';
 
@@ -22,7 +22,15 @@ test('YouTube/Spotify playback page URLs are canonical and stdout args keep yt-d
   assert.equal(args[args.indexOf('-o')+1],'-');
   assert.equal(args[args.indexOf('-f')+1].startsWith('bestaudio'),true);
   assert.equal(args.includes('--abort-on-unavailable-fragments'),true);
+  assert.deepEqual(args.slice(args.indexOf('--downloader'),args.indexOf('--downloader')+2),['--downloader','ffmpeg']);
+  assert.deepEqual(args.slice(args.indexOf('--extractor-args'),args.indexOf('--extractor-args')+2),['--extractor-args','youtube:player_client=web_embedded']);
   assert.equal(args.at(-1),'https://www.youtube.com/watch?v=abcdefghijk');
+});
+
+test('direct YouTube input keeps the page URL so playback performs only one extraction',async()=>{
+  const item={source:'youtube',id:'abcdefghijk',url:'https://youtu.be/abcdefghijk?si=ignored'};
+  assert.equal(await resolveInput(item,'.'),'https://www.youtube.com/watch?v=abcdefghijk');
+  assert.equal(item.playbackVideoId,undefined);
 });
 
 test('FFmpeg pipe decoder never opens a GoogleVideo URL and keeps precise output seek',()=>{
@@ -110,12 +118,13 @@ test('downloader exposes a classified upstream outage instead of declaring the v
   assert.equal(guard.blocked,0,'PO-token outage is not a YouTube HTTP 429 ban');
 });
 
-test('the playback pipe retries a different yt-dlp client only after a classified provider failure',()=>{
+test('the playback pipe uses a fast provider-independent default and preserves explicit fallbacks',()=>{
   const defaultArgs=youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk');
-  const fallbackArgs=youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk','web_embedded');
-  assert.equal(defaultArgs.includes('--extractor-args'),false);
-  assert.deepEqual(fallbackArgs.slice(fallbackArgs.indexOf('--extractor-args'),fallbackArgs.indexOf('--extractor-args')+2),['--extractor-args','youtube:player_client=web_embedded']);
-  assert.equal(youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk','unknown').includes('--extractor-args'),false);
+  const fallbackArgs=youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk','mweb');
+  assert.deepEqual(defaultArgs.slice(defaultArgs.indexOf('--extractor-args'),defaultArgs.indexOf('--extractor-args')+2),['--extractor-args','youtube:player_client=web_embedded']);
+  assert.deepEqual(fallbackArgs.slice(fallbackArgs.indexOf('--extractor-args'),fallbackArgs.indexOf('--extractor-args')+2),['--extractor-args','youtube:player_client=mweb']);
+  const unknownArgs=youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk','unknown');
+  assert.deepEqual(unknownArgs.slice(unknownArgs.indexOf('--extractor-args'),unknownArgs.indexOf('--extractor-args')+2),['--extractor-args','youtube:player_client=web_embedded']);
   const children=[];
   createYouTubePlaybackPipeline({source:'spotify',playbackVideoId:'abcdefghijk',_youtubePlaybackClient:'web_embedded'},0,{
     spawnImpl:(command,args)=>{const child=new FakeChild(command);children.push({command,args,child});return child},
@@ -125,7 +134,7 @@ test('the playback pipe retries a different yt-dlp client only after a classifie
   for(const entry of children)entry.child.kill('SIGKILL');
 });
 
-test('provider failure retains Spotify identity and queue, retries boundedly, and never blacklists the video',()=>{
+test('provider failure retains Spotify identity and queue, rotates clients boundedly, and never blacklists the video',()=>{
   const logs=[],p=new Player({musicDir:'.',diagnostic:(level,source,message)=>logs.push({level,source,message})});
   const item={id:'spotify:token-outage-test',source:'spotify',title:'GPF – ALORS ON FUCK',catalogDuration:110,duration:110,playbackVideoId:'abcdefghijk',playbackMatch:{id:'abcdefghijk',title:'GPF – ALORS ON FUCK'}};
   p.current=item;p.queue=[{id:'next-spotify-track',source:'spotify',title:'Nächster Song'}];p.generation=7;
@@ -135,12 +144,12 @@ test('provider failure retains Spotify identity and queue, retries boundedly, an
   assert.equal(p.reconnecting,true);
   assert.equal(item.playbackVideoId,'abcdefghijk');
   assert.equal(item._spotifyRejectedPlaybackIds,undefined);
-  assert.equal(item._youtubePlaybackClient,'web_embedded');
+  assert.equal(item._youtubePlaybackClient,'web_safari');
   assert.equal(p.queue.length,1);
-  assert.ok(logs.some(entry=>/bgutil nicht erreichbar/.test(entry.message)));
+  assert.ok(logs.some(entry=>/nächsten Variante/.test(entry.message)));
   clearTimeout(p.retryTimer);
   p.finish(7,1,fault,1,item,null);
-  assert.equal(item._youtubePlaybackClient,'web_safari');
+  assert.equal(item._youtubePlaybackClient,'mweb');
   assert.equal(item.playbackVideoId,'abcdefghijk');
   clearTimeout(p.retryTimer);
   p.next=()=>{};
@@ -149,7 +158,7 @@ test('provider failure retains Spotify identity and queue, retries boundedly, an
   assert.equal(item.playbackVideoId,'abcdefghijk','upstream outage must not poison Spotify matching cache');
 });
 
-test('only a genuinely no-audio Spotify video is rejected and re-searched, not arbitrary YouTube songs',()=>{
+test('only a genuinely no-audio Spotify video is rejected after client fallbacks, not arbitrary YouTube songs',()=>{
   const p=new Player({musicDir:'.',diagnostic(){}});
   const item={id:'spotify:bad-video-test',source:'spotify',title:'ReCombined – Hammer Down',catalogDuration:147,duration:148,playbackVideoId:'abcdefghijk',playbackMatch:{id:'abcdefghijk',title:'ReCombined - Hammer Down'}};
   p.current=item;p.generation=5;p.queue=[{id:'next-song',source:'spotify',title:'Nächster Titel'}];
@@ -157,6 +166,12 @@ test('only a genuinely no-audio Spotify video is rejected and re-searched, not a
   p.finish(5,1,failure,0,item,null);
   assert.equal(p.current,item);
   assert.equal(p.reconnecting,true);
+  assert.equal(item.playbackVideoId,'abcdefghijk');
+  clearTimeout(p.retryTimer);
+  p.finish(5,1,failure,1,item,null);
+  assert.equal(item.playbackVideoId,'abcdefghijk');
+  clearTimeout(p.retryTimer);
+  p.finish(5,1,failure,2,item,null);
   assert.equal(item.playbackVideoId,undefined);
   assert.deepEqual(item._spotifyRejectedPlaybackIds,['abcdefghijk']);
   assert.equal(item.duration,147,'the catalog duration is restored before trying another verified source');
@@ -169,14 +184,16 @@ test('only a genuinely no-audio Spotify video is rejected and re-searched, not a
   direct.current={id:'abcdefghijk',title:'YouTube Upload',source:'youtube'};
   direct.generation=3;direct.next=()=>{};
   direct.finish(3,1,failure,0,direct.current,null);
-  assert.equal(direct.reconnecting,false,'a manually selected YouTube upload must not be replaced with another song');
+  assert.equal(direct.reconnecting,true,'a manually selected YouTube upload gets the bounded client fallback');
+  assert.equal(direct.current.id,'abcdefghijk','a client fallback must not replace the selected video');
+  clearTimeout(direct.retryTimer);
 });
 
 test('YouTube playback uses current client fallbacks, request pacing and optional cookie authentication',()=>{
-  assert.ok(youtubeClientStrategies.some(strategy=>strategy.includes('youtube:player_client=mweb,default')));
+  assert.ok(youtubeClientStrategies.some(strategy=>strategy.includes('youtube:player_client=mweb')));
   assert.ok(youtubeClientStrategies.some(strategy=>strategy.includes('youtube:player_client=web_embedded')));
   const args=youtubePlaybackPipeArgs('https://youtu.be/abcdefghijk');
-  assert.deepEqual(args.slice(args.indexOf('--sleep-requests'),args.indexOf('--sleep-requests')+2),['--sleep-requests','2']);
+  assert.deepEqual(args.slice(args.indexOf('--sleep-requests'),args.indexOf('--sleep-requests')+2),['--sleep-requests','0.25']);
   const previousCookies=process.env.YOUTUBE_COOKIES_FILE,previousAgent=process.env.YOUTUBE_USER_AGENT;
   try{
     process.env.YOUTUBE_COOKIES_FILE='/etc/yt-dlp/cookies.txt';

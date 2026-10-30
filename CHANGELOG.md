@@ -1,5 +1,14 @@
 # 📦 Änderungen
 
+## 1.8.43 · Reaktionsschnelle Wiedergabe
+
+- **Schneller Start und Skip:** Die Startpuffer für YouTube, Spotify und lokale Titel wurden auf eine kurze, kontrollierte Reserve verkleinert. Skip blendet nur noch sehr kurz aus und der nächste Titel wird nahezu sofort vorbereitet.
+- **Direkte Lautstärke:** Der Discord-Audiopuffer hält nur noch einen kleinen Moment bereits skalierter Audiodaten vor. Lautstärkeänderungen werden dadurch hörbar zeitnah statt erst nach mehreren Sekunden wirksam.
+- **YouTube-HLS repariert:** yt-dlp streamt HLS über FFmpeg direkt nach stdout und legt keine temporären `--Frag`-Dateien mehr im schreibgeschützten Dienstverzeichnis an.
+- **Weniger doppelte Arbeit:** Direkte YouTube-Titel werden nur einmal beim tatsächlichen Start extrahiert. Ein fehlgeschlagenes Vorladen löst nicht mehr sofort dieselbe langsame Auflösung ein zweites Mal aus.
+- **Schneller Client-Fallback:** Die Wiedergabe beginnt mit einem vom optionalen bgutil-Dienst unabhängigen YouTube-Client. Nicht verfügbare Audioformate wechseln in kurzen, begrenzten Schritten zu zwei Alternativen; erst danach wird der Titel sauber verworfen oder bei Spotify neu zugeordnet.
+- **Request-Pacing:** Die künstliche Pause pro YouTube-Anfrage sinkt von zwei Sekunden auf 250 Millisekunden; Schutzpausen für echte 429-Sperren bleiben unverändert erhalten.
+
 ## 1.8.42 · Spotify-Zuordnung, persönlicher Mix und saubere Übergänge
 
 - **Übergänge:** Ein vorbereitetes Deck startet erst am tatsächlichen Ende des laufenden Titels. Ein kleiner Puffer verkürzt den laufenden Titel nicht mehr vorzeitig.

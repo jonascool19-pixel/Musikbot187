@@ -1,11 +1,11 @@
 import {pcmBytesPerSecond,pcmChannels,pcmSampleRate} from './pcm-buffer.js';
 
 export const defaultCrossfadeMs=6_500;
-export const manualTransitionMs=1_000;
+export const manualTransitionMs=300;
 export const minimumCrossfadeMs=750;
 export const crossfadePrepareLeadMs=12_000;
 export const crossfadeReserveMs=8_000;
-export const fallbackFadeInMs=4_000;
+export const fallbackFadeInMs=600;
 export const crossfadeCurveExponent=1.65;
 
 const clamp=value=>Math.max(0,Math.min(1,Number(value)||0));
