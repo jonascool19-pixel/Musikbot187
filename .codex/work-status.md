@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-10-30T11:43:07.626Z
-Status: verification
-Base: main f5ab59ce5246b96d2b84603db3027d8f2bd2b667
+Last updated: 2026-10-30T11:45:46.916Z
+Status: complete
+Base: PR #69 head f581d8c88aefd7302d0a48394fec2f3c70de752f
 
 ## Currently working on
 
-PR #69 final Spotify Topic guard; Ubuntu CI passed on consolidated commit
+Version 1.8.42 consolidation verified in PR #69
 
 ## Last completed
 
-Integrated PRs 59/67/68; fixed early crossfades, reset races, Automix consistency, dependency audit and named Topic-channel fallback
+Consolidated PRs 59/67/68; fixed Spotify Topic/Slowed matching, 80/20 personal mix consistency, reset controls and races, early crossfades, dead configuration, path handling and dependency findings
 
 ## Next
 
-Run final Ubuntu CI for the follow-up guard, then merge and close superseded PRs
+After merge, validate audible transitions and authenticated Spotify/YouTube behavior on the live bot when convenient
 
 ## Verification
 
-294 backend tests pass; 2 browser tests pass; npm audit 0; Ubuntu CI run 40963469863 passed including native Opus
+294 backend tests, 2 Playwright tests, npm audit, installer syntax, native Opus benchmark all pass; GitHub CI runs 40963469863 and 41050138258 succeeded
 
 ## Safety note
 
