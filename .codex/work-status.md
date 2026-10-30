@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-10-30T17:47:00.721Z
-Status: complete
-Base: main 017837388c29b040fe1e92db0597e099e2bc109d
+Last updated: 2026-10-30T23:21:24.061Z
+Status: ready to commit
+Base: main c67fd69
 
 ## Currently working on
 
-Version 1.8.44 merged in PR #71
+Version 1.8.45 explicit YouTube headers and bounded 403 client failover
 
 ## Last completed
 
-Removed the double yt-dlp/FFmpeg playback pipe causing clean premature endings, restored direct signed-media playback with reconnects, and fixed WAZAAAA/Unendlichkeit matching
+Forwarded exact yt-dlp headers to FFmpeg, rotated web_embedded to web_safari to mweb at startup and during buffered recovery, rejected exhausted Spotify matches, and removed conflicting global playback hooks
 
 ## Next
 
-Update the live bot to 1.8.44 and verify uninterrupted full-track playback
+Commit, push, open pull request, verify CI, and merge release 1.8.45
 
 ## Verification
 
-291 backend tests, 2 Playwright tests, npm audit and PCM benchmark pass locally; GitHub Actions runs 41100840891 and 41100845961 were still queued by GitHub at merge time
+280 backend tests and 2 Playwright tests pass; npm audit reports 0 vulnerabilities; two-player PCM benchmark projects 0.26 percent of one core in realtime
 
 ## Safety note
 

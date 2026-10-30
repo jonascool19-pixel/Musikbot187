@@ -1,5 +1,12 @@
 # 📦 Änderungen
 
+## 1.8.45 · Begrenzte YouTube-403-Wiederherstellung
+
+- **Exakte Zugriffsdaten:** Die von yt-dlp ermittelten Browser- und Sitzungsheader werden direkt an FFmpeg übergeben, damit signierte Medienadressen nicht ohne ihre erforderlichen Header geöffnet werden.
+- **Schneller Clientwechsel:** Ein echter Medien-403 wechselt innerhalb von 250 ms gezielt von `web_embedded` zu `web_safari` und anschließend zu `mweb`, statt dieselbe gesperrte Adresse wiederholt zu starten.
+- **Anderer Spotify-Treffer:** Nach ausgeschöpften Varianten verwirft der Bot nur den unbrauchbaren YouTube-Treffer und sucht eine andere geprüfte Version desselben Spotify-Titels. Direkte YouTube-Titel enden danach sauber ohne Endlosschleife.
+- **Ein Wiedergabepfad:** Alte globale Prozess-Hooks und die widersprüchliche Achtfach-403-Wiederholung wurden entfernt. Auflösung, Header und Fehlerbehandlung liegen nun in einem einzigen nachvollziehbaren Pfad.
+
 ## 1.8.44 · Stabile Direktwiedergabe
 
 - **Keine Abbrüche mitten im Titel:** Die in 1.8.43 eingeführte doppelte yt-dlp/FFmpeg-Streaming-Pipe wurde entfernt. yt-dlp ermittelt einmal die geprüfte Audioadresse und die Wiedergabe läuft anschließend direkt über einen einzelnen, wiederverbindungsfähigen FFmpeg-Prozess.
