@@ -7,6 +7,19 @@ const yt=(id,title,duration)=>({id,title,duration,url:`https://www.youtube.com/w
 const resolved=(id,duration)=>({id,duration,protocol:'https',url:`https://example.test/audio/${id}`});
 const track=()=>({id:'spotify:breaking-my-heart-regression',source:'spotify',title:'Cy_He, EW – Breaking My Heart',duration:126});
 
+test('1.8.44 live regressions accept an exact official videoclip and an exact primary-artist upload',()=>{
+  const wazaaaa={source:'spotify',title:'Major Conspiracy, The Dark Horror – WAZAAAA',duration:168};
+  const official={title:'Major Conspiracy & The Dark Horror - WAZAAAA (OFFICIAL VIDEOCLIP)',channel:'Major Conspiracy and The Dark Horror',duration:168};
+  assert.equal(spotifyPlaybackTitleCompatible(wazaaaa,official),true);
+  assert.equal(spotifyPlaybackTitleCompatible(wazaaaa,{...official,title:'Major Conspiracy & The Dark Horror - WAZAAAA (Remix) (OFFICIAL VIDEOCLIP)'}),false);
+  const unendlichkeit={source:'spotify',title:'High Tekk, indica. – Unendlichkeit',duration:139};
+  const primary={title:'Unendlichkeit',channel:'High Tekk',duration:139,searchQuery:'High Tekk indica Unendlichkeit audio'};
+  assert.equal(spotifyPlaybackTitleCompatible(unendlichkeit,primary),true);
+  assert.equal(spotifyPlaybackTitleCompatible(unendlichkeit,{...primary,channel:'Fremder Kanal'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(unendlichkeit,{...primary,title:'Unendlichkeit Remix'}),false);
+  assert.equal(spotifyPlaybackTitleCompatible(unendlichkeit,{...primary,duration:201}),false);
+});
+
 test('Spotify retries a different query when the first results are 231 seconds instead of the catalogued 126',async()=>{
   const song=track(),queries=[],attempts=[];
   const search=async(query)=>{

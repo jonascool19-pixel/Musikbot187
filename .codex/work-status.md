@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-10-30T17:06:11.491Z
-Status: complete
-Base: main 0ddb9fa3dd24b0873f975072cc7e45b7b98faa9e
+Last updated: 2026-10-30T17:41:16.810Z
+Status: in progress
+Base: main b73d138
 
 ## Currently working on
 
-Version 1.8.43 merged in PR #70
+Version 1.8.44 stable direct streaming verified locally
 
 ## Last completed
 
-Fixed slow skip, delayed volume, slow starts, read-only HLS fragment writes, duplicate YouTube extraction and bounded client failover
+Removed the double yt-dlp/FFmpeg stdout pipeline, restored one-time signed URL resolution plus direct reconnecting FFmpeg playback, and fixed the WAZAAAA/Unendlichkeit live matching regressions
 
 ## Next
 
-Validate audible response on the live bot after the dashboard update to 1.8.43
+Commit, open PR, verify Linux native Opus CI and merge
 
 ## Verification
 
-296 backend tests, 2 Playwright tests, npm audit, PCM benchmark and Linux CI run 41095499022 pass; native Opus and installer checks pass in CI
+291 backend tests, 2 Playwright tests, npm audit and PCM benchmark pass locally; Remix, wrong channel, wrong title and wrong duration guard tests remain green
 
 ## Safety note
 

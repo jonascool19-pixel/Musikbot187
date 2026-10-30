@@ -1,5 +1,13 @@
 # 📦 Änderungen
 
+## 1.8.44 · Stabile Direktwiedergabe
+
+- **Keine Abbrüche mitten im Titel:** Die in 1.8.43 eingeführte doppelte yt-dlp/FFmpeg-Streaming-Pipe wurde entfernt. yt-dlp ermittelt einmal die geprüfte Audioadresse und die Wiedergabe läuft anschließend direkt über einen einzelnen, wiederverbindungsfähigen FFmpeg-Prozess.
+- **Keine HLS-Fragmentdateien:** Die Direktwiedergabe benötigt weiterhin keine temporären `--Frag`-Dateien und funktioniert im schreibgeschützten Dienstverzeichnis.
+- **Exakte YouTube-Header:** Die bei der Auflösung gelieferten HTTP-Header bleiben an die signierte Medienadresse gebunden und werden beim direkten FFmpeg-Aufruf wiederverwendet.
+- **Playlist-Treffer:** `WAZAAAA (OFFICIAL VIDEOCLIP)` wird bei passenden Künstlern und passender Dauer als Original erkannt. Exakte, künstlergebundene Suchen dürfen außerdem einen titelgleichen Upload auf dem Kanal des Hauptkünstlers akzeptieren, wenn Dauer und alle Suchkünstler stimmen.
+- **Strenge Variantenprüfung:** Remix, falscher Kanal, abweichender Titel und unpassende Dauer bleiben abgelehnt.
+
 ## 1.8.43 · Reaktionsschnelle Wiedergabe
 
 - **Schneller Start und Skip:** Die Startpuffer für YouTube, Spotify und lokale Titel wurden auf eine kurze, kontrollierte Reserve verkleinert. Skip blendet nur noch sehr kurz aus und der nächste Titel wird nahezu sofort vorbereitet.
