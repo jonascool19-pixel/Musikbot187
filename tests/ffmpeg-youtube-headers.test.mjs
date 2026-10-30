@@ -36,16 +36,16 @@ test('existing FFmpeg HTTP header options are not duplicated',()=>{
   assert.equal(args[args.indexOf('-user_agent')+1],'custom-agent');
 });
 
-test('current yt-dlp --print playback resolution gets mweb, PO-token provider and exact-header output',()=>{
+test('current yt-dlp --print playback resolution starts without the optional PO-token provider',()=>{
   resetYouTubePlaybackFailover();
   const template='%(url)s\t%(duration)s\t%(protocol)s\t%(id)s';
   const input=['--ignore-config','--no-playlist','--print',template,'-f','bestaudio','https://www.youtube.com/watch?v=abcdefghijk'];
   assert.equal(isYouTubePlaybackResolutionArgs(input),true);
   const args=withYouTubePlaybackClient(input),joined=args.join(' ');
-  assert.equal(youtubePlaybackClient,'mweb');
+  assert.equal(youtubePlaybackClient,'web_embedded');
   assert.equal(youtubePotProviderHome,'/opt/musikbot187-bgutil/server');
-  assert.match(joined,/youtube:player_client=mweb/);
-  assert.ok(args.includes(youtubePotProviderArgs));
+  assert.match(joined,/youtube:player_client=web_embedded/);
+  assert.equal(args.includes(youtubePotProviderArgs),false);
   assert.equal(args[args.indexOf('-f')+1],youtubePlaybackFormat);
   assert.match(youtubePlaybackFormat,/^bestaudio\[protocol=https\]/);
   assert.match(youtubePlaybackFormat,/m3u8/);
@@ -66,7 +66,7 @@ test('real 403 failover rotates only the default client and resets cleanly',()=>
   resetYouTubePlaybackFailover();
   const source='https://www.youtube.com/watch?v=abcdefghijk',base=['--ignore-config','--print','%(url)s\t%(duration)s\t%(protocol)s\t%(id)s','-f','bestaudio',source];
   let args=withYouTubePlaybackClient(base,1_000);
-  assert.match(args.join(' '),/youtube:player_client=mweb/);
+  assert.match(args.join(' '),/youtube:player_client=web_embedded/);
   markYouTubePlayback403(source,0,1_001);
   args=withYouTubePlaybackClient(base,1_002);
   assert.match(args.join(' '),/youtube:player_client=web_safari/);
@@ -74,13 +74,14 @@ test('real 403 failover rotates only the default client and resets cleanly',()=>
   assert.match(args[args.indexOf('-f')+1],/^bestaudio\[protocol\^=m3u8\]/);
   markYouTubePlayback403(source,1,1_003);
   args=withYouTubePlaybackClient(base,1_004);
-  assert.match(args.join(' '),/youtube:player_client=web_embedded/);
+  assert.match(args.join(' '),/youtube:player_client=mweb/);
+  assert.ok(args.includes(youtubePotProviderArgs));
   markYouTubePlayback403(source,2,1_005);
   args=withYouTubePlaybackClient(base,1_006);
   assert.match(args.join(' '),/youtube:player_client=tv/);
-  assert.deepEqual(youtubePlaybackStrategies.map(value=>value.client),['mweb','web_safari','web_embedded','tv']);
+  assert.deepEqual(youtubePlaybackStrategies.map(value=>value.client),['web_embedded','web_safari','mweb','tv']);
   resetYouTubePlaybackFailover(source);
-  assert.match(withYouTubePlaybackClient(base,1_007).join(' '),/youtube:player_client=mweb/);
+  assert.match(withYouTubePlaybackClient(base,1_007).join(' '),/youtube:player_client=web_embedded/);
 });
 
 test('yt-dlp stdout playback is treated as a protected playback request',()=>{
@@ -90,8 +91,8 @@ test('yt-dlp stdout playback is treated as a protected playback request',()=>{
   assert.equal(isYouTubePlaybackStreamingArgs(input),true);
   assert.equal(isYouTubePlaybackArgs(input),true);
   const args=withYouTubePlaybackClient(input),joined=args.join(' ');
-  assert.match(joined,/youtube:player_client=mweb/);
-  assert.ok(args.includes(youtubePotProviderArgs));
+  assert.match(joined,/youtube:player_client=web_embedded/);
+  assert.equal(args.includes(youtubePotProviderArgs),false);
   assert.equal(args[args.indexOf('-f')+1],youtubePlaybackFormat);
   assert.equal(args[args.indexOf('-o')+1],'-');
   assert.equal(args.some(value=>String(value).includes('%(http_headers)')),false);
@@ -104,8 +105,8 @@ test('legacy --get-url playback resolution remains protected',()=>{
   const input=['--ignore-config','--no-playlist','--get-url','-f','bestaudio','https://www.youtube.com/watch?v=abcdefghijk'];
   assert.equal(isYouTubePlaybackResolutionArgs(input),true);
   const args=withYouTubePlaybackClient(input);
-  assert.match(args.join(' '),/youtube:player_client=mweb/);
-  assert.ok(args.includes(youtubePotProviderArgs));
+  assert.match(args.join(' '),/youtube:player_client=web_embedded/);
+  assert.equal(args.includes(youtubePotProviderArgs),false);
   assert.equal(args[args.indexOf('-f')+1],youtubePlaybackFormat);
 });
 
@@ -114,7 +115,7 @@ test('explicit yt-dlp fallback clients are preserved without adding an irrelevan
   const args=withYouTubePlaybackClient(input);
   assert.equal(args[args.indexOf('--extractor-args')+1],'youtube:player_client=web_embedded');
   assert.equal(args.includes(youtubePotProviderArgs),false);
-  assert.equal(args[args.indexOf('-f')+1],youtubePlaybackStrategies[2].format);
+  assert.equal(args[args.indexOf('-f')+1],youtubePlaybackStrategies[0].format);
   assert.match(args[args.indexOf('--print')+1],/%\(http_headers\)j/);
 });
 

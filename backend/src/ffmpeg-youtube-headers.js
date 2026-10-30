@@ -7,9 +7,9 @@ export const youtubePotProviderHome='/opt/musikbot187-bgutil/server';
 export const youtubePotProviderArgs=`youtubepot-bgutilscript:server_home=${youtubePotProviderHome}`;
 export const youtubePlaybackHeaderTemplate='%(http_headers)j';
 export const youtubePlaybackStrategies=Object.freeze([
-  Object.freeze({client:'mweb',format:'bestaudio[protocol=https]/bestaudio[protocol^=m3u8]/bestaudio[protocol=http]/bestaudio/best'}),
-  Object.freeze({client:'web_safari',format:'bestaudio[protocol^=m3u8]/bestaudio[protocol=https]/bestaudio[protocol=http]/bestaudio/best'}),
   Object.freeze({client:'web_embedded',format:'bestaudio[protocol=https]/bestaudio[protocol^=m3u8]/bestaudio[protocol=http]/bestaudio/best'}),
+  Object.freeze({client:'web_safari',format:'bestaudio[protocol^=m3u8]/bestaudio[protocol=https]/bestaudio[protocol=http]/bestaudio/best'}),
+  Object.freeze({client:'mweb',format:'bestaudio[protocol=https]/bestaudio[protocol^=m3u8]/bestaudio[protocol=http]/bestaudio/best'}),
   Object.freeze({client:'tv',format:'bestaudio[protocol=https]/bestaudio[protocol^=m3u8]/bestaudio[protocol=http]/bestaudio/best'})
 ]);
 export const youtubePlaybackClient=youtubePlaybackStrategies[0].client;

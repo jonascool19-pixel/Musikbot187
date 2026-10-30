@@ -6,9 +6,9 @@ import path from 'node:path';
 import {assertSafeExternalUrl,safeMusicPath,safeMusicRelativePath} from './security.js';
 export {assertSafeExternalUrl};
 export const audioExtensions=new Set(['.mp3','.wav','.flac','.ogg','.opus','.m4a','.aac','.webm']);
-export const youtubeRuntimeArgs=['--ignore-config','--socket-timeout','8','--extractor-retries','1','--js-runtimes','node','--remote-components','ejs:github','--sleep-requests','2'];
+export const youtubeRuntimeArgs=['--ignore-config','--socket-timeout','8','--extractor-retries','1','--js-runtimes','node','--remote-components','ejs:github','--sleep-requests','0.25'];
 export const youtubeSearchStrategies=[['--extractor-args','youtubetab:skip=webpage'],[]];
-export const youtubeClientStrategies=[[],['--extractor-args','youtube:player_client=mweb,default'],['--extractor-args','youtube:player_client=web_embedded']];
+export const youtubeClientStrategies=[['--extractor-args','youtube:player_client=web_embedded'],['--extractor-args','youtube:player_client=web_safari'],['--extractor-args','youtube:player_client=mweb']];
 export const searchResultLimit=50;
 export const bestAudioFormat='bestaudio[protocol=https]/bestaudio[protocol=http]/bestaudio/best';
 export const youtubePlaybackPrintTemplate='%(url)s\t%(duration)s\t%(protocol)s\t%(id)s';
@@ -35,11 +35,11 @@ export function playbackYouTubePageUrl(item){
   if(item?.source==='spotify')return canonicalYouTubeVideoUrl(item.playbackVideoId||item.playbackMatch?.id);
   return '';
 }
-export function youtubePlaybackPipeArgs(url,client=''){
+export function youtubePlaybackPipeArgs(url,client='web_embedded'){
   const page=canonicalYouTubeVideoUrl('',url);
   if(!page)throw new Error('Für die YouTube-Wiedergabe fehlt eine gültige Video-ID.');
-  const clientArgs=['web_embedded','web_safari'].includes(client)?['--extractor-args','youtube:player_client='+client]:[];
-  return [...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),'--no-playlist','--force-ipv4','--no-progress','--retries','3','--fragment-retries','3','--retry-sleep','http:0.25','--retry-sleep','fragment:0.25','--abort-on-unavailable-fragments',...clientArgs,'-f',bestAudioFormat,'-o','-',page];
+  const selectedClient=['web_embedded','web_safari','mweb'].includes(client)?client:'web_embedded',clientArgs=['--extractor-args','youtube:player_client='+selectedClient];
+  return [...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),'--no-playlist','--force-ipv4','--no-progress','--retries','3','--fragment-retries','3','--retry-sleep','http:0.25','--retry-sleep','fragment:0.25','--abort-on-unavailable-fragments','--downloader','ffmpeg',...clientArgs,'-f',bestAudioFormat,'-o','-',page];
 }
 export function youtubeSearchArtist(entry){return musicArtist(entry);}
 async function youtubeSearchData(query,limit,timeout,signal){const deadline=Date.now()+Math.max(1000,Number(timeout)||30_000),failures=[];for(const strategy of youtubeSearchStrategies){const remaining=deadline-Date.now();if(remaining<=0)break;try{const raw=await run('yt-dlp',[...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),'--dump-single-json','--flat-playlist','--playlist-end',String(limit),'--force-ipv4',...strategy,youtubeSearchUrl(query)],{timeout:Math.min(youtubeAttemptTimeoutMs,remaining),signal});return JSON.parse(raw)}catch(error){if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;failures.push(error.message)}}throw new Error(`YouTube-Suche konnte nicht abgeschlossen werden. ${failures.at(-1)||'Zeitüberschreitung'}`);}
@@ -607,4 +607,4 @@ export async function resolveSpotify(item,signal,{search=youtubeSearch,resolve=r
   diagnostics.examples=exampleCandidates.map(example=>example.label);
   throw new SpotifyMatchUnavailableError(item,diagnostics);
 }
-export async function resolveInput(item,musicDir,{signal}={}){if(signal?.aborted){const error=new Error('Medienauflösung abgebrochen');error.name='AbortError';throw error;}if(item.source==='local')return safeMusicRelativePath(musicDir,item.path);if(item.source==='youtube'){const url=canonicalYouTubeVideoUrl(item.id,item.url);if(!url)throw new Error('Der gespeicherte YouTube-Titel enthält keine gültige Video-ID.');const resolved=await resolveYoutube(url,signal);applyResolvedPlayback(item,resolved);return resolved.url}if(item.source==='spotify')return resolveSpotify(item,signal);const url=normalizeRadioUrl(item.url);await assertSafeExternalUrl(url);return url;}
+export async function resolveInput(item,musicDir,{signal}={}){if(signal?.aborted){const error=new Error('Medienauflösung abgebrochen');error.name='AbortError';throw error;}if(item.source==='local')return safeMusicRelativePath(musicDir,item.path);if(item.source==='youtube'){const url=canonicalYouTubeVideoUrl(item.id,item.url);if(!url)throw new Error('Der gespeicherte YouTube-Titel enthält keine gültige Video-ID.');return url}if(item.source==='spotify')return resolveSpotify(item,signal);const url=normalizeRadioUrl(item.url);await assertSafeExternalUrl(url);return url;}

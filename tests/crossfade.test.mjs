@@ -22,7 +22,7 @@ test('automatic crossfade holds the incoming deck back for a gentler first half'
 });
 
 test('fallback starts are audibly faded in when a true crossfade is unavailable',()=>{
-  assert.equal(fallbackFadeInMs,4_000);
+  assert.equal(fallbackFadeInMs,600);
 });
 
 test('equal-power PCM mixer starts with the old deck and ends with the new deck',()=>{
@@ -82,7 +82,7 @@ test('starting and aborting a crossfade consumes then safely restores exactly on
 
 test('manual skip requests a short fade before replacing an actively playing process',()=>{
   const player=new Player({musicDir:'.',diagnostic(){}}),events=[];player.current={id:'current',title:'Aktiv',source:'youtube',duration:180};player.queue=[{id:'next',title:'Danach',source:'youtube'}];player.process={kill(){}};player.on('track-end',event=>events.push(event));player.skip();
-  assert.equal(manualTransitionMs,1_000);
+  assert.equal(manualTransitionMs,300);
   assert.equal(events[0].reason,'skipped');
   assert.equal(player.current.id,'current');
   assert.ok(player.skipTimer);

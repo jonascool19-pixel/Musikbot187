@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-10-30T11:45:46.916Z
-Status: complete
-Base: PR #69 head f581d8c88aefd7302d0a48394fec2f3c70de752f
+Last updated: 2026-10-30T13:16:32.628Z
+Status: in progress
+Base: main 9004e5b6e64f059fd741f250b1bdabf16c8a22d5
 
 ## Currently working on
 
-Version 1.8.42 consolidation verified in PR #69
+Version 1.8.43 low-latency YouTube and Discord playback fix
 
 ## Last completed
 
-Consolidated PRs 59/67/68; fixed Spotify Topic/Slowed matching, 80/20 personal mix consistency, reset controls and races, early crossfades, dead configuration, path handling and dependency findings
+Removed duplicate direct-YouTube extraction, fixed read-only HLS fragment writes, shortened bounded client fallback and reduced stacked player/Discord buffers
 
 ## Next
 
-After merge, validate audible transitions and authenticated Spotify/YouTube behavior on the live bot when convenient
+Commit, open pull request, verify Linux CI and merge
 
 ## Verification
 
-294 backend tests, 2 Playwright tests, npm audit, installer syntax, native Opus benchmark all pass; GitHub CI runs 40963469863 and 41050138258 succeeded
+296 backend tests, 2 Playwright tests, npm audit and PCM benchmark pass locally; native Opus remains Linux-CI verified because the local Windows prebuild is unavailable
 
 ## Safety note
 
