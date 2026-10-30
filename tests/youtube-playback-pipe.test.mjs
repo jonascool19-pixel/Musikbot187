@@ -2,25 +2,29 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import {Player,ffmpegArgs,isYouTubeTokenProviderUnavailable,isYouTubeAudioFormatUnavailable} from '../backend/src/player.js';
-import {youtubeAuthenticationArgs,youtubeClientStrategies,youtubeRuntimeArgs} from '../backend/src/media.js';
+import {youtubeAuthenticationArgs,youtubeClientStrategies,youtubePotProviderArgs,youtubeRuntimeArgs} from '../backend/src/media.js';
 import {classifyYouTubeAudioFailure} from '../backend/src/youtube-access.js';
 
 test('online playback resolves one signed media URL and lets one reconnecting FFmpeg process read it',async()=>{
   const mediaSource=await fs.readFile(new URL('../backend/src/media.js',import.meta.url),'utf8');
   const playerSource=await fs.readFile(new URL('../backend/src/player.js',import.meta.url),'utf8');
-  assert.match(mediaSource,/const resolved=await resolveYoutube\(url,signal\);applyResolvedPlayback\(item,resolved\);return resolved\.url/);
+  assert.match(mediaSource,/const resolved=await resolveYoutube\(url,signal,\{preferredClient:item\._youtubePlaybackClient\}\);applyResolvedPlayback\(item,resolved\);return resolved\.url/);
   assert.doesNotMatch(mediaSource,/youtubePlaybackPipeArgs|--downloader','ffmpeg|'-o','-'/);
-  assert.match(playerSource,/return spawn\('ffmpeg',ffmpegArgs\(input,resumeSeconds,live\)/);
+  assert.match(playerSource,/return spawn\('ffmpeg',ffmpegArgs\(input,resumeSeconds,live,item\?\.playbackHeaders\)/);
   assert.doesNotMatch(playerSource,/createYouTubePlaybackPipeline|ffmpegPipeArgs|usesYtDlpPlaybackPipe/);
   await assert.rejects(fs.access(new URL('../backend/src/youtube-playback-pipe.js',import.meta.url)));
 });
 
-test('direct signed media playback keeps reconnects and precise input seeking without a second pipe',()=>{
-  const input='https://rr1---sn-test.googlevideo.com/videoplayback?id=test',args=ffmpegArgs(input,83.625,false);
+test('direct signed media playback forwards exact yt-dlp headers and keeps precise input seeking',()=>{
+  const input='https://rr1---sn-test.googlevideo.com/videoplayback?id=test',args=ffmpegArgs(input,83.625,false,{'User-Agent':'yt-dlp exact',Referer:'https://www.youtube.com/','X-Goog-Visitor-Id':'visitor'});
   assert.deepEqual(args.slice(args.indexOf('-i'),args.indexOf('-i')+2),['-i',input]);
   assert.deepEqual(args.slice(args.indexOf('-ss'),args.indexOf('-ss')+2),['-ss','83.625']);
   assert.ok(args.indexOf('-ss')<args.indexOf('-i'));
   for(const flag of ['-reconnect','-reconnect_streamed','-reconnect_on_network_error','-reconnect_on_http_error','-rw_timeout'])assert.ok(args.includes(flag));
+  assert.equal(args[args.indexOf('-user_agent')+1],'yt-dlp exact');
+  const headers=args[args.indexOf('-headers')+1];
+  assert.match(headers,/Referer: https:\/\/www\.youtube\.com\/\r\n/);
+  assert.match(headers,/X-Goog-Visitor-Id: visitor\r\n/);
   assert.equal(args.includes('pipe:0'),false);
 });
 
@@ -70,6 +74,7 @@ test('YouTube resolution uses fast client fallbacks, short request pacing and op
   assert.deepEqual(youtubeRuntimeArgs.slice(-2),['--sleep-requests','0.25']);
   assert.ok(youtubeClientStrategies.some(strategy=>strategy.includes('youtube:player_client=mweb')));
   assert.ok(youtubeClientStrategies.some(strategy=>strategy.includes('youtube:player_client=web_embedded')));
+  assert.ok(youtubeClientStrategies.find(strategy=>strategy.includes('youtube:player_client=mweb')).includes(youtubePotProviderArgs));
   const previousCookies=process.env.YOUTUBE_COOKIES_FILE,previousAgent=process.env.YOUTUBE_USER_AGENT;
   try{
     process.env.YOUTUBE_COOKIES_FILE='/etc/yt-dlp/cookies.txt';

@@ -1,14 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import {parseResolvedYouTubeOutput,rankSpotifyPlaybackCandidates,spotifyPlaybackDurationCompatible,spotifyPlaybackDurationToleranceSeconds,youtubePlaybackPrintTemplate} from '../backend/src/media.js';
+import {parseResolvedYouTubeOutput,rankSpotifyPlaybackCandidates,sanitizeResolvedYouTubeHeaders,spotifyPlaybackDurationCompatible,spotifyPlaybackDurationToleranceSeconds,youtubePlaybackPrintTemplate} from '../backend/src/media.js';
 
 test('yt-dlp playback output keeps the selected URL and its exact source duration together',()=>{
   assert.match(youtubePlaybackPrintTemplate,/%\(url\)s/);
   assert.match(youtubePlaybackPrintTemplate,/%\(duration\)s/);
-  const resolved=parseResolvedYouTubeOutput('https://example.com/audio\t213.42\thttps\tabcdefghijk\n');
-  assert.deepEqual(resolved,{url:'https://example.com/audio',duration:213.42,protocol:'https',id:'abcdefghijk'});
-  assert.equal(parseResolvedYouTubeOutput('https://example.com/audio\tNA\tm3u8_native\tabcdefghijk').duration,0);
+  assert.match(youtubePlaybackPrintTemplate,/%\(http_headers\)j/);
+  const resolved=parseResolvedYouTubeOutput(`https://example.com/audio\t213.42\thttps\tabcdefghijk\t${JSON.stringify({'User-Agent':'yt-dlp exact','X-Goog-Visitor-Id':'visitor'})}\n`);
+  assert.deepEqual(resolved,{url:'https://example.com/audio',duration:213.42,protocol:'https',id:'abcdefghijk',headers:{'User-Agent':'yt-dlp exact','X-Goog-Visitor-Id':'visitor'}});
+  assert.deepEqual(parseResolvedYouTubeOutput('https://example.com/audio\tNA\tm3u8_native\tabcdefghijk'),{url:'https://example.com/audio',duration:0,protocol:'m3u8_native',id:'abcdefghijk',headers:{}});
+  assert.deepEqual(sanitizeResolvedYouTubeHeaders({Referer:'https://www.youtube.com/',Range:'bytes=0-1','X-Bad':'line1\r\nInjected: yes'}),{Referer:'https://www.youtube.com/'});
   assert.throws(()=>parseResolvedYouTubeOutput('not-a-media-url\t200\thttps\tabcdefghijk'),/gültige Audioadresse/);
 });
 

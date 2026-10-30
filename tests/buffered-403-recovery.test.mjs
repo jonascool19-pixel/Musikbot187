@@ -34,6 +34,8 @@ test('player drains buffered PCM while preparing a replacement instead of destro
   const source=await fs.readFile(new URL('../backend/src/player.js',import.meta.url),'utf8');
   assert.match(source,/canBufferRecoverStream\(item,errorText,jitter\.bufferedBytes\)/);
   assert.match(source,/prepareBufferedRecovery\(item,generation,resumeSeconds\)/);
+  assert.match(source,/nextYouTubePlaybackClient\(item\?\._youtubePlaybackClient\)/);
+  assert.match(source,/if\(!nextClient\)break/);
   assert.match(source,/jitter\.end\(\);return}finishOnce\(code,errorText\)/);
   assert.match(source,/403 im Hintergrund abgefangen/);
   assert.match(source,/recoveryProcess.*SIGKILL/);
