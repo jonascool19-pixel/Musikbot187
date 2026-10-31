@@ -85,8 +85,9 @@ export function rankSpotifyPlaybackCandidates(track,candidates,{canonicalUrl}={}
 export const selectSpotifyPlaybackCandidate=(track,candidates,options)=>rankSpotifyPlaybackCandidates(track,candidates,options)[0]||null;
 
 export function spotifyPlaybackSearchQueries(item){
-  const {artists,song}=splitCatalogTitle(item),names=splitArtists(artists),primary=names[0]||artists,all=names.join(' '),exact=[artists,song].filter(Boolean).join(' – ');
+  const {artists,song}=splitCatalogTitle(item),names=splitArtists(artists),primary=names[0]||artists,all=names.join(' '),exact=[artists,song].filter(Boolean).join(' – '),isrc=/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/i.test(String(item?.isrc||''))?String(item.isrc).toUpperCase():'';
   return unique([
+    isrc?`"${isrc}"`:'',
     exact?`"${exact}" audio`:'',
     primary&&song?`"${primary}" "${song}" official audio`:'',
     all&&song?`${all} "${song}" audio`:'',

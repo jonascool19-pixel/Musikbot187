@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chooseCrossfadeMs,crossfadeCurveExponent,defaultCrossfadeMs,EqualPowerCrossfade,equalPowerGains,fallbackFadeInMs,manualTransitionMs,pcmBytesForMs} from '../backend/src/crossfade.js';
+import {chooseCrossfadeMs,crossfadeCurveExponent,crossfadeHandoffReserveMs,crossfadeReserveMs,defaultCrossfadeMs,EqualPowerCrossfade,equalPowerGains,fallbackFadeInMs,manualTransitionMs,pcmBytesForMs} from '../backend/src/crossfade.js';
 import {Player} from '../backend/src/player.js';
 
 test('equal-power gains keep constant summed power across the transition',()=>{
@@ -36,9 +36,12 @@ test('equal-power PCM mixer starts with the old deck and ends with the new deck'
 
 test('crossfade duration is only selected when enough next-track PCM is already buffered',()=>{
   assert.equal(defaultCrossfadeMs,6_500);
-  assert.equal(chooseCrossfadeMs(6_560,pcmBytesForMs(6_500)),6_500);
+  assert.equal(crossfadeReserveMs,12_000);
+  assert.equal(crossfadeHandoffReserveMs,2_500);
+  assert.equal(chooseCrossfadeMs(6_560,pcmBytesForMs(6_500)),0);
+  assert.equal(chooseCrossfadeMs(6_560,pcmBytesForMs(9_000)),6_500);
   assert.equal(chooseCrossfadeMs(2_000,pcmBytesForMs(1_400)),0);
-  assert.equal(chooseCrossfadeMs(1_460,pcmBytesForMs(1_400)),1_400);
+  assert.equal(chooseCrossfadeMs(1_460,pcmBytesForMs(3_900)),1_400);
   assert.equal(chooseCrossfadeMs(6_500,pcmBytesForMs(500)),0);
   assert.equal(chooseCrossfadeMs(500,pcmBytesForMs(6_500)),0);
 });
@@ -47,14 +50,14 @@ test('a ready next deck waits through preparation and insufficient tail coverage
   const player=new Player({musicDir:'.',diagnostic(){}});
   const current={id:'current',source:'youtube',duration:100},next={id:'next',source:'youtube',duration:100};
   player.current=current;player.queue=[next];player.generation=1;
-  player.crossfadeDeck={key:'next',item:next,store:{bufferedBytes:pcmBytesForMs(6500),destroy(){}}};
+  player.crossfadeDeck={key:'next',item:next,store:{bufferedBytes:pcmBytesForMs(9_000),destroy(){}}};
   for(const position of [82,90,93]){
     player.elapsedSeconds=position;player.maybeCrossfade(1,current);
     assert.equal(player.crossfade,null);assert.equal(player.queue.length,1);
   }
-  player.elapsedSeconds=95;player.crossfadeDeck.store.bufferedBytes=pcmBytesForMs(1400);
+  player.elapsedSeconds=95;player.crossfadeDeck.store.bufferedBytes=pcmBytesForMs(3_899);
   player.maybeCrossfade(1,current);assert.equal(player.crossfade,null);
-  player.elapsedSeconds=98.6;player.maybeCrossfade(1,current);
+  player.elapsedSeconds=98.6;player.crossfadeDeck.store.bufferedBytes=pcmBytesForMs(3_900);player.maybeCrossfade(1,current);
   assert.ok(player.crossfade);assert.equal(player.queue.length,0);
   player.abortCrossfade(true);
 });
@@ -70,7 +73,7 @@ test('an unready next deck leaves the queue untouched instead of cutting the cur
 });
 
 test('starting and aborting a crossfade consumes then safely restores exactly one next title',()=>{
-  const player=new Player({musicDir:'.',diagnostic(){}}),current={id:'current',title:'Aktiv',source:'youtube',duration:100},next={id:'next',title:'Danach',source:'youtube',duration:100},store={bufferedBytes:pcmBytesForMs(6_500),destroy(){this.destroyed=true}};
+  const player=new Player({musicDir:'.',diagnostic(){}}),current={id:'current',title:'Aktiv',source:'youtube',duration:100},next={id:'next',title:'Danach',source:'youtube',duration:100},store={bufferedBytes:pcmBytesForMs(9_000),destroy(){this.destroyed=true}};
   player.current=current;player.queue=[next];player.generation=4;const deck={key:'next',item:next,store};player.crossfadeDeck=deck;
   assert.equal(player.beginCrossfade(deck,6_500),true);
   assert.deepEqual(player.queue,[]);

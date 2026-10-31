@@ -21,8 +21,8 @@ export const bufferedRecoveryAttemptLimit=3;
 export const bufferedRecoveryFadeOutMs=1800;
 export const onlinePrefetchDelayMs=250;
 export const youtubeClientRetryDelayMs=250;
-export const youtubePlaybackClients=Object.freeze(['web_embedded','web_safari','mweb']);
-export const nextYouTubePlaybackClient=client=>youtubePlaybackClients[youtubePlaybackClients.indexOf(String(client||'web_embedded'))+1]||'';
+export const youtubePlaybackClients=Object.freeze(['mweb','web_safari','web_embedded']);
+export const nextYouTubePlaybackClient=client=>youtubePlaybackClients[youtubePlaybackClients.indexOf(String(client||'mweb'))+1]||'';
 export const playbackLoudnessTargetLufs=-16;
 export const playbackLoudnessRangeLu=11;
 export const playbackTruePeakDb=-1.5;
@@ -173,7 +173,7 @@ export class Player extends EventEmitter{
     const formatUnavailable=onDemandStream&&Boolean(code)&&isYouTubeAudioFormatUnavailable(error);
     const spotifySourceBlocked=prior?.source==='spotify'&&isSpotifySourceTemporarilyUnavailableError(error);
     const media403=onDemandStream&&Boolean(code)&&isPlayback403Error(errorText);
-    const currentClient=String(prior?._youtubePlaybackClient||'web_embedded');
+    const currentClient=String(prior?._youtubePlaybackClient||'mweb');
     const nextClient=nextYouTubePlaybackClient(currentClient);
     const clientFallback=media403?Boolean(nextClient):(providerOutage||formatUnavailable)&&attempt<2;
     const badAudio=Boolean(code)&&prior?.source==='spotify'&&resumeSeconds<2&&!providerOutage&&!clientFallback&&(formatUnavailable||media403);
@@ -213,7 +213,7 @@ export class Player extends EventEmitter{
     }
     if(clientFallback&&prior){
       Object.defineProperty(prior,'_youtubePlaybackClient',{
-        value:media403?nextClient:(attempt===0?'web_safari':'mweb'),
+        value:media403?nextClient:(attempt===0?'web_safari':'web_embedded'),
         writable:true,
         configurable:true,
         enumerable:false
