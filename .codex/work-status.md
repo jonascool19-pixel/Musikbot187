@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-10-30T23:24:00.145Z
-Status: complete
-Base: main daf98c6
+Last updated: 2026-10-31T11:09:08.253Z
+Status: CI follow-up
+Base: main e17fc06
 
 ## Currently working on
 
-Version 1.8.45 merged in PR #72
+Version 1.9.0 clean online-audio and music-taste rebuild
 
 ## Last completed
 
-Forwarded exact yt-dlp headers to FFmpeg, bounded 403 failover across all three clients at startup and during buffered recovery, rejected exhausted Spotify matches, and removed conflicting global hooks
+Local backend, browser, performance, and high-severity dependency checks passed; GitHub's obsolete moderate audit gate identified
 
 ## Next
 
-Update the live bot through the dashboard to 1.8.45 and verify the previously failing Spotify track plus one mid-track recovery
+Run GitHub CI with the actionable high/critical security gate and merge PR 73
 
 ## Verification
 
-GitHub CI passed all backend, native Opus, installer, shell, security, and browser checks; locally 280 backend tests, 2 Playwright tests, npm audit, and PCM benchmark passed
+230/230 backend tests; 2/2 browser tests; player benchmark; npm audit has no high or critical findings; git diff check clean
 
 ## Safety note
 

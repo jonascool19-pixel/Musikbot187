@@ -1,5 +1,12 @@
 # 📦 Änderungen
 
+## 1.9.0 · Neuer Audio- und Geschmackskern
+
+- **Spotify sauber zugeordnet:** Die gewachsene Sammlung aus Einzelfällen wurde durch eine kurze, bewertete Suche ersetzt. Titel, Hauptkünstler, Version und Laufzeit werden nachvollziehbar geprüft; mehrere erreichbare Quellen werden der Reihe nach versucht.
+- **Weniger falsche Ausfälle:** Normale Abweichungen der Laufzeit und fehlende Dauerangaben von yt-dlp führen nicht mehr vorschnell zu „kein Audio gefunden“. Offensichtliche Fremdtitel, Remix-/Slowed-Versionen und Nicht-Musik-Videos bleiben gesperrt.
+- **Automix nach Suchkontext:** Eine passende Genre-Suche darf wieder normale Songtitel liefern, ohne dass das Genre wörtlich im Titel stehen muss. Explizit widersprüchliche Genres, Blocklisten und falsche Künstlerzuordnungen werden weiterhin abgelehnt.
+- **Aufgeräumte Struktur:** Spotify-Wiedergabe und Musikgeschmack liegen in getrennten, kleinen Modulen. Alte Release-Sonderfälle und doppelte Ausnahmeprüfungen wurden durch konzentrierte Verhaltenstests ersetzt.
+
 ## 1.8.45 · Begrenzte YouTube-403-Wiederherstellung
 
 - **Exakte Zugriffsdaten:** Die von yt-dlp ermittelten Browser- und Sitzungsheader werden direkt an FFmpeg übergeben, damit signierte Medienadressen nicht ohne ihre erforderlichen Header geöffnet werden.

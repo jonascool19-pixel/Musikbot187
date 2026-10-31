@@ -15,11 +15,11 @@ test('yt-dlp playback output keeps the selected URL and its exact source duratio
 });
 
 test('Spotify playback rejects source durations that are far away from the catalog track',()=>{
-  assert.equal(spotifyPlaybackDurationToleranceSeconds(200),16);
-  assert.equal(spotifyPlaybackDurationCompatible(200,215),true);
-  assert.equal(spotifyPlaybackDurationCompatible(200,217),false);
-  assert.equal(spotifyPlaybackDurationCompatible(300,320),true);
-  assert.equal(spotifyPlaybackDurationCompatible(300,321),false);
+  assert.equal(spotifyPlaybackDurationToleranceSeconds(200),30);
+  assert.equal(spotifyPlaybackDurationCompatible(200,230),true);
+  assert.equal(spotifyPlaybackDurationCompatible(200,231),false);
+  assert.equal(spotifyPlaybackDurationCompatible(300,345),true);
+  assert.equal(spotifyPlaybackDurationCompatible(300,346),false);
   assert.equal(spotifyPlaybackDurationCompatible(0,999),true);
 });
 
@@ -34,10 +34,10 @@ test('Spotify candidate ranking keeps using the catalog duration after playback 
 });
 
 test('online playback writes the verified source duration back before the player can schedule a crossfade',async()=>{
-  const source=await fs.readFile(new URL('../backend/src/media.js',import.meta.url),'utf8');
+  const source=await fs.readFile(new URL('../backend/src/media.js',import.meta.url),'utf8'),spotifySource=await fs.readFile(new URL('../backend/src/spotify-playback.js',import.meta.url),'utf8');
   assert.match(source,/--print',youtubePlaybackPrintTemplate/);
   assert.match(source,/applyResolvedPlayback\(item,resolved\)/);
   assert.match(source,/item\.catalogDuration=original/);
   assert.match(source,/item\.duration=duration/);
-  assert.match(source,/spotifyPlaybackDurationCompatible\(catalogDuration,resolved\.duration\)/);
+  assert.match(spotifySource,/spotifyPlaybackDurationCompatible\(catalogDuration,actualDuration\)/);
 });

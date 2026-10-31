@@ -43,7 +43,7 @@ test('search rank and a shared uploader cannot authorize unrelated songs',()=>{
   }
   assert.equal(autoplayCandidateMatchesPreferences({title:'Trusted DJ – Schlager Party'},profile),false);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Trusted DJ – Fresh Song'},profile),true);
-  assert.equal(autoplayCandidateMatchesPreferences({title:'Unknown – Mystery Track'},{preferredStyles:['Uptempo'],queryStyle:'Uptempo',rank:0}),false);
+  assert.equal(autoplayCandidateMatchesPreferences({title:'Unknown – Mystery Track'},{preferredStyles:['Uptempo'],queryStyle:'Uptempo',rank:0}),true,'genre-scoped search context may establish taste when a normal title has no genre label');
   assert.equal(musicArtist({title:'Real Artist – Title',artist:'Compilation Channel',channel:'Compilation Channel'}),'Real Artist');
   assert.equal(musicArtist({title:'Title',channel:'Compilation Channel'}),'');
   assert.equal(musicArtist({title:'Title',channel:'Real Artist - Topic'}),'Real Artist');
