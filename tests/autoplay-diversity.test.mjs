@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
-import {AutoplayController,autoplayMusicCandidateAllowed,autoplaySlowedVersion} from '../backend/src/autoplay.js';
+import {AutoplayController,autoplayMusicCandidateAllowed,autoplaySlowedVersion,autoplayVariantVersion} from '../backend/src/autoplay.js';
 import {musicArtistKeys} from '../backend/src/music-identity.js';
 import {rankSpotifyPlaybackCandidates} from '../backend/src/media.js';
 
@@ -31,6 +31,19 @@ test('explicit slowed variants are excluded across sources, not normal titles co
   }
   assert.equal(autoplaySlowedVersion(song('slow-tag','DJ','Hardtekk Anthem - Slow')),true);
   for(const title of ['Slowdive – Star Roving','Kylie Minogue – Slow (Official Audio)','DJ – Slow Down (Hardstyle Remix)','DJ – Uptempo Anthem (Original Mix)','DJ – Hardtekk Rework'])assert.equal(autoplayMusicCandidateAllowed({title,source:'youtube',duration:200}),true,title);
+  assert.equal(autoplayMusicCandidateAllowed(song('discovery-slow','DJ','Hardstyle Anthem (Slowed)'),[],{allowVariants:true}),true);
+});
+
+test('personal discovery may mix in one remix or slowed version without taking over the queue',async t=>{
+  const variants=Array.from({length:8},(_,index)=>song(`variant-${index}`,`Variant ${index}`,index%2?'Uptempo Anthem (Slowed)':'Uptempo Anthem (DJ Remix)'));
+  const originals=Array.from({length:16},(_,index)=>song(`original-${index}`,`Original ${index}`,`Uptempo Anthem ${index}`));
+  const {controller,player}=fixture({tracks:[],preferredStyles:['Uptempo']},async()=>[...variants,...originals]);
+  t.after(()=>controller.close());
+  await controller.setEnabled(true);
+  const automatic=[player.current,...player.queue].filter(Boolean);
+  assert.equal(automatic.length,11);
+  assert.ok(automatic.some(autoplayVariantVersion),'a fitting variant is allowed as discovery');
+  assert.ok(automatic.filter(autoplayVariantVersion).length<=1,'variants cannot dominate the automatic queue');
 });
 
 test('artist identities combine collaborations and normalize accents, case and Topic channels',()=>{
@@ -118,11 +131,13 @@ test('a crowded artist buffer does not block discovery searches for other artist
   assert.ok(player.queue.at(-1).id.startsWith('alternative-'));
 });
 
-test('a genuinely small artist pool continues playing without weakening music or slowed filters',async t=>{
+test('a genuinely small artist pool keeps favorites dominant while allowing one variant discovery',async t=>{
   const tracks=Array.from({length:15},(_,i)=>({...song('small-'+i,'Only Artist','Uptempo Favorite '+i),key:'small-'+i,listens:1,playlistIds:['taste']}));
   const {controller,player}=fixture({tracks,preferredStyles:['Uptempo']},async()=>[song('wrong','Other','Schlager Song'),song('slow','Other','Uptempo Song - Slowed')]);
   t.after(()=>controller.close());
   await controller.setEnabled(true);
   assert.equal(player.queue.length,10);
-  assert.ok(player.queue.every(track=>track.autoplayKnownFavorite&&track.title.startsWith('Only Artist')));
+  assert.ok(player.queue.filter(track=>track.autoplayKnownFavorite).every(track=>track.title.startsWith('Only Artist')));
+  assert.ok(player.queue.filter(autoplayVariantVersion).length<=1);
+  assert.ok(player.queue.every(track=>track.autoplayKnownFavorite||autoplayVariantVersion(track)));
 });

@@ -1,5 +1,11 @@
 # 📦 Änderungen
 
+## 1.9.1 · Abwechslungsreiche Varianten im persönlichen Mix
+
+- **Remixe und Slowed wieder möglich:** Passende Remix-, Rework-, Edit-, Sped-up-, Nightcore- und Slowed-Versionen dürfen wieder als persönliche Entdeckung vorgeschlagen werden.
+- **Keine Variantenflut:** Im laufenden persönlichen Mix befindet sich höchstens eine solche Variante gleichzeitig. Gelernte Favoriten und normale Originalfassungen bleiben klar in der Mehrheit.
+- **Spotify bleibt exakt:** Ein Spotify-Original wird weiterhin nicht heimlich durch eine Slowed- oder andere unbestellte YouTube-Version ersetzt; die Freigabe gilt nur für eigenständige Automix-Entdeckungen.
+
 ## 1.9.0 · Neuer Audio- und Geschmackskern
 
 - **Spotify sauber zugeordnet:** Die gewachsene Sammlung aus Einzelfällen wurde durch eine kurze, bewertete Suche ersetzt. Titel, Hauptkünstler, Version und Laufzeit werden nachvollziehbar geprüft; mehrere erreichbare Quellen werden der Reihe nach versucht.
