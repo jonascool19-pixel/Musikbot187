@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {resolveSpotify,SpotifyMatchUnavailableError,spotifyPlaybackArtistCompatible,spotifyPlaybackCandidateScore,spotifyPlaybackDurationCompatible,spotifyPlaybackMatchRejection,spotifyPlaybackSearchQueries} from '../backend/src/media.js';
+import {rejectSpotifyPlaybackMatch,resolveSpotify,SpotifyMatchUnavailableError,SpotifySourceTemporarilyUnavailableError,spotifyPlaybackArtistCompatible,spotifyPlaybackCandidateScore,spotifyPlaybackDurationCompatible,spotifyPlaybackMatchRejection,spotifyPlaybackSearchQueries} from '../backend/src/media.js';
 import {createTasteModel,scoreTasteCandidate} from '../backend/src/music-taste.js';
 import {autoplayCandidateMatchesPreferences} from '../backend/src/autoplay.js';
 
@@ -74,12 +74,19 @@ test('unavailable titles fail once with compact diagnostics instead of fabricate
   });
 });
 
-test('taste engine trusts genre search context for normal song titles',()=>{
+test('an exact Spotify match blocked by 403 is retained for a later retry instead of becoming a false matching failure',async()=>{
+  const item={id:'spotify:alligatoah',title:'Alligatoah – Alli-Alligatoah',source:'spotify',duration:236,playbackVideoId:'abcdefghijk',playbackMatch:{id:'abcdefghijk',title:'Alligatoah – Alli-Alligatoah'}};
+  assert.equal(rejectSpotifyPlaybackMatch(item),true);
+  await assert.rejects(resolveSpotify(item,null,{search:async()=>[candidate('abcdefghijk','Alligatoah – Alli-Alligatoah (Official Audio)','Alligatoah',236)],resolve:async()=>{throw new Error('must wait')}}),error=>error instanceof SpotifySourceTemporarilyUnavailableError);
+  assert.equal(item._spotifyRejectedPlaybackIds,undefined);
+});
+
+test('genre search context alone cannot admit an unrelated official-audio result',()=>{
   const model=createTasteModel({preferredStyles:['Uptempo']});
-  const result=scoreTasteCandidate({title:'DJ Nova – Bass Attack',artist:'DJ Nova'},model,{queryStyle:'Uptempo'});
-  assert.equal(result.allowed,true);
-  assert.ok(result.score>=20);
-  assert.equal(autoplayCandidateMatchesPreferences({title:'DJ Nova – Bass Attack',artist:'DJ Nova'},{preferredStyles:['Uptempo'],queryStyle:'Uptempo'}),true);
+  const unrelated=scoreTasteCandidate({title:'Copper Alley – See You On The Outfield (Official Audio)',artist:'Copper Alley'},model,{queryStyle:'Uptempo'});
+  assert.equal(unrelated.allowed,false);
+  assert.equal(autoplayCandidateMatchesPreferences({title:'Copper Alley – See You On The Outfield (Official Audio)',artist:'Copper Alley'},{preferredStyles:['Uptempo'],queryStyle:'Uptempo'}),false);
+  assert.equal(autoplayCandidateMatchesPreferences({title:'DJ Nova – Uptempo Bass Attack',artist:'DJ Nova'},{preferredStyles:['Uptempo'],queryStyle:'Uptempo'}),true);
 });
 
 test('taste engine still blocks explicit conflicting genres and wrong artist buckets',()=>{

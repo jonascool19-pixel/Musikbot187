@@ -22,10 +22,11 @@ export function scoreTasteCandidate(track,model,{queryStyle='',queryArtist='',ca
   if(queryArtist){if(contains(artist,queryArtist)||contains(queryArtist,artist)){score+=35;artistMatch=true}else return {allowed:false,score:-50,reason:'artist'};}
   if(queryStyle){
     const wanted=normalize(queryStyle);
-    // A genre-specific YouTube search is useful evidence even when ordinary
-    // song titles do not repeat the genre name. This was the main source of
-    // false negatives in the previous literal-title filter.
-    score+=styleMatch||styles.some(style=>contains(style,wanted)||contains(wanted,style))?40:22;
+    // Search context is a useful hint, but not proof: YouTube occasionally
+    // inserts unrelated official-audio uploads into a genre result page.
+    // Unknown artists therefore need visible style evidence; learned artists
+    // can still contribute ordinary song titles without repeating the genre.
+    score+=styleMatch||styles.some(style=>contains(style,wanted)||contains(wanted,style))?40:12;
   }
   if(!model.styles.length&&!model.artists.length&&!queryStyle&&!queryArtist)return {allowed:true,score:0,reason:'unconstrained'};
   return {allowed:score>=20,score,reason:artistMatch||styleMatch||queryStyle?'taste':'no-evidence'};

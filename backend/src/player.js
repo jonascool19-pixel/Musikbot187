@@ -1,9 +1,11 @@
 import {EventEmitter} from 'node:events';
 import {spawn} from 'node:child_process';
-import {isSpotifyMatchUnavailableError,rejectSpotifyPlaybackMatch,resolveInput} from './media.js';
+import {isSpotifyMatchUnavailableError,isSpotifySourceTemporarilyUnavailableError,rejectSpotifyPlaybackMatch,resolveInput} from './media.js';
 import {isYouTubeAccessBlocked,isYouTubeAgeRestricted,youtubeAccessPauseMs,youtubeAccessMaxPauseMs} from './youtube-access.js';
 import {PcmJitterBuffer,pcmBytesPerSecond,pcmFrameBytes} from './pcm-buffer.js';
 import {EqualPowerCrossfade,chooseCrossfadeMs,crossfadePrepareLeadMs,crossfadeReserveMs,defaultCrossfadeMs,fallbackFadeInMs,manualTransitionMs,pcmBytesForMs} from './crossfade.js';
+import {forgetPlaybackSource,rememberPlaybackSource,reusablePlaybackSource} from './audio/source-session.js';
+import {playbackRecoveryPlan} from './audio/recovery-policy.js';
 export const queueLimit=500;
 export const playbackDrainDelays=Object.freeze({local:300,youtube:1500,spotify:2000});
 export const onDemandEndToleranceSeconds=12;
@@ -87,12 +89,12 @@ export class Player extends EventEmitter{
   advanceAfterSkip(){if(!this.queue.length&&this.playlistPlayback?.repeat)this.queue.push(...this.playlistCycle());else if(!this.queue.length&&this.playlistPlayback)this.playlistPlayback=null;this.nextFadeInMs=manualTransitionMs/2;this.next();this.emit('state',this.state());}
   performSkip(reason='skipped'){this.pendingSkip=null;clearTimeout(this.skipTimer);this.skipTimer=null;this.stop({clear:false});this.nextFadeInMs=manualTransitionMs/2;this.advanceAfterSkip();}
   skip(reason='skipped',{fade=true}={}){const track=this.current,positionSeconds=this.position();if(track)this.emit('track-end',{track:structuredClone(track),reason:String(reason||'skipped'),positionSeconds,duration:Number(track.duration)||0});if(!track){this.next();return}this.abortCrossfade(true);if(!fade||this.paused||!this.process||manualTransitionMs<=0){this.performSkip(reason);return}const key=resolutionKey(track);this.pendingSkip={key,reason:String(reason||'skipped')};this.resetTransitionScaler(100,manualTransitionMs/2).setVolume(0);this.skipTimer=setTimeout(()=>{if(this.pendingSkip?.key!==key||resolutionKey(this.current)!==key)return;this.performSkip(reason)},manualTransitionMs/2);this.skipTimer.unref?.();this.emit('state',this.state());}
-  seekBy(delta){const amount=Number(delta);if(!Number.isFinite(amount)||amount===0||Math.abs(amount)>300)throw new Error('Der Zeitsprung muss zwischen −300 und +300 Sekunden liegen.');if(!this.current)throw new Error('Aktuell läuft kein Titel.');if(this.current.source==='radio')throw new Error('Bei einem Live-Radiosender ist Spulen nicht möglich.');const item=this.current,duration=Math.max(0,Number(item.duration)||0),target=Math.max(0,this.position()+amount);if(duration>0&&target>=duration){this.skip('seek-end',{fade:false});return;}const resumeAt=duration>0?Math.min(target,duration):target,stayPaused=this.paused;this.cancelSkipTransition();this.abortCrossfade(true);this.generation++;clearTimeout(this.retryTimer);this.retryTimer=null;this.clearDrain();this.clearPcmBuffer();this.resolver?.abort();this.resolver=null;if(this.process)this.process.kill('SIGKILL');this.process=null;this.current=null;this.paused=false;this.reconnecting=false;this.retryAt=null;this.startedAt=null;this.elapsedSeconds=resumeAt;this.queue.unshift(item);this.next(0,resumeAt,stayPaused,true);}
+  seekBy(delta){const amount=Number(delta);if(!Number.isFinite(amount)||amount===0||Math.abs(amount)>300)throw new Error('Der Zeitsprung muss zwischen −300 und +300 Sekunden liegen.');if(!this.current)throw new Error('Aktuell läuft kein Titel.');if(this.current.source==='radio')throw new Error('Bei einem Live-Radiosender ist Spulen nicht möglich.');const item=this.current,duration=Math.max(0,Number(item.duration)||0),target=Math.max(0,this.position()+amount);if(duration>0&&target>=duration){this.skip('seek-end',{fade:false});return;}const resumeAt=duration>0?Math.min(target,duration):target,stayPaused=this.paused;this.cancelSkipTransition();this.abortCrossfade(true);this.generation++;clearTimeout(this.retryTimer);this.retryTimer=null;this.clearDrain();this.clearPcmBuffer();this.resolver?.abort();this.resolver=null;if(this.process)this.process.kill('SIGKILL');this.process=null;this.current=null;this.paused=false;this.reconnecting=false;this.retryAt=null;this.startedAt=null;this.elapsedSeconds=resumeAt;this.queue.unshift(item);this.next(0,resumeAt,stayPaused,true,true);}
   cancelPrepared(){clearTimeout(this.prepareTimer);this.prepareTimer=null;this.prepared?.controller.abort();this.prepared=null;}
   consumePrepared(key){if(!this.prepared||this.prepared.key!==key)return null;const prepared=this.prepared;this.prepared=null;return prepared;}
   prepareUpcoming(){if(this.crossfade)return;const item=this.upcomingCandidate(),key=resolutionKey(item);if(!item||!key){this.cancelPrepared();return}if(this.current&&(this.resolver||this.pcmBuffer?.buffering))return;if(this.prepared?.key===key)return;this.cancelPrepared();const controller=new AbortController(),promise=resolveInput(item,this.musicDir,{signal:controller.signal}).then(input=>({input,error:null}),error=>({input:null,error}));this.prepared={key,controller,promise};}
   scheduleUpcoming(delay=onlinePrefetchDelayMs){clearTimeout(this.prepareTimer);this.prepareTimer=null;const item=this.upcomingCandidate();if(!item)return;if(item.source==='local'||delay<=0){this.prepareUpcoming();return}this.prepareTimer=setTimeout(()=>{this.prepareTimer=null;this.prepareUpcoming()},delay);this.prepareTimer.unref?.();}
-  async prepareCrossfadeDeck(generation,item){if(generation!==this.generation||this.current!==item||this.crossfade||this.crossfadeDeck||this.paused||this.reconnecting||this.mode==='repeat'||item?.source==='radio')return;const nextItem=this.upcomingCandidate(),key=resolutionKey(nextItem);if(!nextItem||!key||nextItem.source==='radio')return;const deck={key,item:nextItem,controller:null,child:null,store:null,errors:'',failed:false,error:'',closed:false,closeCode:null,cancelled:false};this.crossfadeDeck=deck;try{let input;const prepared=this.consumePrepared(key);if(prepared){deck.controller=prepared.controller;const result=await prepared.promise;if(result.error)throw result.error;input=result.input}else{deck.controller=new AbortController();input=await resolveInput(nextItem,this.musicDir,{signal:deck.controller.signal})}if(deck.cancelled||this.crossfadeDeck!==deck||generation!==this.generation||this.current!==item)return;const child=spawnPlaybackChild(nextItem,input,0,false),reserveBytes=Math.max(pcmBytesForMs(crossfadeReserveMs),pcmBytesForMs(defaultCrossfadeMs)),store=new PcmJitterBuffer({initialBytes:pcmFrameBytes,rebufferBytes:pcmFrameBytes,maxBytes:reserveBytes,resumeBytes:pcmBytesForMs(defaultCrossfadeMs)});store.pause();store.attach(child.stdout);deck.child=child;deck.store=store;deck.onData=buffer=>store.write(buffer);deck.onStderr=buffer=>deck.errors=(deck.errors+buffer).slice(-4000);deck.onError=error=>{deck.failed=true;deck.error=String(error?.message||error||'FFmpeg-Fehler');if(this.crossfade?.deck===deck)this.abortCrossfade(true);else if(this.crossfadeDeck===deck)this.destroyCrossfadeDeck(deck)};deck.onClose=code=>{deck.closed=true;deck.closeCode=code;if(code===0)store.end();else{deck.failed=true;deck.error=deck.errors||`FFmpeg exit ${code}`;if(this.crossfade?.deck===deck)this.abortCrossfade(true);else if(this.crossfadeDeck===deck)this.destroyCrossfadeDeck(deck)}};child.stdout.on('data',deck.onData);child.stderr.on('data',deck.onStderr);child.on('error',deck.onError);child.on('close',deck.onClose)}catch(error){if(this.crossfadeDeck===deck){deck.failed=true;deck.error=String(error?.message||error||'Folgetitel konnte nicht vorbereitet werden.');this.destroyCrossfadeDeck(deck)}}}
+  async prepareCrossfadeDeck(generation,item){if(generation!==this.generation||this.current!==item||this.crossfade||this.crossfadeDeck||this.paused||this.reconnecting||this.mode==='repeat'||item?.source==='radio')return;const nextItem=this.upcomingCandidate(),key=resolutionKey(nextItem);if(!nextItem||!key||nextItem.source==='radio')return;const deck={key,item:nextItem,controller:null,child:null,store:null,errors:'',failed:false,error:'',closed:false,closeCode:null,cancelled:false};this.crossfadeDeck=deck;try{let input;const prepared=this.consumePrepared(key);if(prepared){deck.controller=prepared.controller;const result=await prepared.promise;if(result.error)throw result.error;input=result.input}else{deck.controller=new AbortController();input=await resolveInput(nextItem,this.musicDir,{signal:deck.controller.signal})}if(deck.cancelled||this.crossfadeDeck!==deck||generation!==this.generation||this.current!==item)return;rememberPlaybackSource(nextItem,input);const child=spawnPlaybackChild(nextItem,input,0,false),reserveBytes=Math.max(pcmBytesForMs(crossfadeReserveMs),pcmBytesForMs(defaultCrossfadeMs)),store=new PcmJitterBuffer({initialBytes:pcmFrameBytes,rebufferBytes:pcmFrameBytes,maxBytes:reserveBytes,resumeBytes:pcmBytesForMs(defaultCrossfadeMs)});store.pause();store.attach(child.stdout);deck.child=child;deck.store=store;deck.onData=buffer=>store.write(buffer);deck.onStderr=buffer=>deck.errors=(deck.errors+buffer).slice(-4000);deck.onError=error=>{deck.failed=true;deck.error=String(error?.message||error||'FFmpeg-Fehler');if(this.crossfade?.deck===deck)this.abortCrossfade(true);else if(this.crossfadeDeck===deck)this.destroyCrossfadeDeck(deck)};deck.onClose=code=>{deck.closed=true;deck.closeCode=code;if(code===0)store.end();else{deck.failed=true;deck.error=deck.errors||`FFmpeg exit ${code}`;if(this.crossfade?.deck===deck)this.abortCrossfade(true);else if(this.crossfadeDeck===deck)this.destroyCrossfadeDeck(deck)}};child.stdout.on('data',deck.onData);child.stderr.on('data',deck.onStderr);child.on('error',deck.onError);child.on('close',deck.onClose)}catch(error){if(this.crossfadeDeck===deck){deck.failed=true;deck.error=String(error?.message||error||'Folgetitel konnte nicht vorbereitet werden.');this.destroyCrossfadeDeck(deck)}}}
   beginCrossfade(deck,fadeMs){if(!deck?.store||deck.failed||this.crossfade||this.crossfadeDeck!==deck)return false;const selected=this.takeUpcoming(deck.key);if(!selected){this.destroyCrossfadeDeck(deck);return false}deck.item=selected;clearTimeout(this.prepareTimer);this.prepareTimer=null;this.crossfade={deck,mixer:new EqualPowerCrossfade(fadeMs),fadeMs,startedAt:Date.now(),outgoing:this.current,generation:this.generation};this.emit('state',this.state());return true;}
   maybeCrossfade(generation,item){if(generation!==this.generation||this.current!==item||this.paused||this.reconnecting||this.pendingSkip||this.mode==='repeat'||item?.source==='radio')return;const duration=Math.max(0,Number(item?.duration)||0);if(!duration)return;const remainingMs=Math.max(0,(duration-this.position())*1000);if(!remainingMs)return;if(!this.crossfade&&!this.crossfadeDeck&&remainingMs<=defaultCrossfadeMs+crossfadePrepareLeadMs)void this.prepareCrossfadeDeck(generation,item);const deck=this.crossfadeDeck;if(this.crossfade||!deck?.store||deck.failed||deck.closed&&deck.closeCode!==0)return;const fadeMs=chooseCrossfadeMs(remainingMs,deck.store.bufferedBytes);if(fadeMs>0)this.beginCrossfade(deck,fadeMs);else if(remainingMs<600)this.destroyCrossfadeDeck(deck);}
   processFrame(buffer,generation,item,attempt,recovered){if(generation!==this.generation||this.current!==item)return 0;this.maybeCrossfade(generation,item);let output=buffer,promote=null;const fade=this.crossfade;if(fade?.generation===generation&&fade.outgoing===item){const incoming=fade.deck.store?.read(buffer.length);if(!incoming||incoming.length!==buffer.length){this.abortCrossfade(true)}else{fade.deck.store.resumeSourceIfNeeded();output=fade.mixer.process(buffer,incoming);if(fade.mixer.done)promote=fade}}output=this.transitionScaler.process(output);output=this.volumeScaler.process(output);if(output.length){this.emit('pcm',output);if(attempt>0&&!recovered.value){recovered.value=true;this.report('info','player',`${item.title||'Titel'}: Verbindung wiederhergestellt, Wiedergabe fortgesetzt.`)}}if(promote)this.promoteCrossfade(promote);return output.length;}
@@ -105,7 +107,7 @@ export class Player extends EventEmitter{
         try{input=await resolveInput(item,this.musicDir,{signal:controller.signal})}
         catch(error){if(error.name==='AbortError')throw error;lastError=error;continue}
         if(generation!==this.generation||this.current!==item){const error=new Error('Wiederherstellung wurde abgebrochen');error.name='AbortError';throw error}
-        const child=spawnPlaybackChild(item,input,resumeSeconds,false);this.recoveryProcess=child;
+        rememberPlaybackSource(item,input);const child=spawnPlaybackChild(item,input,resumeSeconds,false);this.recoveryProcess=child;
         try{return await collectRecoveryPcm(child)}
         catch(error){
           lastError=error;if(this.recoveryProcess===child)this.recoveryProcess=null;child.kill?.('SIGKILL');
@@ -127,7 +129,142 @@ export class Player extends EventEmitter{
     child.stdout.on('data',onData);child.stderr.on('data',onStderr);child.on('error',onError);child.on('close',onClose);if(initialPcm?.length)jitter.write(initialPcm);if(ended)jitter.end();if(startPaused){jitter.pause();child.kill('SIGSTOP')}else child.stdout.resume?.();this.prepareUpcoming();this.emit('state',this.state());return {jitter,finishOnce,onData,onStderr,onError,onClose};
   }
   promoteCrossfade(fade){if(this.crossfade!==fade||fade.generation!==this.generation)return;const deck=fade.deck,child=deck?.child,store=deck?.store;if(!child||!store||deck.failed){this.abortCrossfade(true);return}const outgoing=this.current,oldProcess=this.process,oldBuffer=this.pcmBuffer,positionSeconds=this.position();child.stdout.pause?.();this.detachDeckListeners(deck);const remaining=store.bufferedBytes?store.read(store.bufferedBytes):Buffer.alloc(0);store.destroy();deck.store=null;this.crossfade=null;this.crossfadeDeck=null;this.current=deck.item;this.elapsedSeconds=fade.fadeMs/1000;this.startedAt=null;this.bufferingStartedAt=null;this.bufferUnderruns=0;this.paused=false;this.reconnecting=false;this.retryAt=null;this.resetTransitionScaler();this.process=child;this.pcmBuffer=null;oldBuffer?.destroy?.();if(outgoing)this.emit('track-end',{track:structuredClone(outgoing),reason:'completed',positionSeconds,duration:Number(outgoing.duration)||0});this.activateChild(child,deck.item,this.generation,0,{initialPcm:remaining,initialErrors:deck.errors,ended:deck.closed,startPaused:false,initialTargetBytes:remaining.length||pcmFrameBytes});if(oldProcess&&oldProcess!==child)oldProcess.kill?.('SIGKILL');this.emit('state',this.state());}
-  async next(attempt=0,resumeSeconds=0,startPaused=false,exactTrack=false){if(this.current||!this.queue.length)return;let item;if(this.mode==='shuffle'&&!exactTrack){const preferred=this.prepared?.key,index=preferred?this.queue.findIndex(entry=>resolutionKey(entry)===preferred):-1;item=index>=0?this.queue.splice(index,1)[0]:this.queue.splice(Math.floor(Math.random()*this.queue.length),1)[0]}else item=this.queue.shift();const itemKey=resolutionKey(item);this.current=item;this.paused=Boolean(startPaused);this.reconnecting=false;this.retryAt=null;this.elapsedSeconds=item.source==='radio'?0:resumeSeconds;this.startedAt=null;this.bufferingStartedAt=null;this.bufferUnderruns=0;const generation=++this.generation;let controller,input;this.emit('state',this.state());try{const prepared=this.consumePrepared(itemKey);if(prepared){controller=this.resolver=prepared.controller;const result=await prepared.promise;if(result.error)throw result.error;input=result.input}else{this.cancelPrepared();controller=this.resolver=new AbortController();input=await resolveInput(item,this.musicDir,{signal:controller.signal})}if(generation!==this.generation)return;this.resolver=null;const fadeInMs=this.nextFadeInMs;this.nextFadeInMs=0;if(fadeInMs>0)this.resetTransitionScaler(0,fadeInMs).setVolume(100);else this.resetTransitionScaler();const child=spawnPlaybackChild(item,input,item.source==='radio'?0:resumeSeconds,item.source==='radio');this.activateChild(child,item,generation,attempt,{startPaused:this.paused})}catch(error){if(error.name!=='AbortError')this.finish(generation,1,error,attempt,item,null)}}
-  finish(generation,code,error,attempt,prior=this.current,child=this.process){if(generation!==this.generation)return;if(child&&child!==this.process)return;if(prior&&this.current&&resolutionKey(prior)!==resolutionKey(this.current))return;if(this.pendingSkip?.key&&resolutionKey(prior)===this.pendingSkip.key){clearTimeout(this.skipTimer);this.skipTimer=null;this.pendingSkip=null;this.abortCrossfade(false);this.process=null;this.resolver=null;this.startedAt=null;this.paused=false;this.reconnecting=false;this.retryAt=null;this.elapsedSeconds=0;this.bufferingStartedAt=null;this.bufferUnderruns=0;this.current=null;this.resetTransitionScaler();this.advanceAfterSkip();return}this.cancelSkipTransition();this.abortCrossfade(true);const resumeSeconds=this.position(),wasPaused=this.paused,knownDuration=Math.max(0,Number(prior?.duration)||0),onDemandStream=['spotify','youtube'].includes(prior?.source),endedTooSoon=onDemandStream&&code===0&&knownDuration>=15&&resumeSeconds<knownDuration-onDemandEndToleranceSeconds,prematureEndExhausted=endedTooSoon&&attempt>=prematureEndRetryLimit,unexplainedOnlineExit=isUnexplainedOnlineFfmpegExit(prior,code,error),errorText=endedTooSoon?`${prior.source==='spotify'?'Spotify':'YouTube'}-Quelle vorzeitig beendet bei ${Math.floor(resumeSeconds)} von ${Math.floor(knownDuration)} Sekunden.`:unexplainedOnlineExit?'Online-Audioquelle wurde unerwartet beendet (FFmpeg 255).':String(error?.message||error||`FFmpeg exit ${code}`),accessBlocked=onDemandStream&&isYouTubeAccessBlocked(error),providerOutage=onDemandStream&&Boolean(code)&&isYouTubeTokenProviderUnavailable(error),formatUnavailable=onDemandStream&&Boolean(code)&&isYouTubeAudioFormatUnavailable(error),media403=onDemandStream&&Boolean(code)&&isPlayback403Error(errorText),currentYoutubeClient=String(prior?._youtubePlaybackClient||'web_embedded'),nextYoutubeClient=nextYouTubePlaybackClient(currentYoutubeClient),clientFallback=media403?Boolean(nextYoutubeClient):(providerOutage||formatUnavailable)&&attempt<2,badAudio=Boolean(code)&&prior?.source==='spotify'&&resumeSeconds<2&&!providerOutage&&!clientFallback&&(formatUnavailable||media403),alternateSourceRetry=badAudio&&attempt<3&&rejectSpotifyPlaybackMatch(prior),transient=Boolean(code&&(unexplainedOnlineExit||isTransientPlaybackError(errorText))),retry=accessBlocked||prior?.source==='radio'||endedTooSoon&&!prematureEndExhausted||alternateSourceRetry||clientFallback||transient&&!badAudio&&!providerOutage&&!media403&&(isPersistentNetworkLoss(errorText)||attempt<this.retries.length);if(clientFallback&&prior){Object.defineProperty(prior,'_youtubePlaybackClient',{value:media403?nextYoutubeClient:(attempt===0?'web_safari':'mweb'),writable:true,configurable:true,enumerable:false});}this.process=null;this.resolver=null;this.startedAt=null;this.paused=false;this.elapsedSeconds=prior?.source==='radio'?0:resumeSeconds;if(retry){const delay=accessBlocked?Math.min(youtubeAccessMaxPauseMs,Math.max(1000,Number(error?.retryAfterMs)||youtubeAccessPauseMs)):alternateSourceRetry?1000:clientFallback?youtubeClientRetryDelayMs:endedTooSoon?prematureEndRetryDelays[Math.min(attempt,prematureEndRetryDelays.length-1)]:this.retries[Math.min(attempt,this.retries.length-1)];this.cancelPrepared();this.paused=wasPaused;this.reconnecting=true;this.retryAt=Date.now()+delay;this.current=prior;this.report('warn','player',accessBlocked?`${prior?.title||'Wiedergabe'}: YouTube-Schutzpause. Titel und Warteschlange bleiben erhalten. Neuer Versuch in ${Math.ceil(delay/1000)} Sekunden.`:alternateSourceRetry?`${prior?.title||'Wiedergabe'}: ${media403?'Diese YouTube-Quelle verweigert den Medienzugriff.':'YouTube-Audioformat dieser Quelle nicht verfügbar.'} Der Bot sucht eine andere passende Version desselben Spotify-Titels.`:clientFallback?`${prior?.title||'Wiedergabe'}: Diese YouTube-Clientvariante liefert gerade kein Audio. Direkter Wechsel zur nächsten Variante.`:`${prior?.title||'Wiedergabe'}: Verbindung unterbrochen. Neuer Versuch in ${Math.ceil(delay/1000)} Sekunden. ${errorText}`);this.retryTimer=setTimeout(()=>{if(generation!==this.generation)return;this.retryTimer=null;this.current=null;this.reconnecting=false;this.retryAt=null;this.queue.unshift(prior);this.next(accessBlocked?attempt:attempt+1,this.elapsedSeconds,this.paused,true)},delay)}else if(prematureEndExhausted){this.completeTrack(generation,prior,1,`${errorText} Nach ${prematureEndRetryLimit} Wiederholungsversuchen wird der Titel übersprungen.`)}else if(code||!prior){this.completeTrack(generation,prior,code,errorText,{expectedUnavailable:isSpotifyMatchUnavailableError(error)||isYouTubeAgeRestricted(error)})}else{const delay=Math.max(0,Number(this.drainDelays[prior.source])||0);this.reconnecting=false;this.retryAt=null;this.startDrain(delay,()=>this.completeTrack(generation,prior,0,''))}this.emit('state',this.state());}
+  async next(attempt=0,resumeSeconds=0,startPaused=false,exactTrack=false,reuseResolved=false){if(this.current||!this.queue.length)return;let item;if(this.mode==='shuffle'&&!exactTrack){const preferred=this.prepared?.key,index=preferred?this.queue.findIndex(entry=>resolutionKey(entry)===preferred):-1;item=index>=0?this.queue.splice(index,1)[0]:this.queue.splice(Math.floor(Math.random()*this.queue.length),1)[0]}else item=this.queue.shift();const itemKey=resolutionKey(item);this.current=item;this.paused=Boolean(startPaused);this.reconnecting=false;this.retryAt=null;this.elapsedSeconds=item.source==='radio'?0:resumeSeconds;this.startedAt=null;this.bufferingStartedAt=null;this.bufferUnderruns=0;const generation=++this.generation;let controller,input;this.emit('state',this.state());try{const prepared=this.consumePrepared(itemKey);if(prepared){controller=this.resolver=prepared.controller;const result=await prepared.promise;if(result.error)throw result.error;input=result.input}else{this.cancelPrepared();const reusable=reuseResolved?reusablePlaybackSource(item):'';if(reusable)input=reusable;else{controller=this.resolver=new AbortController();input=await resolveInput(item,this.musicDir,{signal:controller.signal})}}if(generation!==this.generation)return;this.resolver=null;rememberPlaybackSource(item,input);const fadeInMs=this.nextFadeInMs;this.nextFadeInMs=0;if(fadeInMs>0)this.resetTransitionScaler(0,fadeInMs).setVolume(100);else this.resetTransitionScaler();const child=spawnPlaybackChild(item,input,item.source==='radio'?0:resumeSeconds,item.source==='radio');this.activateChild(child,item,generation,attempt,{startPaused:this.paused})}catch(error){if(error.name!=='AbortError')this.finish(generation,1,error,attempt,item,null)}}
+  finish(generation,code,error,attempt,prior=this.current,child=this.process){
+    if(generation!==this.generation||child&&child!==this.process)return;
+    if(prior&&this.current&&resolutionKey(prior)!==resolutionKey(this.current))return;
+    if(this.pendingSkip?.key&&resolutionKey(prior)===this.pendingSkip.key){
+      clearTimeout(this.skipTimer);
+      this.skipTimer=null;
+      this.pendingSkip=null;
+      this.abortCrossfade(false);
+      this.process=null;
+      this.resolver=null;
+      this.startedAt=null;
+      this.paused=false;
+      this.reconnecting=false;
+      this.retryAt=null;
+      this.elapsedSeconds=0;
+      this.bufferingStartedAt=null;
+      this.bufferUnderruns=0;
+      this.current=null;
+      this.resetTransitionScaler();
+      this.advanceAfterSkip();
+      return;
+    }
+
+    this.cancelSkipTransition();
+    this.abortCrossfade(true);
+
+    const resumeSeconds=this.position();
+    const wasPaused=this.paused;
+    const knownDuration=Math.max(0,Number(prior?.duration)||0);
+    const onDemandStream=['spotify','youtube'].includes(prior?.source);
+    const endedTooSoon=onDemandStream&&code===0&&knownDuration>=15&&resumeSeconds<knownDuration-onDemandEndToleranceSeconds;
+    const prematureEndExhausted=endedTooSoon&&attempt>=prematureEndRetryLimit;
+    const unexplainedOnlineExit=isUnexplainedOnlineFfmpegExit(prior,code,error);
+    const errorText=endedTooSoon
+      ?`${prior.source==='spotify'?'Spotify':'YouTube'}-Quelle vorzeitig beendet bei ${Math.floor(resumeSeconds)} von ${Math.floor(knownDuration)} Sekunden.`
+      :unexplainedOnlineExit
+        ?'Online-Audioquelle wurde unerwartet beendet (FFmpeg 255).'
+        :String(error?.message||error||`FFmpeg exit ${code}`);
+    const accessBlocked=onDemandStream&&isYouTubeAccessBlocked(error);
+    const providerOutage=onDemandStream&&Boolean(code)&&isYouTubeTokenProviderUnavailable(error);
+    const formatUnavailable=onDemandStream&&Boolean(code)&&isYouTubeAudioFormatUnavailable(error);
+    const spotifySourceBlocked=prior?.source==='spotify'&&isSpotifySourceTemporarilyUnavailableError(error);
+    const media403=onDemandStream&&Boolean(code)&&isPlayback403Error(errorText);
+    const currentClient=String(prior?._youtubePlaybackClient||'web_embedded');
+    const nextClient=nextYouTubePlaybackClient(currentClient);
+    const clientFallback=media403?Boolean(nextClient):(providerOutage||formatUnavailable)&&attempt<2;
+    const badAudio=Boolean(code)&&prior?.source==='spotify'&&resumeSeconds<2&&!providerOutage&&!clientFallback&&(formatUnavailable||media403);
+    const alternateSource=badAudio&&attempt<3&&rejectSpotifyPlaybackMatch(prior);
+    const transient=Boolean(code&&(unexplainedOnlineExit||isTransientPlaybackError(errorText)));
+    const sourceRetryCount=Number(prior?._spotifySourceAccessRetries||0);
+    const plan=playbackRecoveryPlan({
+      source:prior?.source,
+      attempt,
+      retryDelays:this.retries,
+      prematureDelays:prematureEndRetryDelays,
+      retryAfterMs:accessBlocked
+        ?Math.min(youtubeAccessMaxPauseMs,Math.max(1_000,Number(error?.retryAfterMs)||youtubeAccessPauseMs))
+        :Number(error?.retryAfterMs)||0,
+      spotifySourceBlocked,
+      spotifySourceRetryCount:sourceRetryCount,
+      accessBlocked,
+      endedTooSoon,
+      prematureEndExhausted,
+      alternateSource,
+      clientFallback,
+      transient,
+      badAudio,
+      providerOutage,
+      media403,
+      persistentNetworkLoss:isPersistentNetworkLoss(errorText)
+    });
+
+    if(code&&prior)forgetPlaybackSource(prior);
+    if(plan.reason==='spotify-source'&&prior){
+      Object.defineProperty(prior,'_spotifySourceAccessRetries',{
+        value:sourceRetryCount+1,
+        writable:true,
+        configurable:true,
+        enumerable:false
+      });
+    }
+    if(clientFallback&&prior){
+      Object.defineProperty(prior,'_youtubePlaybackClient',{
+        value:media403?nextClient:(attempt===0?'web_safari':'mweb'),
+        writable:true,
+        configurable:true,
+        enumerable:false
+      });
+    }
+
+    this.process=null;
+    this.resolver=null;
+    this.startedAt=null;
+    this.paused=false;
+    this.elapsedSeconds=prior?.source==='radio'?0:resumeSeconds;
+
+    if(plan.retry){
+      this.cancelPrepared();
+      this.paused=wasPaused;
+      this.reconnecting=true;
+      this.retryAt=Date.now()+plan.delay;
+      this.current=prior;
+      const title=prior?.title||'Wiedergabe';
+      const message=plan.reason==='spotify-source'
+        ?`${title}: Passende Quelle vorübergehend gesperrt. Titel und Warteschlange bleiben erhalten; neuer Versuch in ${Math.ceil(plan.delay/1000)} Sekunden.`
+        :plan.reason==='access-pause'
+          ?`${title}: YouTube-Schutzpause. Titel und Warteschlange bleiben erhalten. Neuer Versuch in ${Math.ceil(plan.delay/1000)} Sekunden.`
+          :plan.reason==='alternate-source'
+            ?`${title}: ${media403?'Diese YouTube-Quelle verweigert den Medienzugriff.':'YouTube-Audioformat dieser Quelle nicht verfügbar.'} Der Bot sucht eine andere passende Version desselben Spotify-Titels.`
+            :plan.reason==='client-fallback'
+              ?`${title}: Diese YouTube-Clientvariante liefert gerade kein Audio. Direkter Wechsel zur nächsten Variante.`
+              :`${title}: Verbindung unterbrochen. Neuer Versuch in ${Math.ceil(plan.delay/1000)} Sekunden. ${errorText}`;
+      this.report('warn','player',message);
+      this.retryTimer=setTimeout(()=>{
+        if(generation!==this.generation)return;
+        this.retryTimer=null;
+        this.current=null;
+        this.reconnecting=false;
+        this.retryAt=null;
+        this.queue.unshift(prior);
+        this.next(plan.nextAttempt,this.elapsedSeconds,this.paused,true);
+      },plan.delay);
+    }else if(prematureEndExhausted){
+      this.completeTrack(generation,prior,1,`${errorText} Nach ${prematureEndRetryLimit} Wiederholungsversuchen wird der Titel übersprungen.`);
+    }else if(code||!prior){
+      this.completeTrack(generation,prior,code,errorText,{
+        expectedUnavailable:isSpotifyMatchUnavailableError(error)||isSpotifySourceTemporarilyUnavailableError(error)||isYouTubeAgeRestricted(error)
+      });
+    }else{
+      const delay=Math.max(0,Number(this.drainDelays[prior.source])||0);
+      this.reconnecting=false;
+      this.retryAt=null;
+      this.startDrain(delay,()=>this.completeTrack(generation,prior,0,''));
+    }
+    this.emit('state',this.state());
+  }
   completeTrack(generation,prior,code,errorText,{emitTrackEnd=true,expectedUnavailable=false}={}){if(generation!==this.generation)return;const positionSeconds=this.position();if(prior&&emitTrackEnd)this.emit('track-end',{track:structuredClone(prior),reason:code?'failed':'completed',positionSeconds,duration:Number(prior.duration)||0});this.clearDrain();this.current=null;this.paused=false;this.reconnecting=false;this.retryAt=null;this.elapsedSeconds=0;if(code){this.report(expectedUnavailable?'warn':'error','player',errorText);if(this.playlistPlayback&&prior){const failed=resolutionKey(prior);this.playlistPlayback.items=this.playlistPlayback.items.filter(item=>resolutionKey(item)!==failed);if(!this.playlistPlayback.items.length)this.playlistPlayback=null}}if(this.mode==='repeat'&&prior&&!code)this.queue.unshift(prior);else if(!this.queue.length&&this.playlistPlayback?.repeat)this.queue.push(...this.playlistCycle());else if(!this.queue.length&&this.playlistPlayback)this.playlistPlayback=null;if(this.queue.length)this.nextFadeInMs=Math.max(this.nextFadeInMs,fallbackFadeInMs);this.next();this.emit('state',this.state());}
 }
