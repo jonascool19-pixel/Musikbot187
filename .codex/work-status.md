@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-10-31T11:14:10.741Z
-Status: ready for review
-Base: main 1852ab3
+Last updated: 2026-10-31T11:16:21.367Z
+Status: complete
+Base: main cda89e9
 
 ## Currently working on
 
-Version 1.9.1 bounded remix and slowed discovery
+No active repository work
 
 ## Last completed
 
-Allowed matching variants in personal discovery while limiting the active mix to one variant
+Merged version 1.9.1 bounded remix and slowed discovery in PR 74
 
 ## Next
 
-Publish PR, pass GitHub CI, and merge the 1.9.1 follow-up
+Deploy version 1.9.1 through the dashboard updater and observe the personal mix
 
 ## Verification
 
-231/231 backend tests; git diff check clean
+231/231 backend tests; both GitHub Linux CI runs passed; git diff check clean
 
 ## Safety note
 
