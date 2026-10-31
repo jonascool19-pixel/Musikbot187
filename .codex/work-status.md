@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-10-31T11:11:40.513Z
-Status: complete
-Base: main 870183d
+Last updated: 2026-10-31T11:14:10.741Z
+Status: ready for review
+Base: main 1852ab3
 
 ## Currently working on
 
-No active repository work
+Version 1.9.1 bounded remix and slowed discovery
 
 ## Last completed
 
-Merged version 1.9.0 clean online-audio and music-taste rebuild in PR 73
+Allowed matching variants in personal discovery while limiting the active mix to one variant
 
 ## Next
 
-Deploy version 1.9.0 through the dashboard updater and observe real playback diagnostics
+Publish PR, pass GitHub CI, and merge the 1.9.1 follow-up
 
 ## Verification
 
-230/230 backend tests; 2/2 browser tests; both GitHub Linux CI runs passed; player benchmark passed; no high or critical npm audit findings
+231/231 backend tests; git diff check clean
 
 ## Safety note
 
