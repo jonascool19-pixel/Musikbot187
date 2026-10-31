@@ -79,7 +79,7 @@ test('seeking in shuffle mode explicitly resumes the same track',()=>{
   const player=new Player({musicDir:'.',diagnostic(){}});player.mode='shuffle';
   player.current={id:'active',source:'local',duration:200};player.elapsedSeconds=20;player.queue=[{id:'later'}];
   let args;player.next=(...values)=>{args=values;};player.seekBy(10);
-  assert.deepEqual(args,[0,30,false,true]);assert.equal(player.queue[0].id,'active');player.stop();
+  assert.deepEqual(args,[0,30,false,true,true]);assert.equal(player.queue[0].id,'active');player.stop();
 });
 
 test('age-gate is classified separately from the shared YouTube bot protection',()=>{

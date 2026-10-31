@@ -1,5 +1,14 @@
 # 📦 Änderungen
 
+## 2.0.0 · Sauberer, reaktionsschneller Audiokern
+
+- **Audioweg neu geordnet:** YouTube-Auflösung, Quellenwahl, kurzlebige Wiedergabesitzung und Fehlerstrategie liegen jetzt in klar getrennten Modulen statt in einer Kette aus sich widersprechenden Sonderfällen.
+- **Sofortiges Spulen:** Vor- und Zurückspulen verwendet die bereits geprüfte aktive Audioquelle weiter. Der Bot startet dafür nicht mehr jedes Mal eine vollständige YouTube-/Spotify-Suche.
+- **Spotify bleibt beim richtigen Titel:** Ein exakt zugeordneter Spotify-Titel wird nach einem vorübergehenden YouTube-403 nicht fälschlich als „kein Treffer“ verworfen. Die Quelle bleibt erhalten und wird begrenzt neu aufgebaut.
+- **Gezielte Wiederherstellung:** Clientwechsel, gesperrte Quellen, abgebrochene Streams und echte Netzfehler besitzen eine gemeinsame, nachvollziehbare Strategie ohne endlose Wiederholung.
+- **Persönlicher Mix korrigiert:** Der Suchbegriff allein gilt nicht mehr als Geschmacksbeweis. Fremde Vorschläge wie „Copper Alley – See You On The Outfield“ werden abgewiesen; gelernte Künstler sowie passende Remix-/Slowed-Entdeckungen bleiben möglich.
+- **Repository bereinigt:** Alte zusammengeführte Arbeitszweige wurden entfernt, die bestehende Änderungshistorie bleibt vollständig erhalten und neue Regressionstests sichern Quellenwiederverwendung und Fehlerbehandlung ab.
+
 ## 1.9.1 · Abwechslungsreiche Varianten im persönlichen Mix
 
 - **Remixe und Slowed wieder möglich:** Passende Remix-, Rework-, Edit-, Sped-up-, Nightcore- und Slowed-Versionen dürfen wieder als persönliche Entdeckung vorgeschlagen werden.

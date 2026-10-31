@@ -6,9 +6,9 @@ import {youtubeAuthenticationArgs,youtubeClientStrategies,youtubePotProviderArgs
 import {classifyYouTubeAudioFailure} from '../backend/src/youtube-access.js';
 
 test('online playback resolves one signed media URL and lets one reconnecting FFmpeg process read it',async()=>{
-  const mediaSource=await fs.readFile(new URL('../backend/src/media.js',import.meta.url),'utf8');
+  const mediaSource=await fs.readFile(new URL('../backend/src/audio/source-resolver.js',import.meta.url),'utf8');
   const playerSource=await fs.readFile(new URL('../backend/src/player.js',import.meta.url),'utf8');
-  assert.match(mediaSource,/const resolved=await resolveYoutube\(url,signal,\{preferredClient:item\._youtubePlaybackClient\}\);applyResolvedPlayback\(item,resolved\);return resolved\.url/);
+  assert.match(mediaSource,/const resolved=await resolveYouTubeAudio\(url,signal,\{preferredClient:item\._youtubePlaybackClient\}\);[\s\S]*applyResolvedPlayback\(item,resolved\);[\s\S]*return resolved\.url/);
   assert.doesNotMatch(mediaSource,/youtubePlaybackPipeArgs|--downloader','ffmpeg|'-o','-'/);
   assert.match(playerSource,/return spawn\('ffmpeg',ffmpegArgs\(input,resumeSeconds,live,item\?\.playbackHeaders\)/);
   assert.doesNotMatch(playerSource,/createYouTubePlaybackPipeline|ffmpegPipeArgs|usesYtDlpPlaybackPipe/);

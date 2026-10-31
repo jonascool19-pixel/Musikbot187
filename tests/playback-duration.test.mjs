@@ -34,7 +34,7 @@ test('Spotify candidate ranking keeps using the catalog duration after playback 
 });
 
 test('online playback writes the verified source duration back before the player can schedule a crossfade',async()=>{
-  const source=await fs.readFile(new URL('../backend/src/media.js',import.meta.url),'utf8'),spotifySource=await fs.readFile(new URL('../backend/src/spotify-playback.js',import.meta.url),'utf8');
+  const source=await fs.readFile(new URL('../backend/src/audio/youtube-client.js',import.meta.url),'utf8'),spotifySource=await fs.readFile(new URL('../backend/src/spotify-playback.js',import.meta.url),'utf8');
   assert.match(source,/--print',youtubePlaybackPrintTemplate/);
   assert.match(source,/applyResolvedPlayback\(item,resolved\)/);
   assert.match(source,/item\.catalogDuration=original/);
