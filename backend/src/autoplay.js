@@ -1,4 +1,5 @@
 import {musicArtist,musicArtistKeys,musicSlowedVersion} from './music-identity.js';
+import {createTasteModel,tasteCandidateAllowed} from './music-taste.js';
 export const autoplayModes=Object.freeze(['playlists','similar']);
 export const autoplayQueueBounds=Object.freeze({min:3,max:20,default:10});
 export const autoplayDiscoveryQueries=Object.freeze([
@@ -99,18 +100,13 @@ export function listeningSignalWeight(track){
 }
 const learnedPreferenceStyles=tracks=>{const counts=new Map();for(const track of Array.isArray(tracks)?tracks:[]){const weight=listeningSignalWeight(track);if(weight<=0)continue;for(const style of normalizeAutoplayStyles([...(track?.styles||[]),...inferTrackStyles(track)]))counts.set(style,(counts.get(style)||0)+weight)}return [...counts].sort((left,right)=>right[1]-left[1]).slice(0,6).map(([style])=>style);};
 export function autoplayCandidateMatchesPreferences(track,{preferredStyles=[],preferredArtists=[],queryStyle='',queryArtist='',strictStyle=false}={}){
-  const styles=normalizeAutoplayStyles(preferredStyles),artists=normalizeAutoplayStyles(preferredArtists);
-  if(!styles.length&&!artists.length&&!queryStyle&&!queryArtist)return true;
-  const text=`${track?.title||''} ${(track?.styles||[]).join(' ')}`,artist=musicArtist(track);
-  const preferredKnown=[...new Set(styles.flatMap(stylesIn))],candidateKnown=[...new Set(stylesIn(text))];
-  const explicitStyleMatch=styles.some(style=>containsMusicTerm(text,style))||candidateKnown.some(candidate=>preferredKnown.some(preferred=>strictStyle?candidate===preferred:compatibleStyle(candidate,preferred)));
-  // A matching artist or a single matching style cannot override an explicit conflicting genre.
-  if(candidateKnown.length&&(!preferredKnown.length||candidateKnown.some(candidate=>!preferredKnown.some(preferred=>strictStyle?candidate===preferred:compatibleStyle(candidate,preferred)))))return false;
-  if(candidateKnown.length&&styles.length&&!explicitStyleMatch)return false;
-  if(!explicitStyleMatch&&preferredKnown.some(style=>modernElectronicStyles.has(style))&&(historicallyUnrelatedPattern.test(text)||oldYearPattern.test(text)))return false;
-  if(queryArtist)return containsMusicTerm(artist,queryArtist);
-  if(queryStyle)return explicitStyleMatch;
-  return explicitStyleMatch||artists.some(value=>containsMusicTerm(artist,value));
+  const styles=normalizeAutoplayStyles(preferredStyles),artists=normalizeAutoplayStyles(preferredArtists),category=String(track?.autoplayCategory||'');
+  if(!queryStyle&&track?.autoplayCategoryKind==='genre')queryStyle=category;
+  if(!queryArtist&&track?.autoplayCategoryKind==='artist')queryArtist=category;
+  const text=`${track?.title||''} ${(track?.styles||[]).join(' ')}`,preferredKnown=[...new Set(styles.flatMap(stylesIn))];
+  if(preferredKnown.some(style=>modernElectronicStyles.has(style))&&(historicallyUnrelatedPattern.test(text)||oldYearPattern.test(text)))return false;
+  const model=createTasteModel({preferredStyles:styles,preferredArtists:artists});
+  return tasteCandidateAllowed(track,model,{queryStyle,queryArtist,candidateStyles:inferTrackStyles(track),strictStyle});
 }
 const unknownLongFormPattern=/\b(?:musik\s*quiz|music\s*quiz|megamix|continuous\s+mix|full\s+(?:album|mix|set|concert)|dj\s+set|podcast|live\s*stream|livestream|\d+\s*(?:hours?|stunden?))\b/i;
 export function normalizeAutoplayStyles(values){const result=[],seen=new Set();for(const value of Array.isArray(values)?values:[]){const style=normalizeStyleValue(value),key=comparable(style);if(style.length<2||seen.has(key))continue;seen.add(key);result.push(style);if(result.length>=autoplayProfileStyleLimit)break}return result;}

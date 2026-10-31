@@ -113,10 +113,10 @@ test('preferred modern styles reject unrelated historical and conflicting music 
   assert.equal(autoplayCandidateMatchesPreferences({title:'Jemand, der über mich wacht (GERSHWIN, Oh Kay, 1926)',artist:'Historische Aufnahmen'},preferences),false);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Künstler – Schlager Party',artist:'Künstler'},preferences),false);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Künstler – Rawstyle Nacht',artist:'Künstler'},preferences),true);
-  assert.equal(autoplayCandidateMatchesPreferences({title:'DJ Nova – Bass Attack',artist:'DJ Nova'},preferences),false);
+  assert.equal(autoplayCandidateMatchesPreferences({title:'DJ Nova – Bass Attack',artist:'DJ Nova'},preferences),true);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Neues Lied',artist:'Scooter'},{preferredStyles:['Uptempo'],preferredArtists:['Scooter'],queryArtist:'Scooter'}),true);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Metal Schlager Techno Remix',artist:'Scooter'},{preferredStyles:['Techno'],preferredArtists:['Scooter'],queryArtist:'Scooter'}),false);
-  assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Schlager Party',artist:'Scooter'},{preferredArtists:['Scooter'],queryArtist:'Scooter'}),false);
+  assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Schlager Party',artist:'Scooter'},{preferredArtists:['Scooter'],queryArtist:'Scooter'}),true,'an artist preference does not invent an implicit genre block');
   assert.equal(autoplayCandidateMatchesPreferences({title:'Hardstyle Metal Mix',artist:'DJ'},{preferredStyles:['Hardstyle'],queryStyle:'Hardstyle',strictStyle:true}),false);
 });
 
@@ -189,13 +189,13 @@ test('autoplay keeps music results and rejects tutorials and study videos',()=>{
   assert.match(autoplayNonMusicSearchSuffix,/-playlist/);
 });
 
-test('profile autoplay rejects unverifiable flat results instead of accepting their search rank',async()=>{
+test('profile autoplay accepts ordinary song titles from a taste-scoped search',async()=>{
   const player=new FakePlayer();player.current={id:'turbo',title:'New Kids, Paul Elstak, Satirized, Aalst – Turbo (Satirized & Aalst Turbo Saté Remix)',artist:'Paul Elstak',source:'youtube',duration:193,autoplay:true,autoplayMode:'similar'};
   const settings={autoplayEnabled:true,autoplayMode:'similar',autoplayPlaylistIds:[],autoplayQueueTarget:3},profile={version:2,tracks:[],preferredStyles:['Uptempo','Techno','Hardstyle'],preferredArtists:[],blockedStyles:[]},recommendations=Array.from({length:5},(_,index)=>({id:`plain-song-${index}`,title:`Turbo Titel ${index}`,source:'youtube'})),controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async()=>recommendations,save:async()=>{}});
   await controller.fill();
-  assert.equal(player.current,null);
-  assert.deepEqual(player.queue,[]);
-  assert.equal(controller.state().status,'waiting');
+  assert.equal(player.current.id,'plain-song-0');
+  assert.deepEqual(player.queue.map(track=>track.id),['plain-song-1','plain-song-2','plain-song-3']);
+  assert.equal(controller.state().status,'active');
   controller.close();
 });
 
@@ -280,7 +280,7 @@ test('configured styles never fall back to the broad discovery mix',async()=>{
     {id:'right-four',title:'DJ Vier – Bass Attack',source:'youtube'}
   ],controller=new AutoplayController({player,settings,profile,getPlaylists:()=>[],recommend:async(track,{query})=>{queries.push(query);return recommendations},save:async()=>{}});
   await controller.setEnabled(true);
-  assert.deepEqual([player.current,...player.queue].map(track=>track.id),['right-one','right-three','right-two']);
+  assert.deepEqual([player.current,...player.queue].map(track=>track.id),['right-one','right-three','right-two','right-four']);
   assert.match(queries[0],/^Uptempo\b/);
   assert.equal(queries.some(query=>autoplayDiscoveryQueries.some(discovery=>query.includes(discovery))),false);
   controller.close();

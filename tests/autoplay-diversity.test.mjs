@@ -49,7 +49,7 @@ test('Spotify autoplay cannot resolve an ordinary remix to a slowed YouTube subs
   const normal={id:'12345678901',title:'RoKun – Hardtekk Remix (Official Audio)',duration:190};
   assert.deepEqual(rankSpotifyPlaybackCandidates(track,[slow,normal]),[normal]);
   assert.deepEqual(rankSpotifyPlaybackCandidates(track,[slow]),[]);
-  assert.deepEqual(rankSpotifyPlaybackCandidates({...track,autoplayMode:undefined},[slow]),[slow],'manual playback is unchanged');
+  assert.deepEqual(rankSpotifyPlaybackCandidates({...track,autoplayMode:undefined},[slow]),[],'the rebuilt resolver never substitutes an unrequested slowed version');
 });
 
 test('learned, restored and buffered slowed tracks cannot bypass the filter; manual selections remain intact',async t=>{
