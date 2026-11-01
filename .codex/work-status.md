@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-01T20:45:51.866Z
-Status: ready for review
-Base: main 0e840d2
+Last updated: 2026-11-01T20:53:28.742Z
+Status: complete
+Base: main 3011f3b
 
 ## Currently working on
 
-Version 2.1.0 exact resolver and 5+5 personal automix are implemented
+No active repository work
 
 ## Last completed
 
-Added structured recording identity, YTM-first multi-query resolution, persistent self-healing mappings, YTM radio/search discovery, learned genre guards and 5 learned plus 5 new queue balance
+Merged version 2.1.0 exact resolver and 5+5 personal automix in PR 77
 
 ## Next
 
-Review GitHub checks, merge and deploy version 2.1.0 through the dashboard updater
+Deploy version 2.1.0 through the dashboard updater and observe exact variant matching plus personal discovery
 
 ## Verification
 
-249/249 backend tests; 3/3 first-run tests; 2/2 browser tests; npm audit has zero high or critical findings; player benchmark 424.6x realtime; git diff check clean
+249/249 backend tests; 3/3 first-run tests; 2/2 browser tests; both GitHub Linux checks passed after one browser-test retry; npm audit has zero high or critical findings; player benchmark 424.6x realtime
 
 ## Safety note
 
