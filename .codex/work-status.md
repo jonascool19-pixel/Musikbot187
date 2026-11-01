@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-10-31T23:59:21.093Z
-Status: in progress
-Base: main 3043c29
+Last updated: 2026-11-01T12:11:20.057Z
+Status: complete
+Base: main f014ebb
 
 ## Currently working on
 
-Version 2.0.1 validated prefetch and gap-free crossfade handoff are ready for review
+No active repository work
 
 ## Last completed
 
-Added FFmpeg source validation, recommended mweb/HLS fallback order, Spotify ISRC matching and a 2.5-second post-crossfade reserve
+Merged version 2.0.1 validated prefetch, Spotify ISRC matching and gap-free crossfade handoff in PR 76
 
 ## Next
 
-Wait for GitHub checks, merge and deploy version 2.0.1
+Deploy version 2.0.1 through the dashboard updater and observe normal transitions and manual skips
 
 ## Verification
 
-239/239 backend tests; 2/2 browser tests; npm audit has zero high or critical findings; player benchmark 442.8x realtime; git diff check clean
+239/239 backend tests; 2/2 browser tests; both GitHub Linux checks passed; npm audit has zero high or critical findings; player benchmark 442.8x realtime
 
 ## Safety note
 
