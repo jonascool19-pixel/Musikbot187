@@ -10,16 +10,18 @@ test('yt-dlp playback output keeps the selected URL and its exact source duratio
   const resolved=parseResolvedYouTubeOutput(`https://example.com/audio\t213.42\thttps\tabcdefghijk\t${JSON.stringify({'User-Agent':'yt-dlp exact','X-Goog-Visitor-Id':'visitor'})}\n`);
   assert.deepEqual(resolved,{url:'https://example.com/audio',duration:213.42,protocol:'https',id:'abcdefghijk',headers:{'User-Agent':'yt-dlp exact','X-Goog-Visitor-Id':'visitor'}});
   assert.deepEqual(parseResolvedYouTubeOutput('https://example.com/audio\tNA\tm3u8_native\tabcdefghijk'),{url:'https://example.com/audio',duration:0,protocol:'m3u8_native',id:'abcdefghijk',headers:{}});
+  assert.deepEqual(parseResolvedYouTubeOutput('https://example.com/audio\t200\thttps\tabcdefghijk\t{}\t"Artist – Song"'),{title:'Artist – Song',url:'https://example.com/audio',duration:200,protocol:'https',id:'abcdefghijk',headers:{}});
+  assert.doesNotThrow(()=>parseResolvedYouTubeOutput('https://example.com/audio\t200\thttps\tabcdefghijk\t{}\tnot-json'));
   assert.deepEqual(sanitizeResolvedYouTubeHeaders({Referer:'https://www.youtube.com/',Range:'bytes=0-1','X-Bad':'line1\r\nInjected: yes'}),{Referer:'https://www.youtube.com/'});
   assert.throws(()=>parseResolvedYouTubeOutput('not-a-media-url\t200\thttps\tabcdefghijk'),/gültige Audioadresse/);
 });
 
 test('Spotify playback rejects source durations that are far away from the catalog track',()=>{
-  assert.equal(spotifyPlaybackDurationToleranceSeconds(200),30);
-  assert.equal(spotifyPlaybackDurationCompatible(200,230),true);
-  assert.equal(spotifyPlaybackDurationCompatible(200,231),false);
-  assert.equal(spotifyPlaybackDurationCompatible(300,345),true);
-  assert.equal(spotifyPlaybackDurationCompatible(300,346),false);
+  assert.equal(spotifyPlaybackDurationToleranceSeconds(200),10);
+  assert.equal(spotifyPlaybackDurationCompatible(200,210),true);
+  assert.equal(spotifyPlaybackDurationCompatible(200,211),false);
+  assert.equal(spotifyPlaybackDurationCompatible(300,312),true);
+  assert.equal(spotifyPlaybackDurationCompatible(300,313),false);
   assert.equal(spotifyPlaybackDurationCompatible(0,999),true);
 });
 

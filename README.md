@@ -101,7 +101,7 @@ So richtest du deinen persönlichen Mix ein:
 3. Die erkannten **Stilrichtungen und Künstler** im Profil kontrollieren. Unerwünschte Begriffe lassen sich sperren; einzelne Titel oder ganze Playlists können vom Lernen ausgeschlossen werden.
 4. Mit **Mehr davon**, **Weniger davon** und deinem Hörverhalten den Geschmack weiter anpassen. Bewusst gehörte Titel, ausgewählte Lern-Playlists und deine Bewertungen prägen das Profil. Automatische Vorschläge erzeugen durch bloßes Zu-Ende-Spielen keinen neuen Musikgeschmack.
 
-**Der Mix zielt auf acht bekannte und zwei neue Titel pro zehn Wartetitel.** Bekannte Songs kommen direkt aus deinem Lernprofil und wechseln sich ab. Neue Songs benötigen passende Künstler- oder Stilbelege; ihre Position in der YouTube-Suche genügt nicht. Falls geprüfte Neuentdeckungen fehlen, ergänzen verfügbare gelernte Favoriten den Mix. Bei zu wenigen passenden Titeln kann die Warteschlange kürzer bleiben.
+**Der Mix zielt auf fünf bekannte und fünf neue Titel pro zehn Wartetitel.** Bekannte Songs kommen direkt aus deinem Lernprofil und wechseln sich ab. Neue Songs stammen aus YouTube Music Radio sowie der YouTube-Music- und YouTube-Suche und benötigen passende Künstler- oder Stilbelege; ihre Position in einer Trefferliste genügt nicht. Falls geprüfte Neuentdeckungen fehlen, ergänzen verfügbare gelernte Favoriten den Mix. Bei zu wenigen passenden Titeln kann die Warteschlange kürzer bleiben.
 
 **Profil zurücksetzen:** „Gelernte Titel zurücksetzen“ entfernt Lernhistorie und bisherige Vorschläge, behält aber deine Vorlieben und Ausschlüsse. „Lernprofil komplett zurücksetzen“ entfernt zusätzlich Künstler, Musikrichtungen, Sperrbegriffe sowie Titel- und Playlist-Lernausschlüsse. Gespeicherte Playlists und deren Spotify-Synchronisierung bleiben erhalten.
 
@@ -109,7 +109,7 @@ So richtest du deinen persönlichen Mix ein:
 
 Das Profil bleibt im eigenen Container und umfasst höchstens **200 Titel**. 40 häufig gehörte Langzeitfavoriten werden geschützt, während 160 Plätze aktuelle Vorlieben aufnehmen.
 
-Für den persönlichen Mix gilt eine **Sechs-Minuten-Grenze**. Er filtert außerdem ausdrücklich verlangsamte Varianten („Slowed“, „Super Slowed“, „Slow Version“), erkennbare Tutorials, Podcasts, Sammlungen, lange Sets, gesperrte Begriffe und doppelte Songvarianten. Der Slowed-Filter greift auch bei Spotify-Titeln, deren Audio über YouTube aufgelöst wird. Manuell gewählte Lieder und der reine Playlist-Modus bleiben davon unberührt. Die Erkennung verwendet Titel- und Künstlerdaten; sie ist keine akustische Analyse der Audiodatei.
+Für den persönlichen Mix gilt eine **Sechs-Minuten-Grenze**. Passende Remixe, Edits, Slowed-, Sped-up- und andere Fassungen dürfen eigenständige Vorschläge sein, wenn sie zum gelernten Profil passen. Erkennbare Tutorials, Podcasts, Sammlungen, lange Sets, gesperrte Begriffe, unpassende Doppelungen und nicht gelernte Richtungen wie Klassik, Schlager oder Metal bleiben draußen. Bei der Wiedergabe muss der Resolver genau die vorgeschlagene Fassung finden. Die Erkennung verwendet Titel-, Künstler-, Versions- und Laufzeitdaten; sie ist keine akustische Analyse der Audiodatei.
 
 ### 💬 Discord verbinden
 

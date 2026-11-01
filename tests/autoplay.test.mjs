@@ -98,7 +98,7 @@ test('autoplay configuration and recommendation text are bounded and normalized'
   assert.equal(recommendationQuery({title:'Artist – Track (Official Video).mp3'}),'Artist – Track ähnliche Songs verschiedene Künstler Mix -cover -lyrics');
   assert.deepEqual(inferTrackStyles({title:'Uptempo und Rawstyle Mix'}),['Uptempo','Hardstyle']);
   assert.equal(recommendationFamily({title:'Artist – Track (Official Video)'}),recommendationFamily({title:'Artist – Track (Sped Up Version)'}));
-  assert.equal(sameRecommendationFamily({title:'Artist – Track (Official Video)'},{title:'Artist – Track (DJ Remix)'}),true);
+  assert.equal(sameRecommendationFamily({title:'Artist – Track (Official Video)'},{title:'Artist – Track (DJ Remix)'}),false);
   assert.equal(sameRecommendationFamily({title:'Artist – Track Eins'},{title:'Other Artist – Anderer Song'}),false);
   assert.deepEqual(normalizeAutoplayStyles([' Uptempo ','uptempo','Drum & Bass','x']),['Uptempo','Drum & Bass']);
   assert.equal(autoplayMaxDurationSeconds,6*60);
@@ -116,7 +116,7 @@ test('preferred modern styles reject unrelated historical and conflicting music 
   assert.equal(autoplayCandidateMatchesPreferences({title:'DJ Nova – Bass Attack',artist:'DJ Nova'},preferences),false);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Neues Lied',artist:'Scooter'},{preferredStyles:['Uptempo'],preferredArtists:['Scooter'],queryArtist:'Scooter'}),true);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Metal Schlager Techno Remix',artist:'Scooter'},{preferredStyles:['Techno'],preferredArtists:['Scooter'],queryArtist:'Scooter'}),false);
-  assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Schlager Party',artist:'Scooter'},{preferredArtists:['Scooter'],queryArtist:'Scooter'}),true,'an artist preference does not invent an implicit genre block');
+  assert.equal(autoplayCandidateMatchesPreferences({title:'Scooter – Schlager Party',artist:'Scooter'},{preferredArtists:['Scooter'],queryArtist:'Scooter'}),false,'an artist match cannot admit an unlearned guarded genre');
   assert.equal(autoplayCandidateMatchesPreferences({title:'Hardstyle Metal Mix',artist:'DJ'},{preferredStyles:['Hardstyle'],queryStyle:'Hardstyle',strictStyle:true}),false);
 });
 

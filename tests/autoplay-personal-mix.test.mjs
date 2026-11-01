@@ -50,7 +50,7 @@ test('search rank and a shared uploader cannot authorize unrelated songs',()=>{
   assert.deepEqual(inferTrackStyles({title:'Up-Tempo Hardtekk Remix'}),['Uptempo','Hardtekk']);
 });
 
-test('ten queued songs stay eight learned favorites and two relevant discoveries through repeated refills and restart',async()=>{
+test('ten queued songs stay five learned favorites and five relevant discoveries through repeated refills and restart',async()=>{
   const profile={tracks:learned(),preferredStyles:[],preferredArtists:[],blockedStyles:[]};
   let searches=0;
   const recommend=async(seed,{query})=>{
@@ -67,7 +67,7 @@ test('ten queued songs stay eight learned favorites and two relevant discoveries
   const played=[],fresh=new Set(),known=new Set();
   for(let step=0;step<70;step++){
     assert.equal(player.queue.length,10,'refill '+step);
-    assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,8,'known share '+step);
+    assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,5,'known share '+step);
     assert.equal(new Set([player.current,...player.queue].map(track=>track.id)).size,11);
     assert.ok(player.queue.every(track=>!track.title.includes('Schlager')));
     const track=player.current;
@@ -81,7 +81,7 @@ test('ten queued songs stay eight learned favorites and two relevant discoveries
   controller.close();
   ({player,controller}=fixture(JSON.parse(JSON.stringify(profile)),recommend));
   await controller.setEnabled(true);
-  assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,8);
+  assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,5);
   assert.ok(player.queue.filter(track=>!track.autoplayKnownFavorite).every(track=>!fresh.has(track.id)));
   controller.close();
 });

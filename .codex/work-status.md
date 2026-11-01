@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-01T12:11:20.057Z
-Status: complete
-Base: main f014ebb
+Last updated: 2026-11-01T20:45:51.866Z
+Status: ready for review
+Base: main 0e840d2
 
 ## Currently working on
 
-No active repository work
+Version 2.1.0 exact resolver and 5+5 personal automix are implemented
 
 ## Last completed
 
-Merged version 2.0.1 validated prefetch, Spotify ISRC matching and gap-free crossfade handoff in PR 76
+Added structured recording identity, YTM-first multi-query resolution, persistent self-healing mappings, YTM radio/search discovery, learned genre guards and 5 learned plus 5 new queue balance
 
 ## Next
 
-Deploy version 2.0.1 through the dashboard updater and observe normal transitions and manual skips
+Review GitHub checks, merge and deploy version 2.1.0 through the dashboard updater
 
 ## Verification
 
-239/239 backend tests; 2/2 browser tests; both GitHub Linux checks passed; npm audit has zero high or critical findings; player benchmark 442.8x realtime
+249/249 backend tests; 3/3 first-run tests; 2/2 browser tests; npm audit has zero high or critical findings; player benchmark 424.6x realtime; git diff check clean
 
 ## Safety note
 
