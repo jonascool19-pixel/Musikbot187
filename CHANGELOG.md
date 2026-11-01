@@ -1,5 +1,13 @@
 # 📦 Änderungen
 
+## 2.0.1 · Geprüftes Vorladen ohne Startpause
+
+- **Folgetitel wirklich startbereit:** Der Bot löst den nächsten Warteschlangentitel weiterhin im Hintergrund auf, lässt FFmpeg jetzt aber zusätzlich ein echtes Audio-Frame lesen. Eine unbrauchbare oder mit HTTP 403 gesperrte Adresse wird dadurch vor dem Titelwechsel verworfen.
+- **Aktuelle YouTube-Empfehlung:** Der token-gestützte `mweb`-Client wird zuerst verwendet. `web_safari` dient mit bevorzugtem HLS-Audio als unabhängiger Rückfall, `web_embedded` nur noch als letzte eingeschränkte Variante.
+- **Spotify über ISRC:** Soweit Spotify den internationalen Aufnahme-Code liefert, wird zuerst nach dieser eindeutigen Kennung gesucht. Künstler-, Titel-, Versions- und Laufzeitprüfung bleiben als sichere Rückfälle erhalten.
+- **Keine blinde Startverzögerung:** Die aufwendige Suche und Audio-Prüfung läuft beim bereits spielenden Titel. Beim normalen Übergang oder Skip wird die vorbereitete und verifizierte Quelle direkt übernommen.
+- **Übergabe bleibt gefüllt:** Ein Crossfade beginnt nur noch, wenn nach der Überblendung mindestens 2,5 Sekunden des neuen Titels übrig bleiben. So kann der neue Song nicht kurz anlaufen und unmittelbar danach wieder in „Puffern“ fallen.
+
 ## 2.0.0 · Sauberer, reaktionsschneller Audiokern
 
 - **Audioweg neu geordnet:** YouTube-Auflösung, Quellenwahl, kurzlebige Wiedergabesitzung und Fehlerstrategie liegen jetzt in klar getrennten Modulen statt in einer Kette aus sich widersprechenden Sonderfällen.

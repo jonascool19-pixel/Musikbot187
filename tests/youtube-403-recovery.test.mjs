@@ -11,16 +11,16 @@ const clearRetry=player=>{
 };
 
 test('403 client order is fixed and exhausts instead of wrapping around',()=>{
-  assert.deepEqual(youtubePlaybackClients,['web_embedded','web_safari','mweb']);
-  assert.equal(nextYouTubePlaybackClient('web_embedded'),'web_safari');
-  assert.equal(nextYouTubePlaybackClient('web_safari'),'mweb');
-  assert.equal(nextYouTubePlaybackClient('mweb'),'');
+  assert.deepEqual(youtubePlaybackClients,['mweb','web_safari','web_embedded']);
+  assert.equal(nextYouTubePlaybackClient('mweb'),'web_safari');
+  assert.equal(nextYouTubePlaybackClient('web_safari'),'web_embedded');
+  assert.equal(nextYouTubePlaybackClient('web_embedded'),'');
 });
 
 test('Spotify media 403 rotates clients once each and then rejects the unusable video',()=>{
   const diagnostics=[],player=new Player({musicDir:'.',diagnostic:(level,source,message)=>diagnostics.push({level,source,message})});
   const track={id:'spotify:403-test',title:'KC Rebell, Summer Cem – Benz AMG',source:'spotify',catalogDuration:190,duration:190,playbackVideoId:'abcdefghijk',playbackMatch:{id:'abcdefghijk',title:'KC Rebell - Benz AMG'}};
-  Object.defineProperty(track,'_youtubePlaybackClient',{value:'web_embedded',writable:true,configurable:true});
+  Object.defineProperty(track,'_youtubePlaybackClient',{value:'mweb',writable:true,configurable:true});
   player.current=track;player.generation=4;player.next=()=>{};
 
   player.finish(4,1,'HTTP error 403 Forbidden',0,track,null);
@@ -32,7 +32,7 @@ test('Spotify media 403 rotates clients once each and then rejects the unusable 
   clearRetry(player);
 
   player.finish(4,1,'Server returned 403 Forbidden (access denied)',1,track,null);
-  assert.equal(track._youtubePlaybackClient,'mweb');
+  assert.equal(track._youtubePlaybackClient,'web_embedded');
   assert.equal(track.playbackVideoId,'abcdefghijk');
   assert.equal(player.reconnecting,true);
   clearRetry(player);
@@ -50,7 +50,7 @@ test('Spotify media 403 rotates clients once each and then rejects the unusable 
 test('direct YouTube media 403 stops after the final client instead of looping',()=>{
   const diagnostics=[],player=new Player({musicDir:'.',diagnostic:(level,source,message)=>diagnostics.push({level,source,message})});
   const track={id:'abcdefghijk',title:'403 Test',source:'youtube',duration:180};
-  Object.defineProperty(track,'_youtubePlaybackClient',{value:'mweb',writable:true,configurable:true});
+  Object.defineProperty(track,'_youtubePlaybackClient',{value:'web_embedded',writable:true,configurable:true});
   player.current=track;player.generation=9;player.next=()=>{};
   player.finish(9,1,'HTTP error 403 Forbidden',2,track,null);
   assert.equal(player.current,null);

@@ -15,17 +15,21 @@ export const youtubeSearchStrategies=Object.freeze([
 ]);
 export const youtubePotProviderArgs='youtubepot-bgutilscript:server_home=/opt/musikbot187-bgutil/server';
 export const youtubeClientStrategies=Object.freeze([
-  Object.freeze(['--extractor-args','youtube:player_client=web_embedded']),
+  Object.freeze(['--extractor-args','youtube:player_client=mweb','--extractor-args',youtubePotProviderArgs]),
   Object.freeze(['--extractor-args','youtube:player_client=web_safari']),
-  Object.freeze(['--extractor-args','youtube:player_client=mweb','--extractor-args',youtubePotProviderArgs])
+  Object.freeze(['--extractor-args','youtube:player_client=web_embedded'])
 ]);
 export const searchResultLimit=50;
 export const bestAudioFormat='bestaudio[protocol=https]/bestaudio[protocol=http]/bestaudio/best';
+export const youtubeAudioFormatForClient=client=>client==='web_safari'
+  ?`bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]/${bestAudioFormat}`
+  :bestAudioFormat;
 export const youtubePlaybackPrintTemplate='%(url)s\t%(duration)s\t%(protocol)s\t%(id)s\t%(http_headers)j';
 
 const videoIdPattern=/^[A-Za-z0-9_-]{11}$/;
 const resolveTimeoutMs=60_000;
 const attemptTimeoutMs=20_000;
+const playbackValidationTimeoutMs=8_000;
 
 export function youtubeAuthenticationArgs(){
   const cookies=String(process.env.YOUTUBE_COOKIES_FILE||'').trim();
@@ -159,6 +163,40 @@ export function sanitizeResolvedYouTubeHeaders(raw){
   return headers;
 }
 
+export function youtubePlaybackValidationArgs(resolved){
+  const headers=Object.entries(sanitizeResolvedYouTubeHeaders(resolved?.headers));
+  const userAgent=headers.find(([name])=>/^user-agent$/i.test(name))?.[1];
+  const forwarded=headers
+    .filter(([name])=>!/^user-agent$/i.test(name))
+    .map(([name,value])=>`${name}: ${value}\r\n`)
+    .join('');
+  const args=[
+    '-nostdin','-hide_banner','-loglevel','error',
+    '-rw_timeout',String(playbackValidationTimeoutMs*1_000)
+  ];
+  if(userAgent)args.push('-user_agent',String(userAgent));
+  if(forwarded)args.push('-headers',forwarded);
+  args.push('-i',String(resolved?.url||''),'-map','0:a:0','-frames:a','1','-f','null','-');
+  return args;
+}
+
+export async function validateResolvedYouTubeAudio(resolved,signal,{run=runMediaProcess}={}){
+  try{
+    await run('ffmpeg',youtubePlaybackValidationArgs(resolved),{
+      signal,
+      timeout:playbackValidationTimeoutMs,
+      max:64*1024
+    });
+    return resolved;
+  }catch(error){
+    if(error?.name==='AbortError')throw error;
+    const blocked=/(?:http error 403|server returned 403|403 forbidden)/i.test(String(error?.message||error||''));
+    throw new Error(blocked
+      ?'Die aufgelöste YouTube-Medienadresse verweigert den Audiozugriff (HTTP 403).'
+      :'Die aufgelöste YouTube-Medienadresse liefert kein abspielbares Audio.');
+  }
+}
+
 export function parseResolvedYouTubeOutput(raw){
   const line=String(raw||'').split(/\r?\n/).find(value=>value.trim());
   if(!line)throw new Error('yt-dlp hat keine Audioadresse geliefert.');
@@ -186,7 +224,7 @@ export function applyResolvedPlayback(item,resolved){
   item.playbackVideoId=String(resolved.id||'');
   item.duration=duration;
   Object.defineProperty(item,'playbackHeaders',{value:sanitizeResolvedYouTubeHeaders(resolved.headers),writable:true,configurable:true,enumerable:false});
-  Object.defineProperty(item,'_youtubePlaybackClient',{value:String(resolved.client||'web_embedded'),writable:true,configurable:true,enumerable:false});
+  Object.defineProperty(item,'_youtubePlaybackClient',{value:String(resolved.client||'mweb'),writable:true,configurable:true,enumerable:false});
 }
 
 export function isPermanentYouTubeResolutionError(error){
@@ -196,7 +234,7 @@ export function isPermanentYouTubeResolutionError(error){
 
 const strategyClient=strategy=>String(strategy?.find(value=>String(value).startsWith('youtube:player_client='))||'').split('=').at(-1)||'web_embedded';
 
-export async function resolveYouTubeAudio(query,signal,{deadline=Date.now()+resolveTimeoutMs,preferredClient=''}={}){
+export async function resolveYouTubeAudio(query,signal,{deadline=Date.now()+resolveTimeoutMs,preferredClient='',validate=validateResolvedYouTubeAudio}={}){
   const failures=[];
   let providerFailure=null;
   const start=youtubeClientStrategies.findIndex(strategy=>strategyClient(strategy)===preferredClient);
@@ -208,11 +246,13 @@ export async function resolveYouTubeAudio(query,signal,{deadline=Date.now()+reso
       const output=await runMediaCommand('yt-dlp',[
         ...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),
         '--no-playlist','--print',youtubePlaybackPrintTemplate,
-        '-f',bestAudioFormat,'--force-ipv4',...strategy,query
+        '-f',youtubeAudioFormatForClient(strategyClient(strategy)),'--force-ipv4',...strategy,query
       ],{signal,timeout:Math.min(attemptTimeoutMs,remaining)});
       const resolved=parseResolvedYouTubeOutput(output);
       await assertSafeExternalUrl(resolved.url);
-      return {...resolved,client:strategyClient(strategy)};
+      const selected={...resolved,client:strategyClient(strategy)};
+      await validate(selected,signal);
+      return selected;
     }catch(error){
       if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;
       const outage=classifyYouTubeAudioFailure(error?.message);
