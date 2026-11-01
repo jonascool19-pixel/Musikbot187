@@ -14,6 +14,8 @@ export function createTasteModel({preferredStyles=[],preferredArtists=[],learned
 export function scoreTasteCandidate(track,model,{queryStyle='',queryArtist='',candidateStyles=[]}={}){
   const title=String(track?.title||''),artist=artistOf(track),text=`${title} ${artist} ${(track?.styles||[]).join(' ')}`,styles=[...new Set([...terms(candidateStyles),...terms(track?.styles)])];
   if(model.blocked.some(term=>contains(text,term)))return {allowed:false,score:-100,reason:'blocked'};
+  const guarded=[['classical',/\b(?:classical|klass(?:ik|isch\w*)|orchestra|orchester|orchestral|symphon(?:y|ie)|opera|oper|concerto|sonat[ae]|mozart|beethoven|vivaldi|chopin|brahms)\b/i],['schlager',/\bschlager\b/i],['metal',/\b(?:metal|deathcore|metalcore|black metal)\b/i]];
+  for(const [genre,pattern] of guarded)if(pattern.test(text)&&!model.styles.some(style=>pattern.test(style)||style===genre))return {allowed:false,score:-80,reason:'unlearned-genre'};
   let score=0,artistMatch=false,styleMatch=false;
   const styleConflict=styles.length&&model.styles.length&&styles.some(style=>!model.styles.some(preferred=>contains(style,preferred)||contains(preferred,style)));
   if(styleConflict)return {allowed:false,score:-40,reason:'style-conflict'};

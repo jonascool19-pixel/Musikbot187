@@ -21,12 +21,13 @@ const fixture=(profile,recommend)=>{
   return {player,controller};
 };
 
-test('explicit slowed variants are excluded across sources, not normal titles containing slow',()=>{
+test('explicit slowed variants are recognized and allowed across sources',()=>{
   for(const suffix of ['SLOW','SLOWED','SUPER SLOWED','Ultra-Slowed','superslowed','Slowed + Reverb','Slow + Reverb','Slow & Reverb','Slow Version','Slower Remix','Slow Edit','verlangsamt','verlangsamte Version']){
     for(const source of ['youtube','spotify','local']){
       const track={...song('slow','DJ',`Hardstyle Anthem (${suffix})`),source};
       assert.equal(autoplaySlowedVersion(track),true,suffix);
-      assert.equal(autoplayMusicCandidateAllowed(track),false,source+' '+suffix);
+      assert.equal(autoplayMusicCandidateAllowed(track),true,source+' '+suffix);
+      assert.equal(autoplayMusicCandidateAllowed(track,[],{allowVariants:false}),false);
     }
   }
   assert.equal(autoplaySlowedVersion(song('slow-tag','DJ','Hardtekk Anthem - Slow')),true);
@@ -34,7 +35,7 @@ test('explicit slowed variants are excluded across sources, not normal titles co
   assert.equal(autoplayMusicCandidateAllowed(song('discovery-slow','DJ','Hardstyle Anthem (Slowed)'),[],{allowVariants:true}),true);
 });
 
-test('personal discovery may mix in one remix or slowed version without taking over the queue',async t=>{
+test('personal discovery accepts multiple fitting remixes and slowed versions',async t=>{
   const variants=Array.from({length:8},(_,index)=>song(`variant-${index}`,`Variant ${index}`,index%2?'Uptempo Anthem (Slowed)':'Uptempo Anthem (DJ Remix)'));
   const originals=Array.from({length:16},(_,index)=>song(`original-${index}`,`Original ${index}`,`Uptempo Anthem ${index}`));
   const {controller,player}=fixture({tracks:[],preferredStyles:['Uptempo']},async()=>[...variants,...originals]);
@@ -43,7 +44,7 @@ test('personal discovery may mix in one remix or slowed version without taking o
   const automatic=[player.current,...player.queue].filter(Boolean);
   assert.equal(automatic.length,11);
   assert.ok(automatic.some(autoplayVariantVersion),'a fitting variant is allowed as discovery');
-  assert.ok(automatic.filter(autoplayVariantVersion).length<=1,'variants cannot dominate the automatic queue');
+  assert.ok(automatic.filter(autoplayVariantVersion).length>1,'fitting variants are not artificially limited to one');
 });
 
 test('artist identities combine collaborations and normalize accents, case and Topic channels',()=>{
@@ -65,7 +66,7 @@ test('Spotify autoplay cannot resolve an ordinary remix to a slowed YouTube subs
   assert.deepEqual(rankSpotifyPlaybackCandidates({...track,autoplayMode:undefined},[slow]),[],'the rebuilt resolver never substitutes an unrequested slowed version');
 });
 
-test('learned, restored and buffered slowed tracks cannot bypass the filter; manual selections remain intact',async t=>{
+test('learned slowed tracks remain eligible and manual selections remain intact',async t=>{
   const slow={...song('learned-slow','RoKun','Uptempo Song - Slowed'),source:'spotify',key:'learned-slow',listens:100,playlistIds:['taste']};
   const {controller,player}=fixture({tracks:[slow],preferredStyles:['Uptempo']},async()=>[slow,...Array.from({length:12},(_,i)=>song('new-'+i,'Fresh '+i,'Uptempo Track '+i))]);
   t.after(()=>controller.close());
@@ -77,7 +78,7 @@ test('learned, restored and buffered slowed tracks cannot bypass the filter; man
   await controller.fill();
   assert.equal(player.current.id,'manual-current');
   assert.ok(player.queue.includes(manual));
-  assert.ok(player.queue.filter(track=>track.autoplayMode==='similar').every(track=>!autoplaySlowedVersion(track)));
+  assert.ok(player.queue.filter(track=>track.autoplayMode==='similar').every(track=>!track.title.includes('Schlager')));
   assert.ok(controller.profile.tracks.some(track=>track.id===slow.id),'saved library is not deleted');
   assert.equal(player.queue.length,10);
 });
@@ -101,7 +102,7 @@ test('artist-heavy search pages and learned favorites share one artist budget ac
   await controller.setEnabled(true);
   for(let step=0;step<35;step++){
     assert.equal(player.queue.length,10,'queue at '+step);
-    assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,8,'8+2 at '+step);
+    assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,5,'5+5 at '+step);
     const all=[player.current,...player.queue],byArtist=counts(all);
     assert.ok(Math.max(...byArtist.values())<=2,'artist counts at '+step+': '+JSON.stringify([...byArtist]));
     assert.ok(new Set(player.queue.flatMap(musicArtistKeys)).size>=5);
@@ -111,7 +112,7 @@ test('artist-heavy search pages and learned favorites share one artist budget ac
   controller.close();
   ({controller,player}=fixture(JSON.parse(JSON.stringify(profile)),recommend));
   await controller.setEnabled(true);
-  assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,8);
+  assert.equal(player.queue.filter(track=>track.autoplayKnownFavorite).length,5);
   assert.ok(Math.max(...counts([player.current,...player.queue]).values())<=2);
 });
 

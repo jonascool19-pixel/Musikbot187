@@ -1,3 +1,4 @@
+import {artistNames} from './recording-identity.js';
 const slowedVersionPattern=/\b(?:(?:(?:super|ultra)[\s-]*)?slowed(?:[\s-]*down)?|slow(?:er)?(?:[\s-]*(?:version|edit|remix|mix)|[\s+&-]*reverb)|(?:super|ultra)[\s-]*slow|verlangsam(?:t|te|ter|tes)|zeitlupe)\b/i;
 export function musicSlowedVersion(track){
   const title=String(track?.title||'').normalize('NFKC'),parts=title.split(/\s+[–—-]\s+/),song=parts.length>1?parts.slice(1).join(' – '):title;
@@ -12,7 +13,7 @@ export function musicArtist(track){
   const parts=title.split(/\s+[–—-]\s+/);
   const credited=parts.length>1?clean(parts[0]):'';
   if(credited)return credited;
-  const explicit=clean(track?.artist||track?.artists?.join?.(', '));
+  const explicit=clean(track?.artist||artistNames(track?.artists).join(', '));
   if(explicit&&explicit!==clean(track?.channel)&&explicit!==clean(track?.uploader))return explicit;
   const channel=String(track?.channel||track?.uploader||track?.channel_name||'');
   return /\s*-\s*Topic$/i.test(channel)?clean(channel):'';

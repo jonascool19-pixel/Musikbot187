@@ -1,5 +1,14 @@
 # 📦 Änderungen
 
+## 2.1.0 · Exakter Resolver und persönlicher 5+5-Mix
+
+- **Aufnahme statt Suchtreffer:** Spotify-Titel werden als strukturierte Aufnahme mit ISRC, Basistitel, allen beteiligten Künstlern, Remix-Künstlern, Album, Version und Laufzeit behandelt. Original, Remix, Extended, Live, Acoustic, Instrumental, Slowed, Sped-up, Radio Edit, Karaoke, Nightcore, Rework und Bootleg bleiben voneinander getrennt.
+- **YouTube Music zuerst:** Der Resolver sammelt Kandidaten aus mehreren ISRC-, Künstler-, Titel-, Album- und Versionssuchen auf YouTube Music. Erst danach folgt normales YouTube. Topic-Kanäle sind erlaubt, Suchbegriffe gelten aber nie als Beweis für den Künstler.
+- **Geprüft und selbstheilend:** Kandidaten brauchen passende Identität, Version, Remix-Künstler und eine enge Laufzeit. Erfolgreiche Mappings werden über Neustarts gespeichert; verschwundene oder veränderte Video-IDs werden verworfen und automatisch neu aufgelöst.
+- **Automix getrennt:** YouTube Music Radio, YouTube-Music-Suche und YouTube-Suche liefern nur Vorschläge. Das gelernte Profil, Ausschlüsse und Stilbelege entscheiden weiterhin, was in die Warteschlange darf. Nicht gelernte Klassik-, Schlager- und Metal-Richtungen werden abgefangen.
+- **Fünf plus fünf:** Bei zehn Wartetiteln zielt der persönliche Mix auf fünf gelernte Favoriten und fünf passende Neuentdeckungen. Passende Remixe, Edits, Slowed- und Sped-up-Fassungen können als eigene Entdeckungen vorkommen und werden anschließend exakt aufgelöst.
+- **Regressionen:** Bekannte Mehrfachkünstler-, Remix-, Topic-, Laufzeit-, Cache- und kaputte-ID-Fälle sowie Provider-Ausfälle sind als End-to-End-Regressionen abgedeckt.
+
 ## 2.0.1 · Geprüftes Vorladen ohne Startpause
 
 - **Folgetitel wirklich startbereit:** Der Bot löst den nächsten Warteschlangentitel weiterhin im Hintergrund auf, lässt FFmpeg jetzt aber zusätzlich ein echtes Audio-Frame lesen. Eine unbrauchbare oder mit HTTP 403 gesperrte Adresse wird dadurch vor dem Titelwechsel verworfen.

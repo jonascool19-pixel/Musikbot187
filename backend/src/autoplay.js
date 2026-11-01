@@ -1,3 +1,4 @@
+import {recordingVersionKey} from './recording-identity.js';
 import {musicArtist,musicArtistKeys,musicSlowedVersion} from './music-identity.js';
 import {createTasteModel,tasteCandidateAllowed} from './music-taste.js';
 export const autoplayModes=Object.freeze(['playlists','similar']);
@@ -67,7 +68,7 @@ export function recommendationQuery(track){
 
 const variantWords=new Set(['official','music','video','audio','lyrics','lyric','live','remix','remastered','remaster','edit','version','sped','slowed','reverb','nightcore','cover','karaoke','instrumental','visualizer','visualiser','hq','hd','mv']);
 export function recommendationFamily(track){const clean=String(track?.title||'').normalize('NFKC').toLocaleLowerCase('de-DE').replace(/[\[(][^\])]*(?:official|video|audio|lyrics?|live|remix|remaster|edit|version|sped|slowed|reverb|nightcore|cover|karaoke|instrumental|visuali[sz]er)[^\])]*[\])]/gi,' ').replace(/[^\p{L}\p{N}]+/gu,' '),tokens=clean.split(/\s+/).filter(token=>(token.length>1||/^\d+$/.test(token))&&!variantWords.has(token));return [...new Set(tokens)].sort().join('|');}
-export function sameRecommendationFamily(left,right){const a=recommendationFamily(left),b=recommendationFamily(right);if(!a||!b)return false;if(a===b)return true;const aa=new Set(a.split('|')),bb=new Set(b.split('|')),intersection=[...aa].filter(token=>bb.has(token)).length,union=new Set([...aa,...bb]).size;return intersection>=4&&intersection/union>=.8;}
+export function sameRecommendationFamily(left,right){if(recordingVersionKey(left)!==recordingVersionKey(right))return false;const a=recommendationFamily(left),b=recommendationFamily(right);if(!a||!b)return false;if(a===b)return true;const aa=new Set(a.split('|')),bb=new Set(b.split('|')),intersection=[...aa].filter(token=>bb.has(token)).length,union=new Set([...aa,...bb]).size;return intersection>=4&&intersection/union>=.8;}
 
 export function inferTrackStyles(track){
   const metadata=[
@@ -112,7 +113,7 @@ export function autoplayCandidateMatchesPreferences(track,{preferredStyles=[],pr
 const unknownLongFormPattern=/\b(?:musik\s*quiz|music\s*quiz|megamix|continuous\s+mix|full\s+(?:album|mix|set|concert)|dj\s+set|podcast|live\s*stream|livestream|\d+\s*(?:hours?|stunden?))\b/i;
 export function normalizeAutoplayStyles(values){const result=[],seen=new Set();for(const value of Array.isArray(values)?values:[]){const style=normalizeStyleValue(value),key=comparable(style);if(style.length<2||seen.has(key))continue;seen.add(key);result.push(style);if(result.length>=autoplayProfileStyleLimit)break}return result;}
 export function autoplayTrackAllowed(track,blockedStyles=[]){const duration=Number(track?.duration)||0;if(duration>autoplayMaxDurationSeconds)return false;if(duration<=0&&unknownLongFormPattern.test(String(track?.title||'')))return false;const text=comparable(`${track?.title||''} ${musicArtist(track)} ${(track?.styles||[]).join(' ')} ${inferTrackStyles(track).join(' ')}`);return !normalizeAutoplayStyles(blockedStyles).some(style=>text.includes(comparable(style)));}
-export function autoplayMusicCandidateAllowed(track,blockedStyles=[],{allowVariants=false}={}){
+export function autoplayMusicCandidateAllowed(track,blockedStyles=[],{allowVariants=true}={}){
   if(!autoplayTrackAllowed(track,blockedStyles)||!allowVariants&&autoplaySlowedVersion(track))return false;
   if(track?.source&&track.source!=='youtube')return true;
   const title=String(track?.title||'').trim(),artist=String(track?.artist||track?.channel||track?.uploader||'').trim(),text=`${title} ${artist}`,duration=Number(track?.duration)||0,styleEvidence=stylesIn(`${text} ${(track?.styles||[]).join(' ')}`).length>0,strongMusicEvidence=styleEvidence||musicMarkerPattern.test(text)||/\btopic\b/i.test(artist);
@@ -692,9 +693,8 @@ export class AutoplayController{
     }
     const items=[],selected=[...queued];
     // Once the profile contains enough positive history, the mix should feel
-    // like the user's music. Keep about 80% learned favorites and reserve only
-    // a small slot for fresh discoveries.
-    const learnedTarget=Math.ceil(config.queueTarget*0.8);
+    // like the user's music, with half learned favorites and half discoveries.
+    const learnedTarget=Math.ceil(config.queueTarget*0.5);
     const targetKnown=Math.min(learnedTarget,Math.max(0,familiar.length+this.player.queue.filter(track=>track.autoplayKnownFavorite).length))+(!current&&this.player.queue.length===0?1:0);
     let knownNeeded=Math.max(0,targetKnown-this.player.queue.filter(track=>track.autoplayKnownFavorite).length);
     const take=(list,options)=>{
@@ -708,7 +708,7 @@ export class AutoplayController{
       // Apply one artist budget across favorites, discoveries, current playback
       // and the existing queue. Relax it only when neither pool has alternatives;
       // a small personal library must not leave autoplay permanently empty.
-      const allowVariants=!selected.some(autoplayVariantVersion);
+      const allowVariants=true;
       for(const options of [{limit:artistLimit,avoidAdjacent:true,allowVariants},{limit:artistLimit,allowVariants},{avoidAdjacent:true,allowVariants},{allowVariants}]){
         known=preferKnown;track=take(known?familiar:this.recommendationBuffer,options);
         if(!track){known=!preferKnown;track=take(known?familiar:this.recommendationBuffer,options)}

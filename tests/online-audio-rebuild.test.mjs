@@ -35,8 +35,8 @@ test('obvious reactions and tutorials are never accepted as a Spotify audio sour
 });
 
 test('duration policy tolerates ordinary metadata drift but rejects a different recording',()=>{
-  assert.equal(spotifyPlaybackDurationCompatible(200,228),true);
-  assert.equal(spotifyPlaybackDurationCompatible(200,231),false);
+  assert.equal(spotifyPlaybackDurationCompatible(200,210),true);
+  assert.equal(spotifyPlaybackDurationCompatible(200,211),false);
   assert.equal(spotifyPlaybackDurationCompatible(120,139),false);
 });
 

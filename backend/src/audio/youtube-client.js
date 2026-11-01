@@ -24,7 +24,7 @@ export const bestAudioFormat='bestaudio[protocol=https]/bestaudio[protocol=http]
 export const youtubeAudioFormatForClient=client=>client==='web_safari'
   ?`bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]/${bestAudioFormat}`
   :bestAudioFormat;
-export const youtubePlaybackPrintTemplate='%(url)s\t%(duration)s\t%(protocol)s\t%(id)s\t%(http_headers)j';
+export const youtubePlaybackPrintTemplate='%(url)s\t%(duration)s\t%(protocol)s\t%(id)s\t%(http_headers)j\t%(title)j';
 
 const videoIdPattern=/^[A-Za-z0-9_-]{11}$/;
 const resolveTimeoutMs=60_000;
@@ -84,10 +84,10 @@ export function runMediaCommand(command,args,options={}){
   );
 }
 
-export function youtubeSearchUrl(query){
+export function youtubeSearchUrl(query,provider='youtube'){
   const value=String(query||'').trim().slice(0,300);
   if(!value)throw new Error('YouTube-Suchbegriff fehlt.');
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(value)}`;
+  return provider==='youtube-music'?`https://music.youtube.com/search?q=${encodeURIComponent(value)}#songs`:`https://www.youtube.com/results?search_query=${encodeURIComponent(value)}`;
 }
 
 export function canonicalYouTubeVideoUrl(id,raw=''){
@@ -109,7 +109,7 @@ export function canonicalYouTubeVideoUrl(id,raw=''){
 
 export const youtubeSearchArtist=entry=>musicArtist(entry);
 
-async function youtubeSearchData(query,limit,timeout,signal){
+async function youtubeSearchData(query,limit,timeout,signal,provider){
   const deadline=Date.now()+Math.max(1_000,Number(timeout)||30_000);
   const failures=[];
   for(const strategy of youtubeSearchStrategies){
@@ -119,7 +119,7 @@ async function youtubeSearchData(query,limit,timeout,signal){
       const raw=await runMediaCommand('yt-dlp',[
         ...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),
         '--dump-single-json','--flat-playlist','--playlist-end',String(limit),
-        '--force-ipv4',...strategy,youtubeSearchUrl(query)
+        '--force-ipv4',...strategy,youtubeSearchUrl(query,provider)
       ],{timeout:Math.min(attemptTimeoutMs,remaining),signal});
       return JSON.parse(raw);
     }catch(error){
@@ -130,9 +130,20 @@ async function youtubeSearchData(query,limit,timeout,signal){
   throw new Error(`YouTube-Suche konnte nicht abgeschlossen werden. ${failures.at(-1)||'Zeitüberschreitung'}`);
 }
 
-export async function youtubeSearch(query,{limit=searchResultLimit,timeout=30_000,signal}={}){
+export async function youtubeSearch(query,{limit=searchResultLimit,timeout=30_000,signal,provider='youtube'}={}){
   limit=Math.max(1,Math.min(searchResultLimit,Number(limit)||searchResultLimit));
-  const json=await youtubeSearchData(query,limit,timeout,signal);
+  const json=await youtubeSearchData(query,limit,timeout,signal,provider);
+  return normalizeYouTubeEntries(json,limit,provider);
+}
+
+export async function youtubeMusicRadio(id,{limit=40,timeout=12_000,signal}={}){
+  if(!videoIdPattern.test(String(id||'')))return [];
+  limit=Math.max(1,Math.min(50,Number(limit)||40));
+  const raw=await runMediaCommand('yt-dlp',[...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),'--dump-single-json','--flat-playlist','--playlist-end',String(limit),'--force-ipv4',`https://music.youtube.com/watch?v=${id}&list=RD${id}`],{timeout,signal,max:2*1024*1024});
+  return normalizeYouTubeEntries(JSON.parse(raw),limit,'youtube-music-radio');
+}
+
+export function normalizeYouTubeEntries(json,limit=50,provider='youtube'){
   return (json.entries||[]).map(entry=>{
     const url=canonicalYouTubeVideoUrl(entry.id,entry.url);
     if(!url)return null;
@@ -140,6 +151,7 @@ export async function youtubeSearch(query,{limit=searchResultLimit,timeout=30_00
       id:new URL(url).searchParams.get('v'),
       title:entry.title,
       artist:youtubeSearchArtist(entry),
+      artists:entry.artists||[],trackTitle:entry.track||'',album:entry.album||'',isrc:entry.isrc||'',provider,
       channel:String(entry.channel||entry.uploader||''),
       url,
       source:'youtube',
@@ -200,12 +212,15 @@ export async function validateResolvedYouTubeAudio(resolved,signal,{run=runMedia
 export function parseResolvedYouTubeOutput(raw){
   const line=String(raw||'').split(/\r?\n/).find(value=>value.trim());
   if(!line)throw new Error('yt-dlp hat keine Audioadresse geliefert.');
-  const [url='',durationRaw='',protocol='',id='',headersRaw='']=line.split('\t');
+  const [url='',durationRaw='',protocol='',id='',headersRaw='',titleRaw='']=line.split('\t');
   if(!/^https?:\/\//i.test(url))throw new Error('yt-dlp hat keine gültige Audioadresse geliefert.');
   const parsedDuration=Number(durationRaw);
   let headers={};
   if(headersRaw)try{headers=sanitizeResolvedYouTubeHeaders(JSON.parse(headersRaw));}catch{}
+  let title='';
+  if(titleRaw)try{title=String(JSON.parse(titleRaw)||'').slice(0,500);}catch{}
   return {
+    ...(title?{title}:{}),
     url:url.trim(),
     duration:Number.isFinite(parsedDuration)&&parsedDuration>0?parsedDuration:0,
     protocol:String(protocol||'').trim(),
