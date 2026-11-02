@@ -4,8 +4,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {recordingIdentity} from '../backend/src/recording-identity.js';
-import {spotifyPlaybackMatchRejection,rankSpotifyPlaybackCandidates,resolveSpotifyPlayback} from '../backend/src/spotify-playback.js';
-import {canonicalYouTubeVideoUrl,applyResolvedPlayback,youtubeSearchUrl,normalizeYouTubeEntries} from '../backend/src/audio/youtube-client.js';
+import {spotifyMatchCandidateTimeMs,spotifyMatchQueryTimeMs,spotifyMatchSearchTimeMs,spotifyPlaybackMatchRejection,rankSpotifyPlaybackCandidates,resolveSpotifyPlayback} from '../backend/src/spotify-playback.js';
+import {canonicalYouTubeVideoUrl,applyResolvedPlayback,youtubeClientStrategies,youtubeResolutionStrategies,youtubeSearchUrl,normalizeYouTubeEntries} from '../backend/src/audio/youtube-client.js';
 import {PlaybackMappingCache,initializePlaybackMappings} from '../backend/src/playback-mapping-cache.js';
 import {createRecommendationProvider} from '../backend/src/recommendation-sources.js';
 import {autoplayCandidateMatchesPreferences,sameRecommendationFamily} from '../backend/src/autoplay.js';
@@ -54,7 +54,7 @@ test('queries cannot prove artist identity and ISRC cannot override conflicting 
   assert.equal(spotifyPlaybackMatchRejection(track,video('abcdefghijk','Artist – Song Two')),'title');
 });
 
-test('resolver pools queries, prefers structured matching ISRC and falls back to YouTube after dead YTM videos',async()=>{
+test('resolver tries strict YTM matches immediately and falls back to YouTube after dead videos',async()=>{
   const calls=[],attempts=[],item={id:'pool-test',source:'spotify',title:'Artist – Song',isrc:'DEABC2600123',duration:200};
   await resolve(item,async(query,{provider})=>{
     calls.push(provider);
@@ -65,9 +65,25 @@ test('resolver pools queries, prefers structured matching ISRC and falls back to
     if(id!=='12345678901')throw Error('Video unavailable');
     return playback(id);
   });
-  assert.deepEqual(attempts,['lmnopqrstuv','abcdefghijk','12345678901']);
+  assert.deepEqual(attempts,['abcdefghijk','lmnopqrstuv','12345678901']);
   assert.equal(calls[0],'youtube-music');
   assert.ok(calls.lastIndexOf('youtube-music')<calls.indexOf('youtube'));
+});
+
+test('resolver returns the first strict playable result with bounded query and candidate budgets',async()=>{
+  const calls=[],deadlines=[],item={id:'fast-path',source:'spotify',title:'Artist – Song',duration:200};
+  await resolve(item,async(query,options)=>{calls.push({query,...options});return [video('abcdefghijk','Artist – Song')]},async(url,signal,options)=>{deadlines.push(options.deadline-Date.now());return playback('abcdefghijk')});
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].provider,'youtube-music');
+  assert.ok(calls[0].timeout<=spotifyMatchQueryTimeMs);
+  assert.ok(deadlines[0]>0&&deadlines[0]<=spotifyMatchCandidateTimeMs);
+  assert.equal(spotifyMatchSearchTimeMs,20_000);
+});
+
+test('each playback resolution tries exactly one client so player fallbacks cannot nest',()=>{
+  assert.deepEqual(youtubeResolutionStrategies(''),[youtubeClientStrategies[0]]);
+  assert.deepEqual(youtubeResolutionStrategies('web_safari'),[youtubeClientStrategies[1]]);
+  assert.deepEqual(youtubeResolutionStrategies('web_embedded'),[youtubeClientStrategies[2]]);
 });
 
 test('cached mappings survive reload and dead IDs trigger fresh resolution; stale identity never bypasses matching',async t=>{
