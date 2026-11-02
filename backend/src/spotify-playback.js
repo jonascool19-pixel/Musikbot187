@@ -93,8 +93,11 @@ export function spotifyPlaybackSearchQueries(item){
 }
 
 export const spotifyMatchSearchLimit=30;
-export const spotifyMatchResolveLimit=15;
-export const spotifyMatchSearchTimeMs=75_000;
+export const spotifyMatchResolveLimit=8;
+export const spotifyMatchSearchTimeMs=20_000;
+export const spotifyMatchProviderTimeMs=8_000;
+export const spotifyMatchQueryTimeMs=4_500;
+export const spotifyMatchCandidateTimeMs=7_000;
 const reasonLabels=Object.freeze({artist:'falscher Künstler',version:'falsche Version',title:'abweichender Titel',duration:'unpassende Länge',identity:'abweichende Aufnahme-ID',source:'nicht erreichbare Quelle',search:'fehlgeschlagene YouTube-Suche'});
 export class SpotifyMatchUnavailableError extends Error{
   constructor(item,diagnostics={}){const counts=Object.entries(reasonLabels).filter(([key])=>diagnostics[key]>0).map(([key,label])=>`${label}: ${diagnostics[key]}`),duration=Math.max(0,Number(item?.catalogDuration??item?.duration)||0);super(`Spotify-Titel „${String(item?.title||'Unbekannt').slice(0,160)}“ konnte derzeit keiner abspielbaren YouTube-Quelle zugeordnet werden. ${counts.join(', ')||'Keine verwertbaren Suchtreffer'}.${duration?` Katalogdauer: ${Math.round(duration)} s (Toleranz ±${Math.round(spotifyPlaybackDurationToleranceSeconds(duration))} s).`:''}`);this.name='SpotifyMatchUnavailableError';this.code='SPOTIFY_MATCH_UNAVAILABLE';this.diagnostics=diagnostics}
@@ -115,18 +118,19 @@ export function rejectSpotifyPlaybackMatch(item){
 export async function resolveSpotifyPlayback(item,signal,{search,resolve,canonicalUrl,applyResolved,isAccessBlocked=()=>false,isProviderOutage=()=>false}={}){
   const key=cacheKey(item),catalogDuration=Math.max(0,Number(item.catalogDuration??item.duration)||0),deadline=Date.now()+spotifyMatchSearchTimeMs,diagnostics={artist:0,version:0,title:0,duration:0,source:0,search:0},checked=new Set(),seen=new Set(),queries=spotifyPlaybackSearchQueries(item),cached=playbackMappings.get(key)||(item.playbackMatch?.identityKey===key?item.playbackMatch:null);
   const accept=async(resolved,candidate)=>{if(resolved?.id&&resolved.id!==candidate.id)throw new Error('YouTube-Quelle hat eine abweichende Video-ID.');if(resolved?.title&&spotifyPlaybackMatchRejection(item,{...candidate,title:resolved.title,trackTitle:'',duration:resolved.duration||candidate.duration}))throw new Error('YouTube-Quelle hat abweichende Aufnahmemetadaten.');const actualDuration=Math.max(0,Number(resolved?.duration)||Number(candidate?.duration)||0),combined={...resolved,duration:actualDuration,id:resolved?.id||candidate.id};if(catalogDuration&&!actualDuration)throw new Error('YouTube-Quelle liefert keine prüfbare Dauer.');if(catalogDuration&&!spotifyPlaybackDurationCompatible(catalogDuration,actualDuration))throw new Error('YouTube-Quelle hat eine deutlich abweichende Laufzeit.');applyResolved(item,combined);delete item._spotifySourceAccessRetries;item.playbackVersion='scored-match';item.playbackMatch={id:combined.id,title:candidate.title,artist:candidate.artist||'',artists:candidate.artists||[],trackTitle:candidate.trackTitle||'',isrc:candidate.isrc||'',provider:candidate.provider||'youtube',channel:candidate.channel||'',duration:actualDuration,catalogDuration,protocol:combined.protocol||'',score:spotifyPlaybackCandidateScore(item,candidate),version:'scored-match',identityKey:key,expires:Date.now()+6*60*60_000};playbackMappings.set(key,{...item.playbackMatch,expires:Date.now()+6*60*60_000});while(playbackMappings.size>500)playbackMappings.delete(playbackMappings.keys().next().value);await playbackMappings.flush();return combined.url};
-  const tryCandidate=async candidate=>{const url=canonicalUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';if(!url||checked.has(id))return null;checked.add(id);try{return await resolve(url,signal,{deadline}).then(resolved=>accept(resolved,{...candidate,id}))}catch(error){if(error.name==='AbortError'||isAccessBlocked(error)||isProviderOutage(error))throw error;diagnostics[/Laufzeit|Dauer/i.test(String(error.message))?'duration':'source']++;return null}};
+  const tryCandidate=async candidate=>{const url=canonicalUrl(candidate?.id,candidate?.url),id=url?new URL(url).searchParams.get('v'):'';if(!url||checked.has(id))return null;checked.add(id);try{return await resolve(url,signal,{deadline:Math.min(deadline,Date.now()+spotifyMatchCandidateTimeMs)}).then(resolved=>accept(resolved,{...candidate,id}))}catch(error){if(error.name==='AbortError'||isAccessBlocked(error)||isProviderOutage(error))throw error;diagnostics[/Laufzeit|Dauer/i.test(String(error.message))?'duration':'source']++;return null}};
   if(cached?.expires>Date.now()&&!rejectedIds(item).has(String(cached.id))&&!spotifyPlaybackMatchRejection(item,cached)){const result=await tryCandidate(cached);if(result)return result;playbackMappings.delete(key);delete item.playbackMatch;delete item.playbackVideoId;}
   let successfulSearch=false,lastSearchError=null,resolvedCount=0;
   for(const provider of ['youtube-music','youtube']){
-    const candidates=[];
-    const stageDeadline=Math.min(deadline-20_000,Date.now()+25_000);
-    for(const query of queries){
+    const stageDeadline=Math.min(deadline,Date.now()+spotifyMatchProviderTimeMs);
+    const providerQueryLimit=provider==='youtube-music'?3:4;
+    for(const query of queries.slice(0,providerQueryLimit)){
       signal?.throwIfAborted();
       if(Date.now()>=stageDeadline)break;
       let found;
-      try{found=await search(query,{provider,limit:spotifyMatchSearchLimit,timeout:Math.min(8_000,Math.max(1,stageDeadline-Date.now())),signal});successfulSearch=true}
+      try{found=await search(query,{provider,limit:spotifyMatchSearchLimit,timeout:Math.min(spotifyMatchQueryTimeMs,Math.max(1,stageDeadline-Date.now())),signal});successfulSearch=true}
       catch(error){if(error.name==='AbortError'||isAccessBlocked(error)||isProviderOutage(error))throw error;diagnostics.search++;lastSearchError=error;continue}
+      const candidates=[];
       for(const raw of found||[]){
         const candidate={...raw,provider,searchQuery:query},url=canonicalUrl(candidate.id,candidate.url),id=url?new URL(url).searchParams.get('v'):'';
         if(!id||seen.has(provider+id)||checked.has(id)||rejectedIds(item).has(id))continue;
@@ -134,12 +138,13 @@ export async function resolveSpotifyPlayback(item,signal,{search,resolve,canonic
         if(reason){diagnostics[reason]=(diagnostics[reason]||0)+1;continue}
         seen.add(provider+id);candidates.push({...candidate,id});
       }
-    }
-    let providerAttempts=0;
-    for(const candidate of rankSpotifyPlaybackCandidates(item,candidates,{canonicalUrl})){
-      if(provider==='youtube-music'&&providerAttempts++>=7)break;
-      if(Date.now()>=deadline||resolvedCount++>=spotifyMatchResolveLimit)break;
-      const result=await tryCandidate(candidate);if(result)return result;
+      // Like LavaSrc and spotDL, stop as soon as a strict, playable match is
+      // found instead of collecting every fallback query first.
+      for(const candidate of rankSpotifyPlaybackCandidates(item,candidates,{canonicalUrl}).slice(0,3)){
+        if(Date.now()>=deadline||resolvedCount++>=spotifyMatchResolveLimit)break;
+        const result=await tryCandidate(candidate);if(result)return result;
+      }
+      if(Date.now()>=deadline||resolvedCount>=spotifyMatchResolveLimit)break;
     }
     if(Date.now()>=deadline||resolvedCount>=spotifyMatchResolveLimit)break;
   }

@@ -27,9 +27,9 @@ export const youtubeAudioFormatForClient=client=>client==='web_safari'
 export const youtubePlaybackPrintTemplate='%(url)s\t%(duration)s\t%(protocol)s\t%(id)s\t%(http_headers)j\t%(title)j';
 
 const videoIdPattern=/^[A-Za-z0-9_-]{11}$/;
-const resolveTimeoutMs=60_000;
-const attemptTimeoutMs=20_000;
-const playbackValidationTimeoutMs=8_000;
+const resolveTimeoutMs=12_000;
+const attemptTimeoutMs=8_000;
+const playbackValidationTimeoutMs=4_000;
 
 export function youtubeAuthenticationArgs(){
   const cookies=String(process.env.YOUTUBE_COOKIES_FILE||'').trim();
@@ -248,12 +248,18 @@ export function isPermanentYouTubeResolutionError(error){
 }
 
 const strategyClient=strategy=>String(strategy?.find(value=>String(value).startsWith('youtube:player_client='))||'').split('=').at(-1)||'web_embedded';
+export const youtubeResolutionStrategies=preferredClient=>{
+  const start=youtubeClientStrategies.findIndex(strategy=>strategyClient(strategy)===preferredClient);
+  return start>=0?[youtubeClientStrategies[start]]:[youtubeClientStrategies[0]];
+};
 
 export async function resolveYouTubeAudio(query,signal,{deadline=Date.now()+resolveTimeoutMs,preferredClient='',validate=validateResolvedYouTubeAudio}={}){
   const failures=[];
-  let providerFailure=null;
-  const start=youtubeClientStrategies.findIndex(strategy=>strategyClient(strategy)===preferredClient);
-  const strategies=start>=0?youtubeClientStrategies.slice(start):youtubeClientStrategies;
+  let classifiedFailure=null;
+  // One resolver call represents one client attempt. The player owns the
+  // bounded client fallback sequence, so a failed Safari attempt cannot hide
+  // another 20-second embedded attempt inside the same retry.
+  const strategies=youtubeResolutionStrategies(preferredClient);
   for(const strategy of strategies){
     const remaining=deadline-Date.now();
     if(remaining<=0)break;
@@ -271,11 +277,11 @@ export async function resolveYouTubeAudio(query,signal,{deadline=Date.now()+reso
     }catch(error){
       if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;
       const outage=classifyYouTubeAudioFailure(error?.message);
-      if(outage?.code==='YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE')providerFailure=outage;
+      if(outage)classifiedFailure=outage;
       failures.push(outage?.code==='YOUTUBE_AGE_RESTRICTED'?outage.message:error.message);
       if(outage?.code==='YOUTUBE_AGE_RESTRICTED'||isPermanentYouTubeResolutionError(error))break;
     }
   }
-  if(providerFailure)throw providerFailure;
+  if(classifiedFailure)throw classifiedFailure;
   throw new Error(`YouTube-Audio konnte mit keiner Clientvariante aufgelöst werden. ${failures.at(-1)||''}`.trim());
 }

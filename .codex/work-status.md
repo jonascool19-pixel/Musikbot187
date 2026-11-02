@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-01T20:53:28.742Z
-Status: complete
-Base: main 3011f3b
+Last updated: 2026-11-02T16:09:23.878Z
+Status: in_progress
+Base: main ff85834
 
 ## Currently working on
 
-No active repository work
+Version 2.1.1 resolver latency fix verified locally
 
 ## Last completed
 
-Merged version 2.1.0 exact resolver and 5+5 personal automix in PR 77
+Replaced exhaustive sequential search with early strict match, 20s total budget, 4.5s query budget, 7s candidate budget, and single-client resolution attempts
 
 ## Next
 
-Deploy version 2.1.0 through the dashboard updater and observe exact variant matching plus personal discovery
+Commit, push, open PR, and verify GitHub Linux checks
 
 ## Verification
 
-249/249 backend tests; 3/3 first-run tests; 2/2 browser tests; both GitHub Linux checks passed after one browser-test retry; npm audit has zero high or critical findings; player benchmark 424.6x realtime
+251/251 backend tests; 3/3 first-run tests; benchmark 438.6x realtime; git diff check clean
 
 ## Safety note
 

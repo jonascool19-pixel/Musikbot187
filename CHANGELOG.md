@@ -1,5 +1,12 @@
 # 📦 Änderungen
 
+## 2.1.1 · Schneller Resolver und begrenzte Clientwechsel
+
+- **Treffer startet sofort:** Der Resolver beendet die Suche nach dem ersten streng passenden und tatsächlich abspielbaren Treffer. Weitere ISRC-, Künstler- und Titelsuchen laufen nur noch als echte Rückfälle statt immer vollständig im Voraus.
+- **Festes Zeitbudget:** Eine Spotify-Auflösung ist insgesamt auf 20 Sekunden begrenzt; einzelne Suchanfragen und Kandidaten besitzen deutlich kleinere Budgets. Ein gestörter Suchweg kann sich dadurch nicht mehr minutenlang über viele Abfragen aufsummieren.
+- **Echte Clientwechsel:** `mweb`, `web_safari` und `web_embedded` werden einzeln vom Player versucht. Ein gemeldeter Wechsel enthält nicht mehr unbemerkt mehrere weitere lange Clientversuche.
+- **Bewährte Reihenfolge:** Wie bei LavaSrc und spotDL bleibt ISRC der erste Weg, danach folgen exakt bewertete Titel-/Künstlerabfragen. YouTube Music bleibt vor normalem YouTube, und Cache sowie strenge Versionsprüfung bleiben erhalten.
+
 ## 2.1.0 · Exakter Resolver und persönlicher 5+5-Mix
 
 - **Aufnahme statt Suchtreffer:** Spotify-Titel werden als strukturierte Aufnahme mit ISRC, Basistitel, allen beteiligten Künstlern, Remix-Künstlern, Album, Version und Laufzeit behandelt. Original, Remix, Extended, Live, Acoustic, Instrumental, Slowed, Sped-up, Radio Edit, Karaoke, Nightcore, Rework und Bootleg bleiben voneinander getrennt.
