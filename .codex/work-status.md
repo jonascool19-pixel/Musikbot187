@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-02T16:09:23.878Z
-Status: in_progress
-Base: main ff85834
+Last updated: 2026-11-02T16:12:31.302Z
+Status: complete
+Base: main 8f60c05
 
 ## Currently working on
 
-Version 2.1.1 resolver latency fix verified locally
+No active repository work
 
 ## Last completed
 
-Replaced exhaustive sequential search with early strict match, 20s total budget, 4.5s query budget, 7s candidate budget, and single-client resolution attempts
+Merged version 2.1.1 bounded resolver latency in PR 78
 
 ## Next
 
-Commit, push, open PR, and verify GitHub Linux checks
+Install version 2.1.1 through the dashboard updater and observe real transition times
 
 ## Verification
 
-251/251 backend tests; 3/3 first-run tests; benchmark 438.6x realtime; git diff check clean
+251/251 backend tests; 3/3 first-run tests; benchmark 438.6x realtime; both GitHub Linux checks passed
 
 ## Safety note
 
