@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {recordingIdentity} from '../backend/src/recording-identity.js';
 import {spotifyMatchCandidateTimeMs,spotifyMatchQueryTimeMs,spotifyMatchSearchTimeMs,spotifyPlaybackMatchRejection,rankSpotifyPlaybackCandidates,resolveSpotifyPlayback} from '../backend/src/spotify-playback.js';
-import {canonicalYouTubeVideoUrl,applyResolvedPlayback,youtubeClientStrategies,youtubeResolutionStrategies,youtubeSearchUrl,normalizeYouTubeEntries} from '../backend/src/audio/youtube-client.js';
+import {canonicalYouTubeVideoUrl,applyResolvedPlayback,YouTubeSearchTemporarilyUnavailableError,youtubeClientStrategies,youtubeResolutionStrategies,youtubeSearchInput,youtubeSearchUrl,normalizeYouTubeEntries} from '../backend/src/audio/youtube-client.js';
 import {PlaybackMappingCache,initializePlaybackMappings} from '../backend/src/playback-mapping-cache.js';
 import {createRecommendationProvider} from '../backend/src/recommendation-sources.js';
 import {autoplayCandidateMatchesPreferences,sameRecommendationFamily} from '../backend/src/autoplay.js';
@@ -77,7 +77,21 @@ test('resolver returns the first strict playable result with bounded query and c
   assert.equal(calls[0].provider,'youtube-music');
   assert.ok(calls[0].timeout<=spotifyMatchQueryTimeMs);
   assert.ok(deadlines[0]>0&&deadlines[0]<=spotifyMatchCandidateTimeMs);
-  assert.equal(spotifyMatchSearchTimeMs,20_000);
+  assert.equal(spotifyMatchQueryTimeMs,12_000);
+  assert.equal(spotifyMatchSearchTimeMs,30_000);
+});
+
+test('slow YTM search falls back once to ytsearch while a fully slow search stays retryable',async()=>{
+  const item={id:'slow-search',source:'spotify',title:'Artist – Song',duration:200},calls=[];
+  await resolve(item,async(query,{provider})=>{
+    calls.push(provider);
+    if(provider==='youtube-music')throw new YouTubeSearchTemporarilyUnavailableError('yt-dlp Zeitüberschreitung');
+    return [video('abcdefghijk','Artist – Song')];
+  },async()=>playback('abcdefghijk'));
+  assert.deepEqual(calls,['youtube-music','youtube']);
+  await assert.rejects(resolve({...item,id:'fully-slow',playbackMatch:null},async()=>{throw new YouTubeSearchTemporarilyUnavailableError('yt-dlp Zeitüberschreitung')},async()=>playback('abcdefghijk')),{code:'YOUTUBE_SEARCH_TEMPORARILY_UNAVAILABLE'});
+  assert.equal(youtubeSearchInput('Artist Song','youtube',10),'ytsearch10:Artist Song');
+  assert.equal(youtubeSearchInput('Artist Song','youtube-music',10),'https://music.youtube.com/search?q=Artist%20Song#songs');
 });
 
 test('each playback resolution tries exactly one client so player fallbacks cannot nest',()=>{
@@ -120,14 +134,16 @@ test('YTM adapter selects songs and preserves structured provider metadata',()=>
   assert.equal(tracks.length,1);assert.deepEqual(tracks[0].artists,['Artist']);assert.equal(tracks[0].provider,'youtube-music');
 });
 
-test('recommendation providers interleave, deduplicate, cache radio and tolerate individual outages',async()=>{
-  let radios=0;
-  const recommend=createRecommendationProvider({radio:async()=>{radios++;return [video('abcdefghijk','Seed'),video('lmnopqrstuv','Artist – Radio Song')]},search:async(query,{provider})=>{
+test('recommendation providers run sequentially, deduplicate, cache radio and tolerate individual outages',async()=>{
+  let radios=0,active=0,maxActive=0;
+  const operation=async callback=>{active++;maxActive=Math.max(maxActive,active);await new Promise(resolve=>setImmediate(resolve));try{return callback()}finally{active--}};
+  const recommend=createRecommendationProvider({radio:async()=>operation(()=>{radios++;return [video('abcdefghijk','Seed'),video('lmnopqrstuv','Artist – Radio Song')]}),search:async(query,{provider})=>operation(()=>{
     if(provider==='youtube-music')throw Error('temporary failure');
     return [video('12345678901','Artist – Search Song'),video('lmnopqrstuv','Duplicate')];
-  }});
+  })});
   for(let i=0;i<2;i++)assert.deepEqual((await recommend({source:'youtube',id:'abcdefghijk'},{query:'Artist',limit:10})).map(track=>track.id),['12345678901','lmnopqrstuv']);
   assert.equal(radios,1);
+  assert.equal(maxActive,1);
   const aborted=new AbortController();aborted.abort();await assert.rejects(recommend({}, {signal:aborted.signal}),{name:'AbortError'});
 });
 

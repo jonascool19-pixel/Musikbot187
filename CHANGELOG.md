@@ -1,5 +1,13 @@
 # 📦 Änderungen
 
+## 2.1.2 · Suchzeit repariert und Warteschlange geschützt
+
+- **Zeitlimit korrigiert:** Die in 2.1.1 zu knapp gesetzten 4,5 Sekunden wurden durch ein realistisches 12-Sekunden-Fenster ersetzt. Normales YouTube verwendet jetzt den offiziellen `ytsearch`-Extractor von yt-dlp; YouTube Music bleibt der erste Suchweg.
+- **Unabhängiger Rückfall:** Antwortet YouTube Music zu langsam, wird genau einmal die normale YouTube-Suche versucht. Antwortet auch sie nicht, gilt das als vorübergehender Dienstausfall statt als „Titel nicht gefunden“.
+- **Keine geleerte Warteschlange:** Bei einer langsamen YouTube-Suche bleiben der aktuelle Titel und alle folgenden Titel erhalten. Der Bot wartet 30 Sekunden und versucht denselben Titel erneut, statt alle 16 Sekunden den nächsten Eintrag zu verwerfen.
+- **Weniger Serverlast:** Automix-Radio, YouTube-Music-Suche und YouTube-Suche starten nicht mehr gleichzeitig mehrere yt-dlp-Prozesse. Sie laufen nacheinander und nur so weit, wie für genügend Vorschläge nötig.
+- **Strenges Matching bleibt:** ISRC, Version, Remix-Künstler, Laufzeit, Topic-Kanäle, Cache und die Trennung von Original/Remix/Slowed/Sped-up bleiben unverändert aktiv.
+
 ## 2.1.1 · Schneller Resolver und begrenzte Clientwechsel
 
 - **Treffer startet sofort:** Der Resolver beendet die Suche nach dem ersten streng passenden und tatsächlich abspielbaren Treffer. Weitere ISRC-, Künstler- und Titelsuchen laufen nur noch als echte Rückfälle statt immer vollständig im Voraus.
