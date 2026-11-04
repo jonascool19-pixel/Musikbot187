@@ -15,3 +15,7 @@ test('recovery policy separates fast client changes, alternate sources and ordin
   assert.equal(playbackRecoveryPlan({...base,attempt:1,transient:true}).reason,'transient');
   assert.equal(playbackRecoveryPlan({...base,attempt:8,transient:true}).retry,false);
 });
+
+test('slow YouTube search pauses on the same title instead of consuming the queue',()=>{
+  assert.deepEqual(playbackRecoveryPlan({...base,serviceUnavailable:true,retryAfterMs:30_000}),{retry:true,reason:'service-pause',delay:30_000,nextAttempt:3});
+});

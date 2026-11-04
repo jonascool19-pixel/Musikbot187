@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-02T16:12:31.302Z
-Status: complete
-Base: main 8f60c05
+Last updated: 2026-11-04T15:40:57.776Z
+Status: in_progress
+Base: main 59bd410
 
 ## Currently working on
 
-No active repository work
+Version 2.1.2 YouTube search timeout and queue-drain fix verified locally
 
 ## Last completed
 
-Merged version 2.1.1 bounded resolver latency in PR 78
+Restored 12s search budget, switched normal YouTube to ytsearch, added YTM-to-YouTube fallback, retained queue on search outage, and serialized Automix source searches
 
 ## Next
 
-Install version 2.1.1 through the dashboard updater and observe real transition times
+Commit, push, open PR, and verify GitHub Linux checks
 
 ## Verification
 
-251/251 backend tests; 3/3 first-run tests; benchmark 438.6x realtime; both GitHub Linux checks passed
+255/255 backend tests; 3/3 first-run tests; benchmark 439.4x realtime; git diff check clean
 
 ## Safety note
 

@@ -29,7 +29,19 @@ export const youtubePlaybackPrintTemplate='%(url)s\t%(duration)s\t%(protocol)s\t
 const videoIdPattern=/^[A-Za-z0-9_-]{11}$/;
 const resolveTimeoutMs=12_000;
 const attemptTimeoutMs=8_000;
+const searchAttemptTimeoutMs=12_000;
 const playbackValidationTimeoutMs=4_000;
+export const youtubeSearchRetryAfterMs=30_000;
+
+export class YouTubeSearchTemporarilyUnavailableError extends Error{
+  constructor(detail=''){
+    super(`YouTube-Suche antwortet derzeit zu langsam. Der aktuelle Titel und die Warteschlange bleiben erhalten; neuer Versuch in ${Math.ceil(youtubeSearchRetryAfterMs/1000)} Sekunden.${detail?` ${detail}`:''}`);
+    this.name='YouTubeSearchTemporarilyUnavailableError';
+    this.code='YOUTUBE_SEARCH_TEMPORARILY_UNAVAILABLE';
+    this.retryAfterMs=youtubeSearchRetryAfterMs;
+  }
+}
+export const isYouTubeSearchTemporarilyUnavailable=error=>error?.code==='YOUTUBE_SEARCH_TEMPORARILY_UNAVAILABLE';
 
 export function youtubeAuthenticationArgs(){
   const cookies=String(process.env.YOUTUBE_COOKIES_FILE||'').trim();
@@ -90,6 +102,13 @@ export function youtubeSearchUrl(query,provider='youtube'){
   return provider==='youtube-music'?`https://music.youtube.com/search?q=${encodeURIComponent(value)}#songs`:`https://www.youtube.com/results?search_query=${encodeURIComponent(value)}`;
 }
 
+export function youtubeSearchInput(query,provider='youtube',limit=searchResultLimit){
+  const value=String(query||'').trim().slice(0,300);
+  if(!value)throw new Error('YouTube-Suchbegriff fehlt.');
+  const bounded=Math.max(1,Math.min(searchResultLimit,Number(limit)||searchResultLimit));
+  return provider==='youtube-music'?youtubeSearchUrl(value,provider):`ytsearch${bounded}:${value}`;
+}
+
 export function canonicalYouTubeVideoUrl(id,raw=''){
   const direct=String(id||'').replace(/^yt:/i,'');
   if(videoIdPattern.test(direct))return `https://www.youtube.com/watch?v=${direct}`;
@@ -119,15 +138,17 @@ async function youtubeSearchData(query,limit,timeout,signal,provider){
       const raw=await runMediaCommand('yt-dlp',[
         ...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),
         '--dump-single-json','--flat-playlist','--playlist-end',String(limit),
-        '--force-ipv4',...strategy,youtubeSearchUrl(query,provider)
-      ],{timeout:Math.min(attemptTimeoutMs,remaining),signal});
+        '--force-ipv4',...strategy,youtubeSearchInput(query,provider,limit)
+      ],{timeout:Math.min(searchAttemptTimeoutMs,remaining),signal});
       return JSON.parse(raw);
     }catch(error){
       if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;
       failures.push(error.message);
     }
   }
-  throw new Error(`YouTube-Suche konnte nicht abgeschlossen werden. ${failures.at(-1)||'Zeitüberschreitung'}`);
+  const detail=failures.at(-1)||'Zeitüberschreitung';
+  if(failures.some(value=>/zeitüberschreitung|timed?\s*out|timeout/i.test(value)))throw new YouTubeSearchTemporarilyUnavailableError(detail);
+  throw new Error(`YouTube-Suche konnte nicht abgeschlossen werden. ${detail}`);
 }
 
 export async function youtubeSearch(query,{limit=searchResultLimit,timeout=30_000,signal,provider='youtube'}={}){

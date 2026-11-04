@@ -7,9 +7,9 @@ export function createRecommendationProvider({search=youtubeSearch,radio=youtube
   return async(seed,{query='',limit=24,signal}={})=>{
     signal?.throwIfAborted();
     const seedId=seed?.playbackVideoId||(seed?.source==='youtube'?seed.id:'');
-    const jobs=[()=>search(query,{provider:'youtube-music',limit,timeout:12_000,signal}),()=>search(query,{provider:'youtube',limit,timeout:12_000,signal})];
+    const jobs=[];
     if(/^[A-Za-z0-9_-]{11}$/.test(String(seedId||''))){
-      jobs.unshift(async()=>{
+      jobs.push(async()=>{
         let cached=radioCache.get(seedId);
         if(!cached||cached.expires<=now()){
           cached={expires:now()+5*60_000,promise:radio(seedId,{limit:40,timeout:12_000,signal})};
@@ -19,11 +19,23 @@ export function createRecommendationProvider({search=youtubeSearch,radio=youtube
         try{return await cached.promise}catch(error){radioCache.delete(seedId);throw error}
       });
     }
-    const outcomes=await Promise.allSettled(jobs.map(job=>job()));
+    jobs.push(()=>search(query,{provider:'youtube-music',limit,timeout:12_000,signal}));
+    jobs.push(()=>search(query,{provider:'youtube',limit,timeout:12_000,signal}));
+    const buckets=[],failures=[],available=new Set();
+    // yt-dlp processes are intentionally sequential. Parallel radio + YTM +
+    // YouTube searches starved playback resolution on smaller installations.
+    for(const job of jobs){
+      signal?.throwIfAborted();
+      if(available.size>=limit)break;
+      try{
+        const bucket=await job(),tracks=Array.isArray(bucket)?bucket:[];
+        buckets.push(tracks);
+        for(const track of tracks)if(track?.id&&track.id!==seedId)available.add(track.id);
+      }catch(error){failures.push(error)}
+    }
     signal?.throwIfAborted();
-    const successes=outcomes.filter(result=>result.status==='fulfilled');
-    if(!successes.length)throw outcomes[0].reason;
-    const buckets=successes.map(result=>Array.isArray(result.value)?result.value:[]),seen=new Set(),result=[];
+    if(!buckets.length)throw failures[0];
+    const seen=new Set(),result=[];
     // Interleave so a full search page cannot hide every radio candidate.
     for(let index=0;result.length<limit&&buckets.some(bucket=>index<bucket.length);index++)for(const bucket of buckets){
       const track=bucket[index],key=track?.id;

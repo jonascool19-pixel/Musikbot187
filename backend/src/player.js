@@ -6,6 +6,7 @@ import {PcmJitterBuffer,pcmBytesPerSecond,pcmFrameBytes} from './pcm-buffer.js';
 import {EqualPowerCrossfade,chooseCrossfadeMs,crossfadePrepareLeadMs,crossfadeReserveMs,defaultCrossfadeMs,fallbackFadeInMs,manualTransitionMs,pcmBytesForMs} from './crossfade.js';
 import {forgetPlaybackSource,rememberPlaybackSource,reusablePlaybackSource} from './audio/source-session.js';
 import {playbackRecoveryPlan} from './audio/recovery-policy.js';
+import {isYouTubeSearchTemporarilyUnavailable} from './audio/youtube-client.js';
 export const queueLimit=500;
 export const playbackDrainDelays=Object.freeze({local:300,youtube:1500,spotify:2000});
 export const onDemandEndToleranceSeconds=12;
@@ -169,6 +170,7 @@ export class Player extends EventEmitter{
         ?'Online-Audioquelle wurde unerwartet beendet (FFmpeg 255).'
         :String(error?.message||error||`FFmpeg exit ${code}`);
     const accessBlocked=onDemandStream&&isYouTubeAccessBlocked(error);
+    const serviceUnavailable=onDemandStream&&isYouTubeSearchTemporarilyUnavailable(error);
     const providerOutage=onDemandStream&&Boolean(code)&&isYouTubeTokenProviderUnavailable(error);
     const formatUnavailable=onDemandStream&&Boolean(code)&&isYouTubeAudioFormatUnavailable(error);
     const spotifySourceBlocked=prior?.source==='spotify'&&isSpotifySourceTemporarilyUnavailableError(error);
@@ -191,6 +193,7 @@ export class Player extends EventEmitter{
       spotifySourceBlocked,
       spotifySourceRetryCount:sourceRetryCount,
       accessBlocked,
+      serviceUnavailable,
       endedTooSoon,
       prematureEndExhausted,
       alternateSource,
@@ -237,6 +240,8 @@ export class Player extends EventEmitter{
         ?`${title}: Passende Quelle vorübergehend gesperrt. Titel und Warteschlange bleiben erhalten; neuer Versuch in ${Math.ceil(plan.delay/1000)} Sekunden.`
         :plan.reason==='access-pause'
           ?`${title}: YouTube-Schutzpause. Titel und Warteschlange bleiben erhalten. Neuer Versuch in ${Math.ceil(plan.delay/1000)} Sekunden.`
+          :plan.reason==='service-pause'
+            ?`${title}: YouTube-Suche antwortet derzeit zu langsam. Titel und Warteschlange bleiben erhalten. Neuer Versuch in ${Math.ceil(plan.delay/1000)} Sekunden.`
           :plan.reason==='alternate-source'
             ?`${title}: ${media403?'Diese YouTube-Quelle verweigert den Medienzugriff.':'YouTube-Audioformat dieser Quelle nicht verfügbar.'} Der Bot sucht eine andere passende Version desselben Spotify-Titels.`
             :plan.reason==='client-fallback'
