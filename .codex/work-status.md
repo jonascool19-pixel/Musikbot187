@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-04T15:45:07.895Z
-Status: complete
-Base: main 7e9c781
+Last updated: 2026-11-08T08:00:23.321Z
+Status: active
+Base: main 3e98382
 
 ## Currently working on
 
-No active repository work
+Publish automatic playback stall fix for GitHub CI
 
 ## Last completed
 
-Merged version 2.1.2 YouTube search timeout and queue-protection fix in PR 79
+Corrected version-suffix artist parsing, prioritized useful song queries, removed definitive failed automatic prefetch picks, and avoided repeated search pauses when alternatives are queued
 
 ## Next
 
-Install version 2.1.2 through the dashboard updater and observe search recovery on the server
+Push fix branch, open PR and wait for existing Linux CI
 
 ## Verification
 
-255/255 backend tests; 3/3 first-run tests; benchmark 439.4x realtime; both GitHub Linux checks passed
+261/261 backend tests passed locally; git diff --check passed
 
 ## Safety note
 

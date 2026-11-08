@@ -11,7 +11,13 @@ export function musicArtist(track){
   const clean=value=>String(value||'').normalize('NFKC').replace(/\s*-\s*Topic$/i,'').replace(/\s+/g,' ').trim().slice(0,100);
   const title=String(track?.title||'').replace(/\.(?:mp3|wav|flac|ogg|opus|m4a|aac|webm)$/i,'');
   const parts=title.split(/\s+[–—-]\s+/);
-  const credited=parts.length>1?clean(parts[0]):'';
+  // A bare song title may end in a version suffix; its prefix is not an artist.
+  const metadataArtists=artistNames(track?.artists).join(', ')||track?.artist||'';
+  const channelArtist=/\s*-\s*Topic$/i.test(String(track?.channel||track?.uploader||''))?clean(track.channel||track.uploader):'';
+  const expectedArtists=artistNames(metadataArtists||channelArtist);
+  const suffix=parts.slice(1).join(' ');
+  const versionSuffix=parts.length>1&&(/^(?:(?:super|ultra)[ -]*)?(?:slowed(?:[ +&-]*reverb)?|slow|sped[ -]*up|nightcore|extended(?: mix)?|radio edit|instrumental|acoustic)$/i.test(suffix)||expectedArtists.length>0&&!/[()[\]]/.test(suffix)&&/\b(?:remix|rework|bootleg)\b/i.test(suffix));
+  const credited=parts.length>1&&(!versionSuffix||expectedArtists.some(name=>clean(parts[0]).toLowerCase().includes(clean(name).toLowerCase())))?clean(parts[0]):'';
   if(credited)return credited;
   const explicit=clean(track?.artist||artistNames(track?.artists).join(', '));
   if(explicit&&explicit!==clean(track?.channel)&&explicit!==clean(track?.uploader))return explicit;
