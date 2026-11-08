@@ -81,11 +81,11 @@ export function spotifyPlaybackSearchQueries(item){
   const identity=recordingIdentity(item),song=identity.song,artists=artistNames(item.artists).join(', ')||splitCatalogTitle(item).artists,names=splitArtists(artists),primary=names[0]||artists,all=names.join(' '),exact=[artists,song].filter(Boolean).join(' – '),isrc=/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/i.test(String(item?.isrc||''))?String(item.isrc).toUpperCase():'';
   return unique([
     isrc?`"${isrc}"`:'',
-    exact?`"${exact}" audio`:'',
+    primary&&song?`${primary} ${song}`:'',
     primary&&song?`"${primary}" "${song}" official audio`:'',
     all&&song?`${all} "${song}" audio`:'',
     primary&&song?`${primary} "${song}" Topic`:'',
-    primary&&song?`${primary} ${song}`:'',
+    exact?`"${exact}" audio`:'',
     identity.remixArtists.length?`${primary} ${song} ${identity.remixArtists.join(" ")}`:'',
     identity.album?`${all} ${song} ${identity.album}`:'',
     song?`"${song}" audio`:''

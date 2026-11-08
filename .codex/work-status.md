@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-04T15:45:07.895Z
-Status: complete
-Base: main 7e9c781
+Last updated: 2026-11-08T08:03:26.569Z
+Status: active
+Base: main 3e98382
 
 ## Currently working on
 
-No active repository work
+Verify version 2.1.3 automatic playback fixes in PR 80
 
 ## Last completed
 
-Merged version 2.1.2 YouTube search timeout and queue-protection fix in PR 79
+Pushed stall and matching fixes; prepared version 2.1.3 for the existing main-branch dashboard updater
 
 ## Next
 
-Install version 2.1.2 through the dashboard updater and observe search recovery on the server
+Complete GitHub Linux CI, merge the tested correction and leave server installation to the user
 
 ## Verification
 
-255/255 backend tests; 3/3 first-run tests; benchmark 439.4x realtime; both GitHub Linux checks passed
+261/261 backend tests locally; initial Linux backend, Opus and first-run checks passed
 
 ## Safety note
 

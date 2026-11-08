@@ -1,5 +1,12 @@
 # 📦 Änderungen
 
+## 2.1.3 · Automatische Titelwechsel und Versionszuordnung
+
+- **Weniger blockierende Suchpausen:** Ein noch nicht gestarteter automatischer Titel gibt bei einer Suchzeitüberschreitung den nächsten Warteschlangenplatz frei, sofern weitere Titel vorhanden sind. Manuelle Anfragen, laufende Titel und YouTube-Zugriffssperren behalten ihren Wiederholungsmechanismus.
+- **Folgetitel früher prüfen:** Definitiv nicht zuordenbare automatische Folgetitel werden bereits während des laufenden Lieds entfernt. Anschließend wird der nächste Wartetitel vorbereitet.
+- **Topic-Titel richtig einlesen:** Titel wie „POKER FACE HARDTEKK - SLOWED“ und „Gabber Madness - N-XD Remix“ verwenden den belegten Künstler statt den Songnamen als Künstler zu übernehmen.
+- **Gezieltere Suche:** Nach einer vorhandenen ISRC wird zuerst Künstler plus Song gesucht. Streng zitierte kombinierte Künstlerangaben folgen später; Aufnahme-, Versions- und Laufzeitprüfungen bleiben aktiv.
+
 ## 2.1.2 · Suchzeit repariert und Warteschlange geschützt
 
 - **Zeitlimit korrigiert:** Die in 2.1.1 zu knapp gesetzten 4,5 Sekunden wurden durch ein realistisches 12-Sekunden-Fenster ersetzt. Normales YouTube verwendet jetzt den offiziellen `ytsearch`-Extractor von yt-dlp; YouTube Music bleibt der erste Suchweg.
