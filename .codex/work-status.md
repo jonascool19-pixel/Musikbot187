@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-08T08:03:26.569Z
-Status: active
-Base: main 3e98382
+Last updated: 2026-11-08T08:09:35.458Z
+Status: complete
+Base: main 5bb2f46
 
 ## Currently working on
 
-Verify version 2.1.3 automatic playback fixes in PR 80
+No active repository work; version 2.1.3 merged
 
 ## Last completed
 
-Pushed stall and matching fixes; prepared version 2.1.3 for the existing main-branch dashboard updater
+Merged PR 80: automatic search-stall recovery, early failed-prefetch removal, bare Topic version-title matching, and dashboard version 2.1.3
 
 ## Next
 
-Complete GitHub Linux CI, merge the tested correction and leave server installation to the user
+Install 2.1.3 using the existing dashboard updater and observe real playback transitions; server has not been changed
 
 ## Verification
 
-261/261 backend tests locally; initial Linux backend, Opus and first-run checks passed
+261/261 backend tests locally; both final GitHub Linux CI runs passed including native Opus, first-run and dashboard browser tests (42461522313, 42461519105)
 
 ## Safety note
 
