@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T18:13:24.044Z
+Last updated: 2026-11-12T18:17:40.135Z
 Status: in progress
 Base: main 4aa4d25
 
 ## Currently working on
 
-Reuse buffered successor on skip
+Protect active audio when preparing the next title
 
 ## Last completed
 
-Confirmed version 2.1.6 on server; added early warm-up behind PCM reserve and reused ready deck on skip
+Deferred online preparation while the active PCM reserve is below one second; retained ready-deck reuse on skip
 
 ## Next
 
-Verify skip and queue stutter in live Discord playback
+Verify queue additions and skip timing in Discord on a deployed build
 
 ## Verification
 
-50 focused tests passed; current server diagnostics do not establish the stutter cause
+51 focused tests passed; live stutter cause remains unconfirmed
 
 ## Safety note
 
