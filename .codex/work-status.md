@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T17:23:04.796Z
+Last updated: 2026-11-12T17:28:58.613Z
 Status: in progress
 Base: main 9a305cf
 
 ## Currently working on
 
-Spotify recording lookup and playback startup
+Prepare 2.1.4 for the existing dashboard updater
 
 ## Last completed
 
-Prepare stable candidate IDs, open fresh streams near playback, prioritize version and Topic queries, and enforce FFmpeg validation budget
+Bumped app version and aligned release contract tests; previous PR CI passed
 
 ## Next
 
-Review PR 81 CI and measure title transitions and early stream endings in an authorized Discord playback test
+Verify updated PR in CI, publish on main, then verify server version and playback after authorized update
 
 ## Verification
 
-56 focused tests passed; 197 tests passed in the broader local run and 7 test files could not load missing dependencies
+61 focused local tests passed
 
 ## Safety note
 

@@ -1,5 +1,11 @@
 # 📦 Änderungen
 
+## 2.1.4 · Spotify-Suche und Wiedergabestart
+
+- YouTube Music und YouTube werden früh abwechselnd durchsucht. Gezielte Remix- und Topic-Anfragen haben Vorrang vor breiteren Varianten.
+- Der Bot bereitet Video-IDs für den Folgetitel vor und öffnet die Medienadresse erst zur Wiedergabe oder beim Crossfade.
+- Die FFmpeg-Audioprüfung verwendet die verbleibende Zeit des Resolvers.
+
 ## 2.1.3 · Automatische Titelwechsel und Versionszuordnung
 
 - **Weniger blockierende Suchpausen:** Ein noch nicht gestarteter automatischer Titel gibt bei einer Suchzeitüberschreitung den nächsten Warteschlangenplatz frei, sofern weitere Titel vorhanden sind. Manuelle Anfragen, laufende Titel und YouTube-Zugriffssperren behalten ihren Wiederholungsmechanismus.
