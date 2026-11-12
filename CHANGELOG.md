@@ -1,5 +1,10 @@
 # 📦 Änderungen
 
+## 2.1.6 · Schnellerer Start von Spotify-Titeln
+
+- Der gestartete yt-dlp- und FFmpeg-Prozess liefert die geprüften Videodaten und das Audio. Der Bot gibt den Prozess nach erfolgreicher Prüfung direkt an den Player weiter.
+- Spotify-Folgetitel werden früher für den Crossfade vorbereitet. Scheitert der Versuch, bleiben die gefundenen Treffer für den regulären Übergang verfügbar.
+
 ## 2.1.5 · Spotify-Aufnahmen und YouTube-Audiostreams
 
 - Passende YouTube-Music-Treffer ohne Künstlerdaten werden anhand der vollständigen Videometadaten geprüft.

@@ -204,3 +204,23 @@ test('automix distinguishes variant discoveries while guarding unlearned directi
   for(const title of ['Klassische Musik','Berliner Symphonie','Mozart Sonate'])assert.equal(autoplayCandidateMatchesPreferences({title:`Artist – ${title}`},{preferredArtists:['Artist']}),false);
   assert.equal(autoplayCandidateMatchesPreferences({title:'Artist – Song (Slowed)'},{preferredArtists:['Artist']}),true);
 });
+
+test('an already-open Spotify stream transfers only after its own metadata matches',async()=>{
+  const item={id:'open-stream',source:'spotify',title:'Artist – Song',duration:200};
+  const preparedCandidates=[video('abcdefghijk','Artist – Song'),video('lmnopqrstuv','Artist – Song')];
+  let killed=0;
+  const accepted={kill:()=>assert.fail('accepted stream must remain open')};
+  const result=await resolveSpotifyPlayback(item,null,{
+    preparedCandidates,streaming:true,
+    search:async()=>assert.fail('a prepared candidate should work'),
+    canonicalUrl:canonicalYouTubeVideoUrl,applyResolved:applyResolvedPlayback,
+    resolve:async url=>{
+      const id=new URL(url).searchParams.get('v');
+      const bad=id==='abcdefghijk';
+      return playback(id,200,{title:'Song',artist:bad?'Wrong artist':'Artist',child:bad?{kill:()=>killed++}:accepted});
+    }
+  });
+  assert.equal(killed,1);
+  assert.equal(result.child,accepted);
+  assert.equal(item.playbackVideoId,'lmnopqrstuv');
+});
