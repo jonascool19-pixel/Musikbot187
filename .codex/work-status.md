@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T17:28:58.613Z
-Status: in progress
-Base: main 9a305cf
+Last updated: 2026-11-12T17:32:11.334Z
+Status: awaiting server verification
+Base: main 53873c2
 
 ## Currently working on
 
-Prepare 2.1.4 for the existing dashboard updater
+Version 2.1.4 available on main for the existing dashboard updater
 
 ## Last completed
 
-Bumped app version and aligned release contract tests; previous PR CI passed
+PR 81 merged after successful full CI; updater endpoint returns 2.1.4
 
 ## Next
 
-Verify updated PR in CI, publish on main, then verify server version and playback after authorized update
+Confirm installed version and reproduce Spotify playback on the authorized server once connectivity is available
 
 ## Verification
 
-61 focused local tests passed
+61 focused local tests passed; full GitHub Actions run 43269900883 passed
 
 ## Safety note
 
