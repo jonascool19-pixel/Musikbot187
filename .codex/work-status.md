@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T17:46:03.560Z
-Status: in progress
-Base: main fa17645
+Last updated: 2026-11-12T17:51:01.690Z
+Status: deployed
+Base: main 3902bf9
 
 ## Currently working on
 
-Release 2.1.5 Spotify matching and audio fallback
+2.1.5 installed and server-side playback verified
 
 ## Last completed
 
-Verified exact metadata and 222.56 seconds decoded through yt-dlp and FFmpeg on the server with the patch in memory
+PR 82 merged; dashboard update succeeded and restored playback queues; known failing recording matched and decoded in full on installed version
 
 ## Next
 
-Complete existing GitHub Actions, publish on main, and verify the deployed service
+Observe Discord voice transitions during normal use
 
 ## Verification
 
-68 focused local tests passed; real source decoded fully with exit 0
+Full CI 43272894387 passed; health reports 2.1.5; exact recording decoded 222.56 seconds with FFmpeg exit 0; pipe fallback also verified on host
 
 ## Safety note
 
