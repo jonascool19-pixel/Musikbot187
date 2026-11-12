@@ -65,9 +65,9 @@ test('resolver tries strict YTM matches immediately and falls back to YouTube af
     if(id!=='12345678901')throw Error('Video unavailable');
     return playback(id);
   });
-  assert.deepEqual(attempts,['abcdefghijk','lmnopqrstuv','12345678901']);
+  assert.deepEqual(attempts,['abcdefghijk','12345678901']);
   assert.equal(calls[0],'youtube-music');
-  assert.ok(calls.lastIndexOf('youtube-music')<calls.indexOf('youtube'));
+  assert.deepEqual(calls,['youtube-music','youtube']);
 });
 
 test('resolver returns the first strict playable result with bounded query and candidate budgets',async()=>{
@@ -75,7 +75,7 @@ test('resolver returns the first strict playable result with bounded query and c
   await resolve(item,async(query,options)=>{calls.push({query,...options});return [video('abcdefghijk','Artist – Song')]},async(url,signal,options)=>{deadlines.push(options.deadline-Date.now());return playback('abcdefghijk')});
   assert.equal(calls.length,1);
   assert.equal(calls[0].provider,'youtube-music');
-  assert.ok(calls[0].timeout<=spotifyMatchQueryTimeMs);
+  assert.ok(calls[0].timeout<=6_000);
   assert.ok(deadlines[0]>0&&deadlines[0]<=spotifyMatchCandidateTimeMs);
   assert.equal(spotifyMatchQueryTimeMs,12_000);
   assert.equal(spotifyMatchSearchTimeMs,30_000);

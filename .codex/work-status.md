@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-08T08:09:35.458Z
-Status: complete
-Base: main 5bb2f46
+Last updated: 2026-11-12T17:15:51.638Z
+Status: in progress
+Base: main 9a305cf
 
 ## Currently working on
 
-No active repository work; version 2.1.3 merged
+Spotify search fallback timing
 
 ## Last completed
 
-Merged PR 80: automatic search-stall recovery, early failed-prefetch removal, bare Topic version-title matching, and dashboard version 2.1.3
+Interleaved YouTube providers and bounded the initial YouTube Music search and validation
 
 ## Next
 
-Install 2.1.3 using the existing dashboard updater and observe real playback transitions; server has not been changed
+Run existing CI and verify actual playback transitions on an authorized instance
 
 ## Verification
 
-261/261 backend tests locally; both final GitHub Linux CI runs passed including native Opus, first-run and dashboard browser tests (42461522313, 42461519105)
+46 targeted tests passed; 195 full-suite tests passed and 7 test files could not load missing dependencies locally
 
 ## Safety note
 
