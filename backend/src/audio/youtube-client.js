@@ -213,11 +213,13 @@ export function youtubePlaybackValidationArgs(resolved){
   return args;
 }
 
-export async function validateResolvedYouTubeAudio(resolved,signal,{run=runMediaProcess}={}){
+export async function validateResolvedYouTubeAudio(resolved,signal,{run=runMediaProcess,deadline=Infinity}={}){
+  const timeout=Math.min(playbackValidationTimeoutMs,deadline-Date.now());
+  if(timeout<=0)throw new Error('Zeitbudget für die YouTube-Audioprüfung erschöpft.');
   try{
     await run('ffmpeg',youtubePlaybackValidationArgs(resolved),{
       signal,
-      timeout:playbackValidationTimeoutMs,
+      timeout,
       max:64*1024
     });
     return resolved;
@@ -293,7 +295,7 @@ export async function resolveYouTubeAudio(query,signal,{deadline=Date.now()+reso
       const resolved=parseResolvedYouTubeOutput(output);
       await assertSafeExternalUrl(resolved.url);
       const selected={...resolved,client:strategyClient(strategy)};
-      await validate(selected,signal);
+      await validate(selected,signal,{deadline});
       return selected;
     }catch(error){
       if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;
