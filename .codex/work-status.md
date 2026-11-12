@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T17:32:11.334Z
-Status: awaiting server verification
-Base: main 53873c2
+Last updated: 2026-11-12T17:46:03.560Z
+Status: in progress
+Base: main fa17645
 
 ## Currently working on
 
-Version 2.1.4 available on main for the existing dashboard updater
+Release 2.1.5 Spotify matching and audio fallback
 
 ## Last completed
 
-PR 81 merged after successful full CI; updater endpoint returns 2.1.4
+Verified exact metadata and 222.56 seconds decoded through yt-dlp and FFmpeg on the server with the patch in memory
 
 ## Next
 
-Confirm installed version and reproduce Spotify playback on the authorized server once connectivity is available
+Complete existing GitHub Actions, publish on main, and verify the deployed service
 
 ## Verification
 
-61 focused local tests passed; full GitHub Actions run 43269900883 passed
+68 focused local tests passed; real source decoded fully with exit 0
 
 ## Safety note
 

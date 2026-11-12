@@ -24,7 +24,7 @@ export const bestAudioFormat='bestaudio[protocol=https]/bestaudio[protocol=http]
 export const youtubeAudioFormatForClient=client=>client==='web_safari'
   ?`bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]/${bestAudioFormat}`
   :bestAudioFormat;
-export const youtubePlaybackPrintTemplate='%(url)s\t%(duration)s\t%(protocol)s\t%(id)s\t%(http_headers)j\t%(title)j';
+export const youtubePlaybackPrintTemplate='%(url)s\t%(duration)s\t%(protocol)s\t%(id)s\t%(http_headers)j\t%(title)j\t%(artist)j\t%(artists)j\t%(channel)j';
 
 const videoIdPattern=/^[A-Za-z0-9_-]{11}$/;
 const resolveTimeoutMs=12_000;
@@ -235,15 +235,21 @@ export async function validateResolvedYouTubeAudio(resolved,signal,{run=runMedia
 export function parseResolvedYouTubeOutput(raw){
   const line=String(raw||'').split(/\r?\n/).find(value=>value.trim());
   if(!line)throw new Error('yt-dlp hat keine Audioadresse geliefert.');
-  const [url='',durationRaw='',protocol='',id='',headersRaw='',titleRaw='']=line.split('\t');
+  const [url='',durationRaw='',protocol='',id='',headersRaw='',titleRaw='',artistRaw='',artistsRaw='',channelRaw='']=line.split('\t');
   if(!/^https?:\/\//i.test(url))throw new Error('yt-dlp hat keine gültige Audioadresse geliefert.');
   const parsedDuration=Number(durationRaw);
   let headers={};
   if(headersRaw)try{headers=sanitizeResolvedYouTubeHeaders(JSON.parse(headersRaw));}catch{}
-  let title='';
-  if(titleRaw)try{title=String(JSON.parse(titleRaw)||'').slice(0,500);}catch{}
+  const metadata=value=>{try{return JSON.parse(value)}catch{return null}};
+  const text=value=>typeof value==='string'?value.slice(0,500):'';
+  const title=text(metadata(titleRaw)),artist=text(metadata(artistRaw)),channel=text(metadata(channelRaw));
+  const credits=metadata(artistsRaw);
+  const artists=Array.isArray(credits)?credits.slice(0,20).map(text).filter(Boolean):[];
   return {
     ...(title?{title}:{}),
+    ...(artist?{artist}:{}),
+    ...(artists.length?{artists}:{}),
+    ...(channel?{channel}:{}),
     url:url.trim(),
     duration:Number.isFinite(parsedDuration)&&parsedDuration>0?parsedDuration:0,
     protocol:String(protocol||'').trim(),
@@ -276,7 +282,26 @@ export const youtubeResolutionStrategies=preferredClient=>{
   return start>=0?[youtubeClientStrategies[start]]:[youtubeClientStrategies[0]];
 };
 
-export async function resolveYouTubeAudio(query,signal,{deadline=Date.now()+resolveTimeoutMs,preferredClient='',validate=validateResolvedYouTubeAudio}={}){
+export const youtubePipeProtocol='yt-dlp-pipe';
+
+export function youtubePlaybackPipeArgs(url){
+  return [...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),
+    '--no-playlist','--no-progress','-f','bestaudio','-o','-',url];
+}
+
+export async function resolveYouTubePipe(query,signal,{deadline=Date.now()+resolveTimeoutMs}={}){
+  const url=canonicalYouTubeVideoUrl('',query);
+  const timeout=deadline-Date.now();
+  if(!url||timeout<=0)throw new Error('Keine Zeit für die YouTube-Ersatzquelle.');
+  const output=await runMediaCommand('yt-dlp',[
+    ...youtubeRuntimeArgs,...youtubeAuthenticationArgs(),
+    '--no-playlist','--print',youtubePlaybackPrintTemplate,'-f','bestaudio',url
+  ],{signal,timeout});
+  const metadata=parseResolvedYouTubeOutput(output);
+  return {...metadata,url,protocol:youtubePipeProtocol,client:'yt-dlp-pipe',headers:{}};
+}
+
+export async function resolveYouTubeAudio(query,signal,{deadline=Date.now()+resolveTimeoutMs,preferredClient='',allowPipe=false,validate=validateResolvedYouTubeAudio}={}){
   const failures=[];
   let classifiedFailure=null;
   // One resolver call represents one client attempt. The player owns the
@@ -295,7 +320,14 @@ export async function resolveYouTubeAudio(query,signal,{deadline=Date.now()+reso
       const resolved=parseResolvedYouTubeOutput(output);
       await assertSafeExternalUrl(resolved.url);
       const selected={...resolved,client:strategyClient(strategy)};
-      await validate(selected,signal,{deadline});
+      try{
+        await validate(selected,signal,{deadline});
+      }catch(error){
+        if(!allowPipe||!/HTTP 403/i.test(error.message))throw error;
+        const page=canonicalYouTubeVideoUrl(selected.id,query);
+        if(!page)throw error;
+        return {...selected,url:page,protocol:youtubePipeProtocol,client:youtubePipeProtocol,headers:{}};
+      }
       return selected;
     }catch(error){
       if(error.name==='AbortError'||isYouTubeAccessBlocked(error))throw error;

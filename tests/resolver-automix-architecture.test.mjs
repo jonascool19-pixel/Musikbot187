@@ -108,6 +108,24 @@ test('Spotify prefetch keeps candidate IDs and opens fresh media only at playbac
   assert.equal(item.playbackVideoId,'lmnopqrstuv');
 });
 
+test('an exact YouTube Music title with missing credits needs verified full metadata',async()=>{
+  const track={source:'spotify',title:'Alligatoah – Wo kann man das kaufen',duration:223,isrc:'DEQ021801390'};
+  const row={id:'Su5WWz-x7B0',title:'Wo kann man das kaufen'};
+  const options={search:async(_query,{provider})=>provider==='youtube-music'?[row]:[],canonicalUrl:canonicalYouTubeVideoUrl,applyResolved:applyResolvedPlayback};
+  const candidates=await resolveSpotifyPlayback({...track,id:'missing-credits'},null,{...options,prepareOnly:true});
+  assert.equal(candidates[0].id,row.id);
+  for(const artist of ['', 'Another artist','Alligatoah']){
+    const item={...track,id:'missing-credits-'+artist};
+    const result=resolveSpotifyPlayback(item,null,{...options,preparedCandidates:candidates,
+      resolve:async()=>playback(row.id,223,{title:row.title,artist})
+    });
+    if(artist==='Alligatoah'){
+      await result;
+      assert.equal(item.playbackMatch.artist,artist);
+    }else await assert.rejects(result,{code:'SPOTIFY_MATCH_UNAVAILABLE'});
+  }
+});
+
 test('slow YTM search falls back once to ytsearch while a fully slow search stays retryable',async()=>{
   const item={id:'slow-search',source:'spotify',title:'Artist – Song',duration:200},calls=[];
   await resolve(item,async(query,{provider})=>{

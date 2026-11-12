@@ -3,16 +3,19 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import {Player,ffmpegArgs,isYouTubeTokenProviderUnavailable,isYouTubeAudioFormatUnavailable} from '../backend/src/player.js';
 import {youtubeAuthenticationArgs,youtubeClientStrategies,youtubePotProviderArgs,youtubeRuntimeArgs} from '../backend/src/media.js';
+import {youtubePlaybackPipeArgs} from '../backend/src/audio/youtube-client.js';
 import {classifyYouTubeAudioFailure} from '../backend/src/youtube-access.js';
 
-test('online playback resolves one signed media URL and lets one reconnecting FFmpeg process read it',async()=>{
+test('direct playback keeps its FFmpeg path and Spotify can fall back to the downloader',async()=>{
   const mediaSource=await fs.readFile(new URL('../backend/src/audio/source-resolver.js',import.meta.url),'utf8');
   const playerSource=await fs.readFile(new URL('../backend/src/player.js',import.meta.url),'utf8');
   assert.match(mediaSource,/const resolved=await resolveYouTubeAudio\(url,signal,\{preferredClient:item\._youtubePlaybackClient\}\);[\s\S]*applyResolvedPlayback\(item,resolved\);[\s\S]*return resolved\.url/);
   assert.doesNotMatch(mediaSource,/youtubePlaybackPipeArgs|--downloader','ffmpeg|'-o','-'/);
   assert.match(playerSource,/return spawn\('ffmpeg',ffmpegArgs\(input,resumeSeconds,live,item\?\.playbackHeaders\)/);
-  assert.doesNotMatch(playerSource,/createYouTubePlaybackPipeline|ffmpegPipeArgs|usesYtDlpPlaybackPipe/);
-  await assert.rejects(fs.access(new URL('../backend/src/youtube-playback-pipe.js',import.meta.url)));
+  assert.match(playerSource,/playbackProtocol===youtubePipeProtocol/);
+  assert.match(mediaSource,/resolveYouTubePipe/);
+  const url='https://www.youtube.com/watch?v=Su5WWz-x7B0';
+  assert.deepEqual(youtubePlaybackPipeArgs(url).slice(-5),['-f','bestaudio','-o','-',url]);
 });
 
 test('direct signed media playback forwards exact yt-dlp headers and keeps precise input seeking',()=>{

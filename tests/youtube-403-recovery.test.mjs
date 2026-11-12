@@ -26,18 +26,22 @@ test('Spotify media 403 rotates clients once each and then rejects the unusable 
   player.finish(4,1,'HTTP error 403 Forbidden',0,track,null);
   assert.equal(player.current,track);
   assert.equal(player.reconnecting,true);
-  assert.equal(track._youtubePlaybackClient,'web_safari');
+  assert.equal(track._youtubePlaybackClient,'yt-dlp-pipe');
   assert.equal(track.playbackVideoId,'abcdefghijk');
   assert.ok(player.retryAt-Date.now()<=youtubeClientRetryDelayMs+100);
   clearRetry(player);
 
   player.finish(4,1,'Server returned 403 Forbidden (access denied)',1,track,null);
-  assert.equal(track._youtubePlaybackClient,'web_embedded');
+  assert.equal(track._youtubePlaybackClient,'web_safari');
   assert.equal(track.playbackVideoId,'abcdefghijk');
   assert.equal(player.reconnecting,true);
   clearRetry(player);
 
   player.finish(4,1,'HTTP error 403 Forbidden',2,track,null);
+  assert.equal(track._youtubePlaybackClient,'web_embedded');
+  clearRetry(player);
+
+  player.finish(4,1,'HTTP error 403 Forbidden',3,track,null);
   assert.equal(player.current,track);
   assert.equal(player.reconnecting,true);
   assert.equal(track.playbackVideoId,undefined);
