@@ -40,3 +40,13 @@ test('Spotify ISRC is searched before tolerant artist and title matching',()=>{
   assert.equal(queries[0],'"DEABC2600123"');
   assert.ok(queries.some(query=>/FEDX/.test(query)&&/Mach die Beat/.test(query)));
 });
+
+test('FFmpeg audio validation uses only the remaining resolver budget',async()=>{
+  const resolved={url:'https://example.com/audio'};
+  await validateResolvedYouTubeAudio(resolved,null,{deadline:Date.now()+500,run:async(_command,_args,{timeout})=>{
+    assert.ok(timeout>0&&timeout<=500);
+  }});
+  await assert.rejects(validateResolvedYouTubeAudio(resolved,null,{
+    deadline:Date.now()-1,run:async()=>assert.fail('expired budget must not start FFmpeg')
+  }),/Zeitbudget/);
+});

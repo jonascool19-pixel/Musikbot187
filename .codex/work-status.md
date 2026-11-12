@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T17:15:51.638Z
+Last updated: 2026-11-12T17:23:04.796Z
 Status: in progress
 Base: main 9a305cf
 
 ## Currently working on
 
-Spotify search fallback timing
+Spotify recording lookup and playback startup
 
 ## Last completed
 
-Interleaved YouTube providers and bounded the initial YouTube Music search and validation
+Prepare stable candidate IDs, open fresh streams near playback, prioritize version and Topic queries, and enforce FFmpeg validation budget
 
 ## Next
 
-Run existing CI and verify actual playback transitions on an authorized instance
+Review PR 81 CI and measure title transitions and early stream endings in an authorized Discord playback test
 
 ## Verification
 
-46 targeted tests passed; 195 full-suite tests passed and 7 test files could not load missing dependencies locally
+56 focused tests passed; 197 tests passed in the broader local run and 7 test files could not load missing dependencies
 
 ## Safety note
 

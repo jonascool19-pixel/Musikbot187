@@ -81,6 +81,33 @@ test('resolver returns the first strict playable result with bounded query and c
   assert.equal(spotifyMatchSearchTimeMs,30_000);
 });
 
+test('Spotify prefetch keeps candidate IDs and opens fresh media only at playback',async()=>{
+  const item={id:'metadata-prefetch',source:'spotify',title:'Artist – Song',duration:200};
+  const options={canonicalUrl:canonicalYouTubeVideoUrl,applyResolved:applyResolvedPlayback};
+  const candidates=await resolveSpotifyPlayback(item,null,{
+    ...options,prepareOnly:true,
+    search:async()=>[video('abcdefghijk','Artist – Song'),video('lmnopqrstuv','Artist – Song')],
+    resolve:async()=>assert.fail('prefetch must not open media')
+  });
+  assert.deepEqual(candidates.map(candidate=>candidate.id),['abcdefghijk','lmnopqrstuv']);
+  assert.equal(item.playbackMatch,undefined);
+
+  const attempts=[];
+  const url=await resolveSpotifyPlayback(item,null,{
+    ...options,preparedCandidates:candidates,
+    search:async()=>assert.fail('a usable prepared candidate must avoid another search'),
+    resolve:async url=>{
+      const id=new URL(url).searchParams.get('v');
+      attempts.push(id);
+      if(id==='abcdefghijk')throw Error('Video unavailable');
+      return playback(id);
+    }
+  });
+  assert.deepEqual(attempts,['abcdefghijk','lmnopqrstuv']);
+  assert.equal(url,'https://example.com/lmnopqrstuv');
+  assert.equal(item.playbackVideoId,'lmnopqrstuv');
+});
+
 test('slow YTM search falls back once to ytsearch while a fully slow search stays retryable',async()=>{
   const item={id:'slow-search',source:'spotify',title:'Artist – Song',duration:200},calls=[];
   await resolve(item,async(query,{provider})=>{
