@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T18:17:40.135Z
+Last updated: 2026-11-12T18:22:56.281Z
 Status: in progress
 Base: main 4aa4d25
 
 ## Currently working on
 
-Protect active audio when preparing the next title
+Prepare 2.1.7 buffered transitions
 
 ## Last completed
 
-Deferred online preparation while the active PCM reserve is below one second; retained ready-deck reuse on skip
+Reuse a ready successor at normal EOF and on skip; defer background work during low audio reserve
 
 ## Next
 
-Verify queue additions and skip timing in Discord on a deployed build
+Verify CI and publish through the existing dashboard updater
 
 ## Verification
 
-51 focused tests passed; live stutter cause remains unconfirmed
+57 focused tests passed
 
 ## Safety note
 
