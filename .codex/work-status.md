@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T18:00:54.309Z
+Last updated: 2026-11-12T18:13:24.044Z
 Status: in progress
-Base: main 7e7c92c
+Base: main 4aa4d25
 
 ## Currently working on
 
-Version 2.1.6 reuses the verified audio process
+Reuse buffered successor on skip
 
 ## Last completed
 
-Measured first PCM and full decoding with one downloader for two recordings; preserved Spotify prefetch after failed crossfade
+Confirmed version 2.1.6 on server; added early warm-up behind PCM reserve and reused ready deck on skip
 
 ## Next
 
-Finish GitHub Actions, publish on main and verify deployment
+Verify skip and queue stutter in live Discord playback
 
 ## Verification
 
-74 focused tests passed; live first PCM 8.0 and 9.5 seconds, both sources decoded fully
+50 focused tests passed; current server diagnostics do not establish the stutter cause
 
 ## Safety note
 

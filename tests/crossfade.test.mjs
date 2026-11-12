@@ -101,3 +101,29 @@ test('technical reconnect cancels transition preparation but keeps the same titl
   assert.equal(player.crossfadeDeck,null);
   clearTimeout(player.retryTimer);player.retryTimer=null;
 });
+
+test('skip hands off an already buffered deck without opening it again',()=>{
+  const current={id:'current',source:'spotify',duration:180};
+  const next={id:'next',source:'spotify'};
+  const player=new Player({musicDir:'.',diagnostic(){},resolve:async()=>assert.fail('skip must reuse the opened deck')});
+  player.current=current;
+  player.queue=[next];
+  player.generation=3;
+  let stopped=false;
+  player.process={kill(){stopped=true}};
+  const child={stdout:{pause(){}}};
+  player.crossfadeDeck={key:'next',item:next,child,store:{
+    bufferedBytes:pcmBytesForMs(2000),
+    read(size){return Buffer.alloc(size)},
+    destroy(){}
+  }};
+  player.activateChild=()=>{};
+  const events=[];
+  player.on('track-end',event=>events.push(event));
+  player.skip('skipped',{fade:false});
+  assert.equal(player.current,next);
+  assert.equal(player.process,child);
+  assert.equal(player.queue.length,0);
+  assert.equal(stopped,true);
+  assert.deepEqual(events.map(event=>event.reason),['skipped']);
+});
