@@ -6,7 +6,8 @@ import {PcmJitterBuffer,pcmBytesPerSecond,pcmFrameBytes} from './pcm-buffer.js';
 import {EqualPowerCrossfade,chooseCrossfadeMs,crossfadePrepareLeadMs,crossfadeReserveMs,defaultCrossfadeMs,fallbackFadeInMs,manualTransitionMs,pcmBytesForMs} from './crossfade.js';
 import {forgetPlaybackSource,rememberPlaybackSource,reusablePlaybackSource} from './audio/source-session.js';
 import {playbackRecoveryPlan} from './audio/recovery-policy.js';
-import {isYouTubeSearchTemporarilyUnavailable} from './audio/youtube-client.js';
+import {isYouTubeSearchTemporarilyUnavailable,youtubePipeProtocol} from './audio/youtube-client.js';
+import {createYouTubePlaybackPipeline} from './audio/youtube-playback-pipe.js';
 export const queueLimit=500;
 export const playbackDrainDelays=Object.freeze({local:300,youtube:1500,spotify:2000});
 export const onDemandEndToleranceSeconds=12;
@@ -45,6 +46,13 @@ export function isPersistentNetworkLoss(error){return /(?:econn(?:reset|refused|
 export function isUnexplainedOnlineFfmpegExit(track,code,error){return Number(code)===255&&!String(error||'').trim()&&['youtube','spotify','radio'].includes(track?.source);}
 export function ffmpegArgs(input,resumeSeconds=0,live=false,httpHeaders={}){const args=['-nostdin','-hide_banner','-loglevel','warning'],network=/^https?:/.test(input);if(network){args.push('-reconnect','1','-reconnect_streamed','1','-reconnect_on_network_error','1','-reconnect_on_http_error',live?'403,408,425,429,5xx':'408,425,429,5xx','-reconnect_delay_max','5','-rw_timeout','10000000','-thread_queue_size','8192');if(live)args.push('-reconnect_at_eof','1','-fflags','+genpts+discardcorrupt');const entries=Object.entries(httpHeaders||{}),userAgent=entries.find(([name])=>/^user-agent$/i.test(name))?.[1],headers=entries.filter(([name])=>!/^user-agent$/i.test(name)).map(([name,value])=>`${name}: ${value}\r\n`).join('');if(userAgent)args.push('-user_agent',String(userAgent));if(headers)args.push('-headers',headers);}const seekSeconds=Math.max(0,Number(resumeSeconds)||0);if(seekSeconds>=1)args.push('-ss',String(Math.round(seekSeconds*1000)/1000));args.push('-i',input,'-vn');if(!live)args.push('-af',playbackLoudnessFilter);args.push('-ar','48000','-ac','2','-f','s16le','pipe:1');return args;}
 export function spawnPlaybackChild(item,input,resumeSeconds=0,live=false){
+  if(item?.playbackProtocol===youtubePipeProtocol){
+    return createYouTubePlaybackPipeline(input,resumeSeconds,{decoderArgs:position=>{
+      const args=ffmpegArgs('pipe:0',0,false);
+      if(position>=1)args.splice(args.indexOf('-vn'),0,'-ss',String(Math.round(position*1000)/1000));
+      return args;
+    }});
+  }
   return spawn('ffmpeg',ffmpegArgs(input,resumeSeconds,live,item?.playbackHeaders),{stdio:['ignore','pipe','pipe']});
 }
 export function isPlayback403Error(error){return /(?:http error 403|server returned 403|403 forbidden)/i.test(String(error?.message||error||''));}
@@ -208,10 +216,11 @@ export class Player extends EventEmitter{
     const spotifySourceBlocked=prior?.source==='spotify'&&isSpotifySourceTemporarilyUnavailableError(error);
     const media403=onDemandStream&&Boolean(code)&&isPlayback403Error(errorText);
     const currentClient=String(prior?._youtubePlaybackClient||'mweb');
-    const nextClient=nextYouTubePlaybackClient(currentClient);
-    const clientFallback=media403?Boolean(nextClient):(providerOutage||formatUnavailable)&&attempt<2;
+    const pipeFallback=prior?.source==='spotify'&&currentClient==='mweb'&&(media403||formatUnavailable||providerOutage);
+    const nextClient=pipeFallback?youtubePipeProtocol:nextYouTubePlaybackClient(currentClient===youtubePipeProtocol?'mweb':currentClient);
+    const clientFallback=Boolean(nextClient)&&(media403||(providerOutage||formatUnavailable)&&attempt<2);
     const badAudio=Boolean(code)&&prior?.source==='spotify'&&resumeSeconds<2&&!providerOutage&&!clientFallback&&(formatUnavailable||media403);
-    const alternateSource=badAudio&&attempt<3&&rejectSpotifyPlaybackMatch(prior);
+    const alternateSource=badAudio&&attempt<(media403?4:3)&&rejectSpotifyPlaybackMatch(prior);
     const transient=Boolean(code&&(unexplainedOnlineExit||isTransientPlaybackError(errorText)));
     const sourceRetryCount=Number(prior?._spotifySourceAccessRetries||0);
     const plan=playbackRecoveryPlan({
@@ -249,7 +258,7 @@ export class Player extends EventEmitter{
     }
     if(clientFallback&&prior){
       Object.defineProperty(prior,'_youtubePlaybackClient',{
-        value:media403?nextClient:(attempt===0?'web_safari':'web_embedded'),
+        value:nextClient,
         writable:true,
         configurable:true,
         enumerable:false

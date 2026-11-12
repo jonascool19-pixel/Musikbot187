@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T17:39:27.211Z
+Last updated: 2026-11-12T17:46:03.560Z
 Status: in progress
 Base: main fa17645
 
 ## Currently working on
 
-Diagnose missing Spotify search credits and audio source errors
+Release 2.1.5 Spotify matching and audio fallback
 
 ## Last completed
 
-Verified missing flat-search credits and intermittent client failures on the running 2.1.4 host; added bounded full-metadata verification and preserved candidate audio errors
+Verified exact metadata and 222.56 seconds decoded through yt-dlp and FFmpeg on the server with the patch in memory
 
 ## Next
 
-Run CI and repeat a real source resolution before deploying
+Complete existing GitHub Actions, publish on main, and verify the deployed service
 
 ## Verification
 
-57 targeted local tests passed; server runs 2.1.4
+68 focused local tests passed; real source decoded fully with exit 0
 
 ## Safety note
 

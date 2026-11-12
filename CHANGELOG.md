@@ -1,5 +1,10 @@
 # 📦 Änderungen
 
+## 2.1.5 · Spotify-Aufnahmen und YouTube-Audiostreams
+
+- Passende YouTube-Music-Treffer ohne Künstlerdaten werden anhand der vollständigen Videometadaten geprüft.
+- Spotify-Wiedergabe kann bei Fehlern am direkten Audiostream auf einen von yt-dlp an FFmpeg übergebenen Stream wechseln.
+
 ## 2.1.4 · Spotify-Suche und Wiedergabestart
 
 - YouTube Music und YouTube werden früh abwechselnd durchsucht. Gezielte Remix- und Topic-Anfragen haben Vorrang vor breiteren Varianten.
