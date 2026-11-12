@@ -57,3 +57,19 @@ test('a failed Spotify crossfade keeps prepared candidates and does not reopen o
   assert.equal(opens,1);
   assert.equal(player.consumePrepared('next'),prepared);
 });
+
+test('online prefetch waits until a running audio buffer recovers',async()=>{
+  let searches=0;
+  const player=new Player({musicDir:'.',diagnostic(){},resolve:async()=>{searches++;return []}});
+  player.current={id:'current',source:'spotify'};
+  player.queue=[{id:'next',source:'spotify'}];
+  player.pcmBuffer={startedOnce:true,buffering:false,bufferedBytes:3840};
+  player.prepareUpcoming();
+  assert.equal(searches,0);
+  assert.ok(player.prepareTimer);
+  player.pcmBuffer.bufferedBytes=192000;
+  player.prepareUpcoming();
+  await player.prepared.promise;
+  assert.equal(searches,1);
+  player.cancelPrepared();
+});

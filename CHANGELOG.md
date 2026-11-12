@@ -1,5 +1,10 @@
 # 📦 Änderungen
 
+## 2.1.7 · Gepufferte Titelwechsel
+
+- Der Player übernimmt einen bereits gepufferten Folgetitel beim regulären Ende und beim Skip.
+- Wenn der aktive Audiopuffer knapp wird, wartet die Vorbereitung weiterer Online-Titel.
+
 ## 2.1.6 · Schnellerer Start von Spotify-Titeln
 
 - Der gestartete yt-dlp- und FFmpeg-Prozess liefert die geprüften Videodaten und das Audio. Der Bot gibt den Prozess nach erfolgreicher Prüfung direkt an den Player weiter.
