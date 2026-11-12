@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T17:51:01.690Z
-Status: deployed
-Base: main 3902bf9
+Last updated: 2026-11-12T17:54:58.798Z
+Status: in progress
+Base: main 7e7c92c
 
 ## Currently working on
 
-2.1.5 installed and server-side playback verified
+Measure Spotify startup and avoid repeated crossfade work
 
 ## Last completed
 
-PR 82 merged; dashboard update succeeded and restored playback queues; known failing recording matched and decoded in full on installed version
+Measured search and first PCM separately on the deployed host; kept prepared Spotify matches after failed crossfade and started Spotify crossfade preparation earlier
 
 ## Next
 
-Observe Discord voice transitions during normal use
+Run GitHub Actions and verify transitions in live playback before release
 
 ## Verification
 
-Full CI 43272894387 passed; health reports 2.1.5; exact recording decoded 222.56 seconds with FFmpeg exit 0; pipe fallback also verified on host
+49 focused local tests passed
 
 ## Safety note
 

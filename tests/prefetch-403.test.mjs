@@ -35,3 +35,25 @@ test('prepared playback sources are single-use by key',async()=>{
   assert.equal(player.prepared,null);
   assert.equal(player.consumePrepared('song'),null);
 });
+
+test('a failed Spotify crossfade keeps prepared candidates and does not reopen on each frame',async()=>{
+  const candidates=[{id:'abcdefghijk',title:'Next'}];
+  const current={id:'current',source:'spotify',duration:100},next={id:'next',source:'spotify'};
+  let opens=0;
+  const player=new Player({musicDir:'.',diagnostic(){},resolve:async(_item,_dir,options)=>{
+    opens++;
+    assert.equal(options.preparedCandidates,candidates);
+    throw Error('Source unavailable');
+  }});
+  player.current=current;
+  player.queue=[next];
+  player.generation=4;
+  const prepared={key:'next',controller:new AbortController(),promise:Promise.resolve({input:candidates})};
+  player.prepared=prepared;
+  await player.prepareCrossfadeDeck(4,current);
+  assert.equal(player.crossfadeDeck,null);
+  assert.equal(player.prepared,prepared);
+  await player.prepareCrossfadeDeck(4,current);
+  assert.equal(opens,1);
+  assert.equal(player.consumePrepared('next'),prepared);
+});
