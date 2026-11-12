@@ -10,12 +10,13 @@ export function normalizeRadioUrl(raw){
   );
 }
 
-export async function resolveSpotifySource(item,signal,{search=youtubeSearch,resolve=resolveYouTubeAudio,prepareOnly=false,preparedCandidates}={}){
+export async function resolveSpotifySource(item,signal,{search=youtubeSearch,resolve=resolveYouTubeAudio,prepareOnly=false,preparedCandidates,streaming=false}={}){
   return resolveSpotifyPlayback(item,signal,{
     search,
     resolve,
     prepareOnly,
     preparedCandidates,
+    streaming,
     canonicalUrl:canonicalYouTubeVideoUrl,
     applyResolved:applyResolvedPlayback,
     isAccessBlocked:isYouTubeAccessBlocked,
@@ -23,7 +24,7 @@ export async function resolveSpotifySource(item,signal,{search=youtubeSearch,res
   });
 }
 
-export async function resolvePlaybackInput(item,musicDir,{signal,prepareOnly=false,preparedCandidates}={}){
+export async function resolvePlaybackInput(item,musicDir,{signal,prepareOnly=false,preparedCandidates,openSpotifyAudio}={}){
   if(signal?.aborted){
     const error=new Error('Medienauflösung abgebrochen');
     error.name='AbortError';
@@ -41,7 +42,10 @@ export async function resolvePlaybackInput(item,musicDir,{signal,prepareOnly=fal
     return resolveSpotifySource(item,signal,{
       prepareOnly,
       preparedCandidates,
-      resolve:(url,nextSignal,options)=>item._youtubePlaybackClient==='yt-dlp-pipe'
+      streaming:Boolean(openSpotifyAudio&&(!item._youtubePlaybackClient||item._youtubePlaybackClient==='yt-dlp-pipe')),
+      resolve:(url,nextSignal,options)=>openSpotifyAudio&&(!item._youtubePlaybackClient||item._youtubePlaybackClient==='yt-dlp-pipe')
+        ?openSpotifyAudio(url,nextSignal,options)
+        :item._youtubePlaybackClient==='yt-dlp-pipe'
         ?resolveYouTubePipe(url,nextSignal,options)
         :resolveYouTubeAudio(url,nextSignal,{...options,preferredClient:item._youtubePlaybackClient,allowPipe:true})
     });
