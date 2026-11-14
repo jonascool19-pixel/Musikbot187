@@ -1,5 +1,11 @@
 # 📦 Änderungen
 
+## 2.1.8 · Titelwechsel und Spotify-Zuordnung
+
+- Gepufferte Folgetitel bleiben auch nach dem Crossfade-Fenster für den direkten Übergang verfügbar.
+- Titel mit Gastkünstlerangaben in Klammern werden beim Abgleich erkannt.
+- Allgemeine Fehler einzelner YouTube-Videos lösen keine globale Schutzpause aus.
+
 ## 2.1.7 · Gepufferte Titelwechsel
 
 - Der Player übernimmt einen bereits gepufferten Folgetitel beim regulären Ende und beim Skip.

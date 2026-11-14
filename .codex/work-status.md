@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-14T17:04:53.451Z
+Last updated: 2026-11-14T17:08:10.350Z
 Status: in progress
 Base: main df9ffd2
 
 ## Currently working on
 
-Preserve prepared audio through EOF and improve Spotify matching
+Prepare 2.1.8 for dashboard update
 
 ## Last completed
 
-Keep the ready decoder when the fade window has passed, ignore parenthetical guest credits for title matching, and scope generic unavailable-video failures to their individual source
+Preserve prepared decoder at EOF and improve Spotify source matching
 
 ## Next
 
-Verify GitHub CI and measure live Discord transitions after rollout
+Verify CI, publish on main and check installed version
 
 ## Verification
 
-76 focused tests passed; host confirms 2.1.7; exact trigger of logged YouTube limits is unavailable
+81 focused tests passed
 
 ## Safety note
 
