@@ -224,3 +224,9 @@ test('an already-open Spotify stream transfers only after its own metadata match
   assert.equal(result.child,accepted);
   assert.equal(item.playbackVideoId,'lmnopqrstuv');
 });
+
+test('featured artist credits in parentheses do not change the song title',()=>{
+  const item={title:'KC Rebell, 18 Karat – Das bist alles nicht Du (feat. 18Karat)',duration:210};
+  assert.equal(spotifyPlaybackMatchRejection(item,{title:'KC Rebell – Das bist alles nicht Du',duration:210}),null);
+  assert.equal(spotifyPlaybackMatchRejection(item,{title:'KC Rebell – Das bist alles nicht Du (Remix)',duration:210}),'version');
+});

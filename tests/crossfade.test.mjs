@@ -145,6 +145,10 @@ test('normal EOF hands off the buffered deck even if the fade did not start',()=
   player.activateChild=()=>{};
   const events=[];
   player.on('track-end',event=>events.push(event));
+  player.elapsedSeconds=179.6;
+  player.maybeCrossfade(3,current);
+  assert.equal(player.crossfade,null);
+  assert.equal(player.crossfadeDeck.child,child);
   player.elapsedSeconds=180;
   player.finish(3,0,'',0,current);
   assert.equal(player.current,next);

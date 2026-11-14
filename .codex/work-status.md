@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-12T18:22:56.281Z
+Last updated: 2026-11-14T17:08:10.350Z
 Status: in progress
-Base: main 4aa4d25
+Base: main df9ffd2
 
 ## Currently working on
 
-Prepare 2.1.7 buffered transitions
+Prepare 2.1.8 for dashboard update
 
 ## Last completed
 
-Reuse a ready successor at normal EOF and on skip; defer background work during low audio reserve
+Preserve prepared decoder at EOF and improve Spotify source matching
 
 ## Next
 
-Verify CI and publish through the existing dashboard updater
+Verify CI, publish on main and check installed version
 
 ## Verification
 
-57 focused tests passed
+81 focused tests passed
 
 ## Safety note
 
