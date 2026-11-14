@@ -91,3 +91,10 @@ test('age-gate is classified separately from the shared YouTube bot protection',
   const mixed=classifyYouTubeAudioFailure('WARNING: [youtube] [pot:bgutil:http] Error reaching GET (caused by TransportError)\nERROR: Sign in to confirm your age.');
   assert.equal(mixed?.code,'YOUTUBE_TOKEN_PROVIDER_UNAVAILABLE','upstream PO-token outage still has priority when both messages occur');
 });
+
+test('an unavailable individual video does not impose a global protection pause',()=>{
+  const guard=new YouTubeAccessGuard();
+  assert.equal(guard.blockFromError(Error("This content isn't available, try again later")),null);
+  assert.doesNotThrow(()=>guard.beginRequest());
+  assert.ok(guard.blockFromError(Error('HTTP Error 429')));
+});

@@ -44,6 +44,7 @@ export function recordingIdentity(track={}){
   const remixNames=explicitRemix.length?explicitRemix:remixSections.flatMap(value=>artistNames(value.replace(/\b(?:remix|rework|bootleg)\b.*$/iu,'').trim())).filter(value=>value&&!/^(?:official|original)$/iu.test(value));
   let base=song.replace(/[\[(]([^\])]+)[\])]/gu,(full,inside)=>decoration.test(inside.trim())||Object.values(patterns).some(pattern=>pattern.test(inside))||/original\s+mix/iu.test(inside)?' ':full);
   base=base.replace(/\s+[–—-]\s+(.+)$/u,(full,tail)=>Object.values(patterns).some(pattern=>pattern.test(tail))||/^(?:original\s+mix|slow)$/iu.test(tail)?' ':full);
+  base=base.replace(/\s*[\[(]\s*(?:feat(?:uring)?|ft)\.?\s+[^\])]+[\])]/giu,' ');
   base=base.replace(/\s+(?:official\s+)?(?:audio|video(?:clip)?|lyrics?|visuali[sz]er)\s*$/iu,'').replace(/\s+(?:remix|extended\s+mix|original\s+mix|radio\s+edit|slowed|sped[\s-]*up)\s*$/iu,'');
   return {song,base:identityText(base),artists:[...new Set(artists.map(identityText).filter(Boolean))],channel:identityText(channel),versions:[...new Set(flags)].sort(),remixArtists:[...new Set(remixNames.map(identityText))].sort(),isrc:String(track.isrc||track.external_ids?.isrc||'').replace(/-/g,'').toUpperCase(),duration:Number(track.catalogDuration??track.duration)||0,album:identityText(track.album?.name||track.album)};
 }

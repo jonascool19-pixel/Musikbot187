@@ -20,7 +20,7 @@ export function classifyYouTubeAudioFailure(stderr){
 export const youtubeAccessPauseMs=60_000;
 export const youtubeAccessMaxPauseMs=10*60_000;
 export function isYouTubeAccessBlocked(error){
-  return error?.code==='YOUTUBE_ACCESS_BLOCKED'||/sign in to confirm (?:you(?:'|’)re|you are) not a bot|too many requests|http(?: error)?\s*429|this content (?:isn't|isn’t) available, try again later|YouTube.*(?:Bot-Bestätigung|Schutzpause)/i.test(String(error?.message||error||''));
+  return error?.code==='YOUTUBE_ACCESS_BLOCKED'||/sign in to confirm (?:you(?:'|’)re|you are) not a bot|too many requests|http(?: error)?\s*429|YouTube.*(?:Bot-Bestätigung|Schutzpause)/i.test(String(error?.message||error||''));
 }
 
 // Shared by searches, prefetch, playback and downloads in this bot process.
