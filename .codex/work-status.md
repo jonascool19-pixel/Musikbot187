@@ -1,24 +1,24 @@
 # Codex work status
 
-Last updated: 2026-11-14T17:08:10.350Z
+Last updated: 2026-11-18T18:25:44.960Z
 Status: in progress
-Base: main df9ffd2
+Base: main 1212f9f
 
 ## Currently working on
 
-Prepare 2.1.8 for dashboard update
+Handle media timeouts and buffered tails
 
 ## Last completed
 
-Preserve prepared decoder at EOF and improve Spotify source matching
+Keep verified recording mappings on timeout and drain already decoded PCM on source errors
 
 ## Next
 
-Verify CI, publish on main and check installed version
+Run CI and verify a deployed Discord playback session
 
 ## Verification
 
-81 focused tests passed
+64 targeted tests passed; server health reports 2.1.8
 
 ## Safety note
 

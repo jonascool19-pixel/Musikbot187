@@ -39,3 +39,27 @@ test('playlist repetition settings survive a maintenance snapshot',()=>{const so
 test('a permanently failed playlist title is not retried on every later repeat cycle',()=>{const player=new Player({musicDir:'.',diagnostic(){}});player.next=()=>{};player.prepareUpcoming=()=>{};player.startPlaylist([{id:'failed',title:'Nicht verfügbar'},{id:'working',title:'Verfügbar'}],{repeat:true});const failed=player.queue.shift();player.current=failed;player.completeTrack(player.generation,failed,1,'Video unavailable');assert.deepEqual(player.playlistPlayback.items.map(item=>item.id),['working']);});
 test('failed diagnostic persistence never escapes a player event',async()=>{const player=new Player({musicDir:'.',diagnostic:async()=>{throw new Error('Datenträger nicht verfügbar')}});assert.doesNotThrow(()=>player.report('error','player','Test'));await new Promise(resolve=>setImmediate(resolve));});
 test('the next local title is resolved in the background while the current title plays',async()=>{const player=new Player({musicDir:'.',diagnostic(){}});player.current={id:'active',title:'Aktiv',source:'youtube'};player.queue=[{id:'prepared',title:'Vorbereitet',source:'local',path:'prepared.mp3'}];player.prepareUpcoming();assert.equal(player.prepared.key,'prepared');const result=await player.prepared.promise;assert.equal(result.error,null);assert.match(result.input,/prepared\.mp3$/);player.stop();});
+
+test('an upstream failure plays the decoded tail before reporting the failure',async()=>{
+  const {EventEmitter}=await import('node:events');
+  const {PassThrough}=await import('node:stream');
+  const child=new EventEmitter();
+  child.kill=()=>{};
+  child.stdout=new PassThrough();
+  child.stderr=new PassThrough();
+  const player=new Player({musicDir:'.',diagnostic(){}});
+  const item={id:'tail',source:'youtube'};
+  player.current=item;
+  player.generation=1;
+  let frames=0;
+  player.on('pcm',()=>frames++);
+  const failure=new Promise(resolve=>{
+    player.finish=(_generation,code,error)=>resolve({code,error,frames});
+  });
+  player.activateChild(child,item,1,0,{initialTargetBytes:3840});
+  child.stdout.write(Buffer.alloc(3840*3));
+  child.emit('close',1);
+  const keepAlive=setTimeout(()=>{},1000);
+  try{assert.deepEqual(await failure,{code:1,error:'FFmpeg exit 1',frames:3});}
+  finally{clearTimeout(keepAlive);player.stop();}
+});
